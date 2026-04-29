@@ -118,6 +118,8 @@ class StudentSummarySchema(BaseModel):
     milestones: MilestoneProgress = {}
     submissionRound: Optional[str] = None
     supervisorId: Optional[str] = None
+    nameEn: Optional[str] = None
+    overview: Optional[str] = None
     sessions: list[SessionSummarySchema] = []
 
 

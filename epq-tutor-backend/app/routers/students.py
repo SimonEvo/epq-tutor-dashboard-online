@@ -73,6 +73,7 @@ def _to_summary(s: models.Student) -> StudentSummarySchema:
         nextSaSession=s.next_sa_session, nextTaSession=s.next_ta_session,
         nextTheorySession=s.next_theory_session,
         submissionRound=s.submission_round, supervisorId=s.supervisor_id,
+        nameEn=s.name_en, overview=s.overview,
         sessions=[SessionSummarySchema(id=x.id, type=x.type, date=x.date, durationMinutes=x.duration_minutes) for x in s.sessions],
         availabilityNote=s.availability_note or "", briefNote=s.brief_note or "",
         lastSessionDate=last.date if last else None,

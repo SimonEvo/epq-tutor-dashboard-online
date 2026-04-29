@@ -12,7 +12,7 @@ ssh root@$SERVER "systemctl restart epq-tutor && systemctl status epq-tutor --no
 
 echo ""
 echo "=== Deploying frontend ==="
-cd "$(dirname "$0")/tutoring-system"
+cd ../tutoring-system
 npm run build && rsync -avz dist/ root@$SERVER:/opt/epq-tutor/dist/
 
 echo ""

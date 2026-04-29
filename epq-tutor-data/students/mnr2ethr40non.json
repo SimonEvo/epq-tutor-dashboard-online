@@ -1,0 +1,61 @@
+{
+  "name": "叶瑞臣",
+  "nameEn": "Richard",
+  "gender": "Male",
+  "school": "义乌公学",
+  "currentGrade": "高一（三年制但可能能有高四？）",
+  "submissionRound": "August 2026",
+  "taughtElementType": "定制班（义乌公学）",
+  "universityAspiration": "未知",
+  "topic": "暂无",
+  "overview": "🪐天文学",
+  "tags": [],
+  "saHoursTotal": 12,
+  "availabilityNote": "周一到周五住校不能用手机回信息，正在考虑走读",
+  "briefNote": "定制班理论课4月26日结课",
+  "privateNotes": "",
+  "id": "mnr2ethr40non",
+  "saHoursUsed": 0,
+  "personalEntries": [
+    {
+      "id": "mnwj2bxvzpi",
+      "date": "2026-04-13",
+      "title": "2026.04.12 TA沟通记录",
+      "content": "年龄比较小的一个孩子，还算是比较敢说，对物理有着那种初生牛犊不怕虎的感兴趣和热爱（宝贵且难得啊），对自己的英语水平不是很自信（所以这时候我又讲了一边初中英语不及格然后高中毕业雅思8.0的故事，我已经60分钟没听到宋哥高中雅思考了8。0的故事了），目前对EPQ项目的想法也不是很多，但是既然是对物理感兴趣那我就要全力以赴。\n\n目前的兴趣是天文学，我们做了个前期选题思维导图。",
+      "createdAt": "2026-04-13T01:42:22.963Z"
+    }
+  ],
+  "milestones": {
+    "questionnaire": "na",
+    "intro": "not_started",
+    "lit_review": "not_started",
+    "methodology": "not_started",
+    "results": "not_started",
+    "discussion": "not_started",
+    "reflection": "not_started",
+    "conclusion": "not_started",
+    "bibliography": "not_started",
+    "abstract": "not_started",
+    "table1": "not_started",
+    "table2": "not_started",
+    "table4": "not_started",
+    "table5": "not_started",
+    "table6": "not_started",
+    "table7": "not_started",
+    "table11": "not_started",
+    "defense": "not_started",
+    "submission": "not_started"
+  },
+  "sessions": [],
+  "createdAt": "2026-04-09T05:57:21.231Z",
+  "updatedAt": "2026-04-13T01:56:07.982Z",
+  "mindMaps": [
+    {
+      "id": "mnwjk0fiwdf",
+      "date": "2026-04-13",
+      "title": "",
+      "content": "# 主题\n\n## 分支一\n\n- 要点\n\n## 分支二\n\n- 要点",
+      "createdAt": "2026-04-13T01:56:07.854Z"
+    }
+  ]
+}
