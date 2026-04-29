@@ -1,0 +1,14 @@
+[Unit]
+Description=EPQ Tutor Backend
+After=network.target mysql.service
+
+[Service]
+WorkingDirectory=/opt/epq-tutor-backend
+EnvironmentFile=/opt/epq-tutor-backend/.env
+ExecStart=/opt/epq-tutor-backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8001
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target

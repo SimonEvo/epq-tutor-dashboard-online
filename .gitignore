@@ -1,0 +1,14 @@
+# Python
+epq-tutor-backend/.venv/
+epq-tutor-backend/__pycache__/
+epq-tutor-backend/**/__pycache__/
+epq-tutor-backend/*.pyc
+epq-tutor-backend/.env
+
+# Node
+tutoring-system/node_modules/
+tutoring-system/dist/
+
+# Misc
+.DS_Store
+*.db
