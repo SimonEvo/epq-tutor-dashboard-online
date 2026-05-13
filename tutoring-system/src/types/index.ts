@@ -27,6 +27,22 @@ export interface MindMap {
   createdAt: string
 }
 
+export interface HomeworkItem {
+  text: string
+  done: boolean
+}
+
+export interface HomeworkEntry {
+  id: string
+  date: string         // 留作业日期 YYYY-MM-DD（卡片标题）
+  sourceLabel: string  // "SA #3 · 2024-03-15"
+  sessionId: string
+  deadline?: string
+  items: HomeworkItem[]
+  comments: string
+  createdAt: string
+}
+
 export type MilestoneStatus = 'not_started' | 'in_progress' | 'completed' | 'na'
 
 export interface SessionRecord {
@@ -43,6 +59,9 @@ export interface SessionRecord {
   createdAt: string
   generatedReport?: string   // cached AI-generated parent report
   reportGeneratedAt?: string // ISO timestamp of when it was generated
+  zoomMeetingId?: string
+  zoomJoinUrl?: string
+  zoomPassword?: string
 }
 
 export interface MilestoneProgress {
@@ -67,6 +86,7 @@ export interface Student {
   overview?: string
   personalEntries: PersonalEntry[]
   mindMaps: MindMap[]
+  homeworkEntries: HomeworkEntry[]
   tags: string[]
   saHoursTotal: number      // SA hour quota
   saHoursUsed: number       // auto-computed from SA session records

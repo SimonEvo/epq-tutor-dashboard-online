@@ -73,6 +73,7 @@ class Student(Base):
     tags = relationship("Tag", secondary="student_tags")
     personal_entries = relationship("PersonalEntry", back_populates="student", cascade="all, delete-orphan")
     mind_maps = relationship("MindMap", back_populates="student", cascade="all, delete-orphan")
+    homework_entries = relationship("HomeworkEntry", back_populates="student", cascade="all, delete-orphan")
 
 
 class Session(Base):
@@ -90,6 +91,9 @@ class Session(Base):
     private_notes = Column(Text, default="")
     generated_report = Column(Text)
     report_generated_at = Column(String(32))
+    zoom_meeting_id = Column(String(64))
+    zoom_join_url = Column(Text)
+    zoom_password = Column(String(64))
     created_at = Column(DateTime, default=now_utc)
     student = relationship("Student", back_populates="sessions")
 
@@ -141,6 +145,20 @@ class MindMap(Base):
     content = Column(Text, nullable=False)
     created_at = Column(String(32), nullable=False)
     student = relationship("Student", back_populates="mind_maps")
+
+
+class HomeworkEntry(Base):
+    __tablename__ = "homework_entries"
+    id = Column(String(64), primary_key=True)
+    student_id = Column(String(64), ForeignKey("students.id"), nullable=False)
+    session_id = Column(String(64), nullable=True)
+    date = Column(String(16), nullable=False)
+    source_label = Column(String(256), nullable=False)
+    deadline = Column(String(16), nullable=True)
+    items = Column(JSON, nullable=False, default=list)
+    comments = Column(Text, default="")
+    created_at = Column(String(32), nullable=False)
+    student = relationship("Student", back_populates="homework_entries")
 
 
 class WeeklyReport(Base):

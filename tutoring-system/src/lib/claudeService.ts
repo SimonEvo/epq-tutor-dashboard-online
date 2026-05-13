@@ -146,31 +146,12 @@ ${input}`
   }
 }
 
-// ── Session Report ────────────────────────────────────────────────────────────
+// ── Prompt templates ──────────────────────────────────────────────────────────
+// The template is the "instructions" section of the prompt.
+// A dynamic data block is always appended after the template at generation time.
+// Templates may use {{varName}} placeholders (replaced before sending to AI).
 
-export async function generateSessionReport(student: Student, session: SessionRecord): Promise<string> {
-  const pastSaCount = student.sessions.filter(
-    s => s.type === 'SA_MEETING' && s.date <= session.date
-  ).length
-  const saRemaining = student.saHoursTotal - pastSaCount
-  const typeLabel = session.type === 'SA_MEETING' ? 'SA Meeting（学术督导课）'
-    : session.type === 'TA_MEETING' ? 'TA Meeting（辅导课）'
-    : 'Taught Element（课程讲解）'
-
-  const parts: string[] = [
-    `学生姓名：${student.name}${student.nameEn ? `（${student.nameEn}）` : ''}`,
-    `EPQ课题：${student.topicZh || student.topic}`,
-    `本次课程类型：${typeLabel}`,
-    `日期：${session.date}${session.time ? ' ' + session.time : ''}`,
-    `时长：${session.durationMinutes} 分钟`,
-    `剩余：${saRemaining} / ${student.saHoursTotal} SA课时`,
-  ]
-
-  if (session.summary) parts.push(`\n课程记录（导师原始记录）：\n${session.summary}`)
-  if (session.homework) parts.push(`\n课后任务（导师原始记录）：\n${session.homework}`)
-  if (session.transcript) parts.push(`\n会议记录／逐字稿：\n${session.transcript}`)
-
-  const prompt = `你是一个EPQ学术导师的助手，请根据以下信息生成一份发给家长群（成员：学生本人、家长、市场部同事）的课后简报。
+export const DEFAULT_SESSION_REPORT_TEMPLATE = `你是一个EPQ学术导师的助手，请根据以下信息生成一份发给家长群（成员：学生本人、家长、市场部同事）的课后简报。
 
 要求：
 - 用中文撰写，语言专业流畅、易于家长阅读
@@ -178,10 +159,11 @@ export async function generateSessionReport(student: Student, session: SessionRe
 - 结构清晰，适合直接粘贴到腾讯文档
 - 每个板块标题前使用 emoji，整体排版美观易读
 - 如提供了会议记录／逐字稿，请以此为主要依据，优先从中提炼内容
+- 课题部分必须原文照抄，不得简化、改写或翻译
 - 严格按照以下结构输出，不要多余的解释：
 
 📋 [课程类型] · [日期]
-👤 学生：[姓名] ｜ 📖 课题：[题目简称]
+👤 学生：[姓名] ｜ 📖 课题：{{topic}}
 ⏱ 本次课时：[时长]分钟 ｜ 📊 剩余：[剩余]/[总量] SA课时
 
 📝 本次课程概要
@@ -200,90 +182,22 @@ export async function generateSessionReport(student: Student, session: SessionRe
 [一句鼓励性的话]
 
 ---
-不要包含任何导师私人备注。
+不要包含任何导师私人备注。`
 
-以下是本次课程信息：
-${parts.join('\n')}`
-
-  return callAI(prompt)
-}
-
-// ── Progress Report ───────────────────────────────────────────────────────────
-
-export async function generateProgressReport(student: Student): Promise<string> {
-  const today = new Date().toISOString().slice(0, 10)
-
-  // SA hours — integer count of SA sessions (consistent with session report display)
-  const pastSaCount = student.sessions.filter(
-    s => s.type === 'SA_MEETING' && isSessionStarted(s)
-  ).length
-  const saRemaining = student.saHoursTotal - pastSaCount
-
-  // Milestones
-  const completed = EPQ_MILESTONES.filter(m => student.milestones[m.id] === 'completed').map(m => m.label)
-  const inProgress = EPQ_MILESTONES.filter(m => student.milestones[m.id] === 'in_progress').map(m => m.label)
-  const notStarted = EPQ_MILESTONES.filter(m =>
-    !student.milestones[m.id] || student.milestones[m.id] === 'not_started'
-  ).map(m => m.label)
-  const applicable = EPQ_MILESTONES.filter(m => student.milestones[m.id] !== 'na')
-  const progress = applicable.length > 0
-    ? Math.round((completed.length / applicable.length) * 100)
-    : 0
-
-  // All sessions sorted by date
-  const sorted = [...student.sessions].sort((a, b) => a.date.localeCompare(b.date))
-  const pastSessions   = sorted.filter(s => isSessionStarted(s))
-  const futureSessions = sorted.filter(s => !isSessionStarted(s))
-
-  // Full session title list (all past sessions)
-  const allTitles = pastSessions.map(s => {
-    const t = s.type === 'SA_MEETING' ? 'SA' : s.type === 'TA_MEETING' ? 'TA' : 'TE'
-    return `${s.date} [${t}] ${s.title ?? ''}`
-  }).join('\n')
-
-  // Most recent SA detail
-  const lastSA = [...pastSessions].reverse().find(s => s.type === 'SA_MEETING')
-  const lastSAText = lastSA ? [
-    `日期：${lastSA.date}　标题：${lastSA.title ?? ''}`,
-    lastSA.summary   ? `记录：${lastSA.summary}` : '',
-    lastSA.homework  ? `作业：${lastSA.homework}` : '',
-    lastSA.generatedReport ? `课后报告摘录：${lastSA.generatedReport.slice(0, 400)}` : '',
-  ].filter(Boolean).join('\n') : '暂无'
-
-  // Most recent TA detail
-  const lastTA = [...pastSessions].reverse().find(s => s.type === 'TA_MEETING')
-  const lastTAText = lastTA ? [
-    `日期：${lastTA.date}　标题：${lastTA.title ?? ''}`,
-    lastTA.summary   ? `记录：${lastTA.summary}` : '',
-    lastTA.homework  ? `作业：${lastTA.homework}` : '',
-    lastTA.generatedReport ? `课后报告摘录：${lastTA.generatedReport.slice(0, 400)}` : '',
-  ].filter(Boolean).join('\n') : '暂无'
-
-  // Upcoming (未开始) sessions — future records + next session date fields
-  const futureLines: string[] = futureSessions.map(s => {
-    const t = s.type === 'SA_MEETING' ? 'SA' : s.type === 'TA_MEETING' ? 'TA' : 'TE'
-    return `${s.date} [${t}] ${s.title ?? ''}`
-  })
-  if (student.nextSaSession && !futureSessions.find(s => s.type === 'SA_MEETING'))
-    futureLines.push(`${student.nextSaSession} [SA]（计划中）`)
-  if (student.nextTaSession && !futureSessions.find(s => s.type === 'TA_MEETING'))
-    futureLines.push(`${student.nextTaSession} [TA]（计划中）`)
-  if (student.nextTheorySession && !futureSessions.find(s => s.type === 'THEORY'))
-    futureLines.push(`${student.nextTheorySession} [TE]（计划中）`)
-
-  const prompt = `你是一个EPQ学术导师的助手，请根据以下学生的整体学习数据，生成一份发给家长群的EPQ整体进度报告。
+export const DEFAULT_PROGRESS_REPORT_TEMPLATE = `你是一个EPQ学术导师的助手，请根据以下学生的整体学习数据，生成一份发给家长群的EPQ整体进度报告。
 
 要求：
 - 用中文撰写，专业流畅，适合家长阅读
 - 不要出现Markdown结构(比如星号)
 - 结构清晰，适合直接粘贴到腾讯文档
 - 每个板块标题前使用 emoji，整体排版美观易读
+- 课题部分必须原文照抄，不得简化、改写或翻译
 - 严格按照以下结构输出，不要多余的解释：
 
 📊 EPQ 整体进度报告
 👤 学生：[姓名]
-📖 课题：[题目]
-📅 报告日期：${today}
+📖 课题：{{topic}}
+📅 报告日期：{{today}}
 
 📈 整体进度概览
 [2-3句话总结学生整体进展情况，提及完成百分比，语气积极]
@@ -310,10 +224,136 @@ export async function generateProgressReport(student: Student): Promise<string> 
 [一句鼓励性的话]
 
 ---
-不要包含任何导师私人备注。
+不要包含任何导师私人备注。`
 
-以下是学生信息：
-学生姓名：${student.name}${student.nameEn ? `（${student.nameEn}）` : ''}
+function applyVars(template: string, vars: Record<string, string>): string {
+  return Object.entries(vars).reduce(
+    (t, [k, v]) => t.replaceAll(`{{${k}}}`, v),
+    template
+  )
+}
+
+// ── Session Report ────────────────────────────────────────────────────────────
+
+export async function generateSessionReport(student: Student, session: SessionRecord): Promise<string> {
+  const { sessionReportTemplate } = getSettings()
+  const today = new Date().toISOString().slice(0, 10)
+  const pastSaCount = student.sessions.filter(
+    s => s.type === 'SA_MEETING' && s.date <= session.date
+  ).length
+  const saRemaining = student.saHoursTotal - pastSaCount
+  const typeLabel = session.type === 'SA_MEETING' ? 'SA Meeting（学术督导课）'
+    : session.type === 'TA_MEETING' ? 'TA Meeting（辅导课）'
+    : 'Taught Element（课程讲解）'
+
+  const instructionPart = applyVars(sessionReportTemplate || DEFAULT_SESSION_REPORT_TEMPLATE, {
+    today,
+    studentName: `${student.name}${student.nameEn ? `（${student.nameEn}）` : ''}`,
+    topic: student.topicZh || student.topic,
+    sessionType: typeLabel,
+    sessionDate: `${session.date}${session.time ? ' ' + session.time : ''}`,
+    duration: String(session.durationMinutes),
+    saUsed: String(pastSaCount),
+    saTotal: String(student.saHoursTotal),
+    saRemaining: String(saRemaining),
+  })
+
+  const dataParts: string[] = [
+    `学生姓名：${student.name}${student.nameEn ? `（${student.nameEn}）` : ''}`,
+    `EPQ课题：${student.topicZh || student.topic}`,
+    `本次课程类型：${typeLabel}`,
+    `日期：${session.date}${session.time ? ' ' + session.time : ''}`,
+    `时长：${session.durationMinutes} 分钟`,
+    `剩余：${saRemaining} / ${student.saHoursTotal} SA课时`,
+  ]
+  if (session.summary) dataParts.push(`\n课程记录（导师原始记录）：\n${session.summary}`)
+  if (session.homework) dataParts.push(`\n课后任务（导师原始记录）：\n${session.homework}`)
+  if (session.transcript) dataParts.push(`\n会议记录／逐字稿：\n${session.transcript}`)
+
+  return callAI(`${instructionPart}\n\n以下是本次课程信息：\n${dataParts.join('\n')}`)
+}
+
+// ── Progress Report ───────────────────────────────────────────────────────────
+
+export async function generateProgressReport(student: Student): Promise<string> {
+  const { progressReportTemplate } = getSettings()
+  const today = new Date().toISOString().slice(0, 10)
+
+  const pastSaCount = student.sessions.filter(
+    s => s.type === 'SA_MEETING' && isSessionStarted(s)
+  ).length
+  const saRemaining = student.saHoursTotal - pastSaCount
+
+  const completed = EPQ_MILESTONES.filter(m => student.milestones[m.id] === 'completed').map(m => m.label)
+  const inProgress = EPQ_MILESTONES.filter(m => student.milestones[m.id] === 'in_progress').map(m => m.label)
+  const notStarted = EPQ_MILESTONES.filter(m =>
+    !student.milestones[m.id] || student.milestones[m.id] === 'not_started'
+  ).map(m => m.label)
+  const applicable = EPQ_MILESTONES.filter(m => student.milestones[m.id] !== 'na')
+  const progress = applicable.length > 0
+    ? Math.round((completed.length / applicable.length) * 100)
+    : 0
+
+  const sorted = [...student.sessions].sort((a, b) => a.date.localeCompare(b.date))
+  const pastSessions   = sorted.filter(s => isSessionStarted(s))
+  const futureSessions = sorted.filter(s => !isSessionStarted(s))
+
+  const allTitles = pastSessions.map(s => {
+    const t = s.type === 'SA_MEETING' ? 'SA' : s.type === 'TA_MEETING' ? 'TA' : 'TE'
+    return `${s.date} [${t}] ${s.title ?? ''}`
+  }).join('\n')
+
+  const lastSA = [...pastSessions].reverse().find(s => s.type === 'SA_MEETING')
+  const lastSAText = lastSA ? [
+    `日期：${lastSA.date}　标题：${lastSA.title ?? ''}`,
+    lastSA.summary        ? `记录：${lastSA.summary}` : '',
+    lastSA.homework       ? `作业：${lastSA.homework}` : '',
+    lastSA.generatedReport ? `课后报告摘录：${lastSA.generatedReport.slice(0, 400)}` : '',
+  ].filter(Boolean).join('\n') : '暂无'
+
+  const lastTA = [...pastSessions].reverse().find(s => s.type === 'TA_MEETING')
+  const lastTAText = lastTA ? [
+    `日期：${lastTA.date}　标题：${lastTA.title ?? ''}`,
+    lastTA.summary        ? `记录：${lastTA.summary}` : '',
+    lastTA.homework       ? `作业：${lastTA.homework}` : '',
+    lastTA.generatedReport ? `课后报告摘录：${lastTA.generatedReport.slice(0, 400)}` : '',
+  ].filter(Boolean).join('\n') : '暂无'
+
+  const futureLines: string[] = futureSessions.map(s => {
+    const t = s.type === 'SA_MEETING' ? 'SA' : s.type === 'TA_MEETING' ? 'TA' : 'TE'
+    return `${s.date} [${t}] ${s.title ?? ''}`
+  })
+  if (student.nextSaSession && !futureSessions.find(s => s.type === 'SA_MEETING'))
+    futureLines.push(`${student.nextSaSession} [SA]（计划中）`)
+  if (student.nextTaSession && !futureSessions.find(s => s.type === 'TA_MEETING'))
+    futureLines.push(`${student.nextTaSession} [TA]（计划中）`)
+  if (student.nextTheorySession && !futureSessions.find(s => s.type === 'THEORY'))
+    futureLines.push(`${student.nextTheorySession} [TE]（计划中）`)
+
+  const instructionPart = applyVars(progressReportTemplate || DEFAULT_PROGRESS_REPORT_TEMPLATE, {
+    today,
+    studentName: `${student.name}${student.nameEn ? `（${student.nameEn}）` : ''}`,
+    topic: student.topicZh || student.topic,
+    progressPercent: String(progress),
+    saUsed: String(pastSaCount),
+    saTotal: String(student.saHoursTotal),
+    saRemaining: String(saRemaining),
+    totalSessions: String(student.sessions.length),
+    pastSessionsCount: String(pastSessions.length),
+    briefNote: student.briefNote || '',
+  })
+
+  const homeworkBlock = (student.homeworkEntries || [])
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 6)
+    .map(e => [
+      `来源：${e.sourceLabel}${e.deadline ? `  截止：${e.deadline}` : ''}`,
+      ...e.items.map(i => `${i.done ? '✓' : '○'} ${i.text}`),
+      e.comments ? `备注：${e.comments}` : '',
+    ].filter(Boolean).join('\n'))
+    .join('\n\n')
+
+  const dataBlock = `学生姓名：${student.name}${student.nameEn ? `（${student.nameEn}）` : ''}
 EPQ课题：${student.topicZh || student.topic}
 ${student.overview ? `课题与学生背景：\n${student.overview}\n\n` : ''}整体完成进度：${progress}%
 已用 SA 课次：${pastSaCount} / ${student.saHoursTotal}，剩余：${saRemaining}
@@ -335,8 +375,10 @@ ${lastTAText}
 
 未开始课程（下次课程安排来源）：
 ${futureLines.length > 0 ? futureLines.join('\n') : '暂无已记录的未来课程'}
+${student.briefNote ? `\n导师简评：${student.briefNote}` : ''}
 
-${student.briefNote ? `导师简评：${student.briefNote}` : ''}`
+作业追踪记录（最近 6 条，含完成状态）：
+${homeworkBlock || '暂无'}`
 
-  return callAI(prompt)
+  return callAI(`${instructionPart}\n\n以下是学生信息：\n${dataBlock}`)
 }

@@ -2,6 +2,7 @@ import { Outlet, Link } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { useStudentStore } from '@/stores/studentStore'
 import { useEffect, useState } from 'react'
+import PromptTemplateEditor from '@/components/PromptTemplateEditor'
 
 function BeijingClock() {
   const [time, setTime] = useState('')
@@ -36,6 +37,7 @@ const CAL_LABEL = {
 export default function AppLayout() {
   const logout = useAuthStore(s => s.logout)
   const calendarSync = useStudentStore(s => s.calendarSync)
+  const [promptEditorOpen, setPromptEditorOpen] = useState(false)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -44,6 +46,13 @@ export default function AppLayout() {
           <Link to="/" className="font-semibold text-gray-900 text-sm">📚 EPQ Tutor Dashboard</Link>
           <Link to="/supervisors" className="text-xs text-gray-400 hover:text-gray-700 transition-colors">Supervisors</Link>
           <Link to="/settings" className="text-xs text-gray-400 hover:text-gray-700 transition-colors">Settings</Link>
+          <Link to="/zoom-config" className="text-xs text-gray-400 hover:text-gray-700 transition-colors">Zoom</Link>
+          <button
+            onClick={() => setPromptEditorOpen(true)}
+            className="text-xs text-gray-400 hover:text-gray-700 transition-colors"
+          >
+            提示词
+          </button>
         </div>
         <div className="flex items-center gap-4">
           {calendarSync !== 'idle' && (
@@ -64,6 +73,7 @@ export default function AppLayout() {
       <main className="max-w-6xl mx-auto">
         <Outlet />
       </main>
+      <PromptTemplateEditor open={promptEditorOpen} onClose={() => setPromptEditorOpen(false)} />
     </div>
   )
 }

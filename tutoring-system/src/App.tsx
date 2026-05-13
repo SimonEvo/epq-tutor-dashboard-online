@@ -12,6 +12,7 @@ import ProgressReportPage from '@/pages/ProgressReportPage'
 import SupervisorsPage from '@/pages/SupervisorsPage'
 import SupervisorDetailPage from '@/pages/SupervisorDetailPage'
 import SettingsPage from '@/pages/SettingsPage'
+import ZoomConfigPage from '@/pages/ZoomConfigPage'
 import AppLayout from '@/components/layout/AppLayout'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -45,6 +46,7 @@ export default function App() {
           <Route path="/supervisors" element={<SupervisorsPage />} />
           <Route path="/supervisors/:id" element={<SupervisorDetailPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/zoom-config" element={<ZoomConfigPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

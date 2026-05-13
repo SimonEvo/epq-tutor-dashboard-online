@@ -221,6 +221,24 @@ export default function SettingsPage() {
           </div>
         </section>
 
+        {/* Zoom API — link to dedicated config page */}
+        <section className="bg-white rounded-2xl border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900 mb-1">Zoom 账号配置</h2>
+              <p className="text-xs text-gray-400">
+                管理多个 Zoom Server-to-Server OAuth 账号，用于 API 拉取会议记录和预约会议。
+              </p>
+            </div>
+            <Link
+              to="/zoom-config"
+              className="text-sm px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors shrink-0"
+            >
+              管理账号 →
+            </Link>
+          </div>
+        </section>
+
         {/* Tencent Docs (future) */}
         <section className="bg-white rounded-2xl border border-gray-200 p-6 opacity-60">
           <div className="flex items-center gap-2 mb-1">

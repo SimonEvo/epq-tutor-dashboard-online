@@ -116,3 +116,84 @@ export async function verifyAuth(): Promise<boolean> {
     return false
   }
 }
+
+// ─── Zoom ─────────────────────────────────────────────────────────────────────
+
+export async function fetchZoomMeetingSummary(
+  meetingId: string,
+  accountId: string,
+  clientId: string,
+  clientSecret: string,
+): Promise<{ summary_content: string; meeting_topic: string; meeting_start_time: string }> {
+  return api('/zoom/meeting-summary', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      meeting_id: meetingId,
+      account_id: accountId,
+      client_id: clientId,
+      client_secret: clientSecret,
+    }),
+  })
+}
+
+export async function cancelZoomMeeting(
+  meetingId: string,
+  accountId: string,
+  clientId: string,
+  clientSecret: string,
+): Promise<void> {
+  await api('/zoom/cancel-meeting', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ meeting_id: meetingId, account_id: accountId, client_id: clientId, client_secret: clientSecret }),
+  })
+}
+
+export interface ZoomConflict {
+  topic: string
+  start: string  // HH:MM local time
+  end: string    // HH:MM local time
+}
+
+export class ZoomConflictError extends Error {
+  conflicts: ZoomConflict[]
+  constructor(conflicts: ZoomConflict[]) {
+    super('zoom_conflict')
+    this.conflicts = conflicts
+  }
+}
+
+export async function createZoomMeeting(params: {
+  accountId: string
+  clientId: string
+  clientSecret: string
+  topic: string
+  startTime: string
+  duration: number
+  timezone: string
+}): Promise<{ meetingId: string; joinUrl: string; password: string; startUrl: string }> {
+  const res = await apiFetch(`${API_BASE_URL}/zoom/create-meeting`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      account_id: params.accountId,
+      client_id: params.clientId,
+      client_secret: params.clientSecret,
+      topic: params.topic,
+      start_time: params.startTime,
+      duration: params.duration,
+      timezone: params.timezone,
+    }),
+  })
+  if (res.status === 409) {
+    const data = await res.json() as { detail: ZoomConflict[] }
+    throw new ZoomConflictError(data.detail)
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as { detail?: unknown }
+    const msg = typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail)
+    throw new Error(msg ?? `API error ${res.status}`)
+  }
+  return res.json() as Promise<{ meetingId: string; joinUrl: string; password: string; startUrl: string }>
+}

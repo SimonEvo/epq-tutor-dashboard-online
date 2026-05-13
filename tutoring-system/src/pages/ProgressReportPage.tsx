@@ -64,7 +64,17 @@ export default function ProgressReportPage() {
   }
 
   const copy = async () => {
-    await navigator.clipboard.writeText(report)
+    try {
+      await navigator.clipboard.writeText(report)
+    } catch {
+      const ta = document.createElement('textarea')
+      ta.value = report
+      ta.style.cssText = 'position:fixed;opacity:0'
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+    }
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }

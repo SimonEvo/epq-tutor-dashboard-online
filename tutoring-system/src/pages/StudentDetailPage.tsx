@@ -3,9 +3,12 @@ import { useParams, Link } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import { useStudentStore } from '@/stores/studentStore'
 import { EPQ_MILESTONES } from '@/config'
-import type { Student, MilestoneStatus, SessionType, SessionRecord, PersonalEntry, MindMap } from '@/types'
+import type { Student, MilestoneStatus, SessionType, SessionRecord, PersonalEntry, MindMap, HomeworkEntry } from '@/types'
 import MarkmapView, { type MarkmapHandle } from '@/components/MarkmapView'
 import MindMapEditor from '@/components/MindMapEditor'
+import HomeworkParseDialog from '@/components/HomeworkParseDialog'
+import ZoomImportDialog from '@/components/ZoomImportDialog'
+import ZoomScheduleDialog from '@/components/ZoomScheduleDialog'
 import { formatHours, isSessionStarted } from '@/lib/formatters'
 import * as dataService from '@/lib/dataService'
 
@@ -52,6 +55,21 @@ export default function StudentDetailPage() {
   const [entryDrafts, setEntryDrafts] = useState<Record<string, { title: string; content: string }>>({})
   const [confirmDeleteEntry, setConfirmDeleteEntry] = useState<string | null>(null)
   const entryRef = useRef<HTMLTextAreaElement>(null)
+
+  // Session section collapse
+  const [sessionSectionOpen, setSessionSectionOpen] = useState(true)
+
+  // Zoom import / schedule
+  const [zoomImportSession, setZoomImportSession] = useState<SessionRecord | null>(null)
+  const [zoomScheduleSession, setZoomScheduleSession] = useState<SessionRecord | null>(null)
+
+  // Homework entries
+  const [homeworkSectionOpen, setHomeworkSectionOpen] = useState(true)
+  const [expandedHomework, setExpandedHomework] = useState<Set<string>>(new Set())
+  const [parsingSession, setParsingsession] = useState<SessionRecord | null>(null)
+  const [confirmDeleteHomework, setConfirmDeleteHomework] = useState<string | null>(null)
+  const [editingHomework, setEditingHomework] = useState<string | null>(null)
+  const [homeworkEditDraft, setHomeworkEditDraft] = useState<{ items: HomeworkEntry['items'], deadline: string } | null>(null)
 
   // Mind Maps
   const [expandedMap, setExpandedMap] = useState<string | null>(null)
@@ -303,6 +321,120 @@ export default function StudentDetailPage() {
     setSaving(false)
   }
 
+  const handleZoomImport = async (
+    sessionId: string,
+    updates: Partial<Pick<SessionRecord, 'summary' | 'homework' | 'transcript'>>,
+  ) => {
+    const updated: Student = {
+      ...student!,
+      sessions: student!.sessions.map(s => s.id === sessionId ? { ...s, ...updates } : s),
+    }
+    setStudent(updated)
+    setZoomImportSession(null)
+    setSaving(true)
+    await saveStudent(updated)
+    setSaving(false)
+  }
+
+  const handleZoomScheduleUpdate = async (
+    sessionId: string,
+    info: { zoomMeetingId: string; zoomJoinUrl: string; zoomPassword: string } | null,
+  ) => {
+    const patch = info ?? { zoomMeetingId: undefined, zoomJoinUrl: undefined, zoomPassword: undefined }
+    const updated: Student = {
+      ...student!,
+      sessions: student!.sessions.map(s => s.id === sessionId ? { ...s, ...patch } : s),
+    }
+    setStudent(updated)
+    if (!info) setZoomScheduleSession(null)   // close after cancel
+    setSaving(true)
+    await saveStudent(updated)
+    setSaving(false)
+    // Update the dialog's session reference so it shows the new state immediately
+    if (info) setZoomScheduleSession(updated.sessions.find(s => s.id === sessionId) ?? null)
+  }
+
+  const addHomeworkEntry = async (entry: HomeworkEntry) => {
+    const updated: Student = {
+      ...student!,
+      homeworkEntries: [entry, ...(student!.homeworkEntries ?? [])],
+    }
+    setStudent(updated)
+    setExpandedHomework(prev => new Set([...prev, entry.id]))
+    setParsingsession(null)
+    setSaving(true)
+    await saveStudent(updated)
+    setSaving(false)
+  }
+
+  const toggleHomeworkItem = async (entryId: string, itemIdx: number) => {
+    const updated: Student = {
+      ...student!,
+      homeworkEntries: (student!.homeworkEntries ?? []).map(e =>
+        e.id === entryId
+          ? { ...e, items: e.items.map((it, i) => i === itemIdx ? { ...it, done: !it.done } : it) }
+          : e
+      ),
+    }
+    setStudent(updated)
+    setSaving(true)
+    await saveStudent(updated)
+    setSaving(false)
+  }
+
+  const updateHomeworkComments = async (entryId: string, comments: string) => {
+    const updated: Student = {
+      ...student!,
+      homeworkEntries: (student!.homeworkEntries ?? []).map(e =>
+        e.id === entryId ? { ...e, comments } : e
+      ),
+    }
+    setStudent(updated)
+    setSaving(true)
+    await saveStudent(updated)
+    setSaving(false)
+  }
+
+  const deleteHomeworkEntry = async (entryId: string) => {
+    const updated: Student = {
+      ...student!,
+      homeworkEntries: (student!.homeworkEntries ?? []).filter(e => e.id !== entryId),
+    }
+    setStudent(updated)
+    setConfirmDeleteHomework(null)
+    setSaving(true)
+    await saveStudent(updated)
+    setSaving(false)
+  }
+
+  const startEditHomework = (entry: HomeworkEntry) => {
+    setEditingHomework(entry.id)
+    setHomeworkEditDraft({ items: entry.items.map(i => ({ ...i })), deadline: entry.deadline ?? '' })
+  }
+
+  const saveHomeworkEdit = async (entryId: string) => {
+    if (!homeworkEditDraft) return
+    const updated: Student = {
+      ...student!,
+      homeworkEntries: (student!.homeworkEntries ?? []).map(e =>
+        e.id === entryId
+          ? { ...e, items: homeworkEditDraft.items.filter(i => i.text.trim()), deadline: homeworkEditDraft.deadline || undefined }
+          : e
+      ),
+    }
+    setStudent(updated)
+    setEditingHomework(null)
+    setHomeworkEditDraft(null)
+    setSaving(true)
+    await saveStudent(updated)
+    setSaving(false)
+  }
+
+  const cancelEditHomework = () => {
+    setEditingHomework(null)
+    setHomeworkEditDraft(null)
+  }
+
   const saveBriefNote = async () => {
     const updated: Student = { ...student!, briefNote: briefNoteDraft }
     setStudent(updated)
@@ -355,6 +487,31 @@ export default function StudentDetailPage() {
 
   return (
     <>
+    {/* Homework Parse Dialog */}
+    {parsingSession && (
+      <HomeworkParseDialog
+        session={parsingSession}
+        onConfirm={addHomeworkEntry}
+        onClose={() => setParsingsession(null)}
+      />
+    )}
+    {/* Zoom Import Dialog */}
+    {zoomImportSession && (
+      <ZoomImportDialog
+        session={zoomImportSession}
+        onConfirm={updates => handleZoomImport(zoomImportSession.id, updates)}
+        onClose={() => setZoomImportSession(null)}
+      />
+    )}
+    {/* Zoom Schedule Dialog */}
+    {zoomScheduleSession && (
+      <ZoomScheduleDialog
+        session={zoomScheduleSession}
+        studentName={student.name}
+        onUpdate={info => handleZoomScheduleUpdate(zoomScheduleSession.id, info)}
+        onClose={() => setZoomScheduleSession(null)}
+      />
+    )}
     {/* Fullscreen Mind Map Modal */}
     {fullscreenMap && (
       <div className="fixed inset-0 z-50 flex flex-col bg-white">
@@ -501,10 +658,17 @@ export default function StudentDetailPage() {
       {/* Sessions */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-5">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-medium text-gray-900 text-sm">Session Records ({student.sessions.length})</h2>
+          <button
+            className="flex items-center gap-2 text-left"
+            onClick={() => setSessionSectionOpen(v => !v)}
+          >
+            <h2 className="font-medium text-gray-900 text-sm">Session Records</h2>
+            <span className="text-xs text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">{student.sessions.length}</span>
+            <span className="text-gray-300 text-xs">{sessionSectionOpen ? '▲' : '▼'}</span>
+          </button>
           <Link to={`/students/${student.id}/session/new`} className="text-xs text-indigo-600 hover:underline">+ Add</Link>
         </div>
-
+        {sessionSectionOpen && <>
         {/* Filter tabs */}
         <div className="flex gap-1.5 mb-4 flex-wrap">
           {([
@@ -584,12 +748,32 @@ export default function StudentDetailPage() {
                         >
                           生成课后报告
                         </Link>
+                        <button
+                          onClick={() => setZoomImportSession(session)}
+                          className="text-xs px-3 py-1.5 rounded-lg border border-sky-200 text-sky-700 hover:bg-sky-50 transition-colors"
+                        >
+                          一键输入
+                        </button>
+                        <button
+                          onClick={() => setZoomScheduleSession(session)}
+                          className="text-xs px-3 py-1.5 rounded-lg border border-teal-200 text-teal-700 hover:bg-teal-50 transition-colors"
+                        >
+                          预约 Zoom 会议
+                        </button>
                         <Link
                           to={`/students/${student.id}/session/${session.id}/edit`}
                           className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
                         >
                           Edit
                         </Link>
+                        {session.homework && (
+                          <button
+                            onClick={() => setParsingsession(session)}
+                            className="text-xs px-3 py-1.5 rounded-lg border border-amber-200 text-amber-700 hover:bg-amber-50 transition-colors"
+                          >
+                            解析课后作业
+                          </button>
+                        )}
                         {confirmDelete === session.id ? (
                           <>
                             <button
@@ -623,6 +807,175 @@ export default function StudentDetailPage() {
                 </div>
               ))}
             </div>
+          </>
+        )}
+        </>}
+      </div>
+
+      {/* Homework Entries */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-5">
+        <button
+          className="flex items-center gap-2 w-full text-left mb-3"
+          onClick={() => setHomeworkSectionOpen(v => !v)}
+        >
+          <h2 className="font-medium text-gray-900 text-sm">作业记录</h2>
+          <span className="text-xs text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">
+            {(student.homeworkEntries ?? []).length}
+          </span>
+          <span className="text-gray-300 text-xs">{homeworkSectionOpen ? '▲' : '▼'}</span>
+        </button>
+        {homeworkSectionOpen && (
+          <>
+            {(student.homeworkEntries ?? []).length === 0 ? (
+              <p className="text-sm text-gray-400 py-3 text-center">
+                暂无作业记录。在 session 展开后点击「解析课后作业」添加。
+              </p>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {[...(student.homeworkEntries ?? [])].sort((a, b) => b.date.localeCompare(a.date)).map(entry => {
+                  const isOpen = expandedHomework.has(entry.id)
+                  const pendingCount = entry.items.filter(i => !i.done).length
+                  return (
+                    <div key={entry.id} className="border border-gray-100 rounded-xl p-3 hover:border-gray-200 transition-colors">
+                      {/* Card header */}
+                      <div
+                        className="flex items-center gap-2 cursor-pointer"
+                        onClick={() => setExpandedHomework(prev => {
+                          const next = new Set(prev)
+                          if (next.has(entry.id)) next.delete(entry.id)
+                          else next.add(entry.id)
+                          return next
+                        })}
+                      >
+                        <span className="font-semibold text-gray-900 text-sm">{entry.date}</span>
+                        {pendingCount > 0 && (
+                          <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+                            {pendingCount} 项待完成
+                          </span>
+                        )}
+                        {pendingCount === 0 && entry.items.length > 0 && (
+                          <span className="text-xs text-green-600 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">全部完成</span>
+                        )}
+                        <span className="ml-auto text-gray-300 text-xs shrink-0">{isOpen ? '▲' : '▼'}</span>
+                      </div>
+                      {/* Subheadings always visible */}
+                      <div className="flex gap-3 mt-1 flex-wrap">
+                        <span className="text-xs text-gray-400">来源：{entry.sourceLabel}</span>
+                        {entry.deadline && <span className="text-xs text-gray-400">截止：{entry.deadline}</span>}
+                      </div>
+                      {/* Expanded body */}
+                      {isOpen && (
+                        <div className="mt-3 border-t border-gray-100 pt-3 flex flex-col gap-3">
+                          {editingHomework === entry.id && homeworkEditDraft ? (
+                            <>
+                              {/* Deadline */}
+                              <div className="flex items-center gap-3">
+                                <label className="text-xs text-gray-500 shrink-0">截止日期</label>
+                                <input
+                                  type="date"
+                                  value={homeworkEditDraft.deadline}
+                                  onChange={e => setHomeworkEditDraft(d => d ? { ...d, deadline: e.target.value } : d)}
+                                  className="border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                                />
+                              </div>
+                              {/* Items */}
+                              <div className="flex flex-col gap-2">
+                                {homeworkEditDraft.items.map((item, idx) => (
+                                  <div key={idx} className="flex items-center gap-2">
+                                    <span className="text-gray-300 text-xs shrink-0 w-5 text-right">{idx + 1}.</span>
+                                    <input
+                                      value={item.text}
+                                      onChange={e => setHomeworkEditDraft(d => d ? { ...d, items: d.items.map((it, i) => i === idx ? { ...it, text: e.target.value } : it) } : d)}
+                                      className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                                      placeholder="作业内容…"
+                                    />
+                                    <button
+                                      onClick={() => setHomeworkEditDraft(d => d ? { ...d, items: d.items.filter((_, i) => i !== idx) } : d)}
+                                      className="text-gray-300 hover:text-red-400 transition-colors shrink-0 px-1"
+                                    >
+                                      ×
+                                    </button>
+                                  </div>
+                                ))}
+                                <button
+                                  onClick={() => setHomeworkEditDraft(d => d ? { ...d, items: [...d.items, { text: '', done: false }] } : d)}
+                                  className="text-xs text-indigo-500 hover:text-indigo-700 self-start mt-1"
+                                >
+                                  + 添加一项
+                                </button>
+                              </div>
+                              {/* Save / Cancel */}
+                              <div className="flex gap-2 pt-1 border-t border-gray-100">
+                                <button
+                                  onClick={() => saveHomeworkEdit(entry.id)}
+                                  className="text-xs px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                                >
+                                  保存
+                                </button>
+                                <button
+                                  onClick={cancelEditHomework}
+                                  className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
+                                >
+                                  取消
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              {/* Checklist */}
+                              <div className="flex flex-col gap-2">
+                                {entry.items.map((item, idx) => (
+                                  <label key={idx} className="flex items-start gap-2.5 cursor-pointer group">
+                                    <input
+                                      type="checkbox"
+                                      checked={item.done}
+                                      onChange={() => toggleHomeworkItem(entry.id, idx)}
+                                      className="mt-0.5 accent-indigo-600 shrink-0"
+                                    />
+                                    <span className={`text-sm leading-snug ${item.done ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+                                      {item.text}
+                                    </span>
+                                  </label>
+                                ))}
+                              </div>
+                              {/* Comments */}
+                              <div>
+                                <p className="text-xs text-gray-400 mb-1">备注</p>
+                                <textarea
+                                  value={entry.comments}
+                                  onChange={e => updateHomeworkComments(entry.id, e.target.value)}
+                                  onBlur={e => updateHomeworkComments(entry.id, e.target.value)}
+                                  rows={2}
+                                  placeholder="TA 备注（可选，同步给 AI 报告）…"
+                                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
+                                />
+                              </div>
+                              {/* Edit + Delete */}
+                              <div className="flex items-center justify-between">
+                                <button
+                                  onClick={() => startEditHomework(entry)}
+                                  className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                                >
+                                  编辑
+                                </button>
+                                {confirmDeleteHomework === entry.id ? (
+                                  <div className="flex gap-2">
+                                    <button onClick={() => deleteHomeworkEntry(entry.id)} className="text-xs px-3 py-1.5 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors">确认删除</button>
+                                    <button onClick={() => setConfirmDeleteHomework(null)} className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">取消</button>
+                                  </div>
+                                ) : (
+                                  <button onClick={() => setConfirmDeleteHomework(entry.id)} className="text-xs px-3 py-1.5 rounded-lg border border-red-200 text-red-400 hover:bg-red-50 transition-colors">删除</button>
+                                )}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </>
         )}
       </div>

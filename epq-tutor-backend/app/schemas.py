@@ -45,6 +45,9 @@ class SessionSchema(BaseModel):
     createdAt: str = ""
     generatedReport: Optional[str] = None
     reportGeneratedAt: Optional[str] = None
+    zoomMeetingId: Optional[str] = None
+    zoomJoinUrl: Optional[str] = None
+    zoomPassword: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -87,6 +90,7 @@ class StudentSchema(BaseModel):
     sessions: list[SessionSchema] = []
     personalEntries: list[dict] = []
     mindMaps: list[dict] = []
+    homeworkEntries: list[dict] = []
     generatedProgressReport: Optional[str] = None
     progressReportGeneratedAt: Optional[str] = None
     createdAt: str = ""

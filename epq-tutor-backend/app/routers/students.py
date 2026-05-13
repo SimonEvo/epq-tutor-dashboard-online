@@ -26,6 +26,9 @@ def _session_to_dict(s: models.Session) -> dict:
         "createdAt": s.created_at.isoformat() if s.created_at else "",
         "generatedReport": s.generated_report,
         "reportGeneratedAt": s.report_generated_at,
+        "zoomMeetingId": s.zoom_meeting_id,
+        "zoomJoinUrl": s.zoom_join_url,
+        "zoomPassword": s.zoom_password,
     }
 
 
@@ -35,6 +38,15 @@ def _entry_to_dict(e: models.PersonalEntry) -> dict:
 
 def _mindmap_to_dict(m: models.MindMap) -> dict:
     return {"id": m.id, "date": m.date, "title": m.title, "content": m.content, "createdAt": m.created_at}
+
+
+def _homework_to_dict(h: models.HomeworkEntry) -> dict:
+    return {
+        "id": h.id, "date": h.date, "sourceLabel": h.source_label,
+        "sessionId": h.session_id, "deadline": h.deadline,
+        "items": h.items or [], "comments": h.comments or "",
+        "createdAt": h.created_at,
+    }
 
 
 def _to_full_schema(s: models.Student) -> StudentSchema:
@@ -56,6 +68,7 @@ def _to_full_schema(s: models.Student) -> StudentSchema:
         sessions=[_session_to_dict(x) for x in sorted_sessions],
         personalEntries=[_entry_to_dict(e) for e in s.personal_entries],
         mindMaps=[_mindmap_to_dict(m) for m in s.mind_maps],
+        homeworkEntries=[_homework_to_dict(h) for h in s.homework_entries],
         generatedProgressReport=s.generated_progress_report,
         progressReportGeneratedAt=s.progress_report_generated_at,
         createdAt=s.created_at.isoformat() if s.created_at else "",
@@ -91,6 +104,7 @@ def _load_student(db: Session, student_id: str, tutor_id: str) -> models.Student
             selectinload(models.Student.tags),
             selectinload(models.Student.personal_entries),
             selectinload(models.Student.mind_maps),
+            selectinload(models.Student.homework_entries),
         )
         .filter(models.Student.id == student_id, models.Student.tutor_id == tutor_id)
         .first()
@@ -184,6 +198,7 @@ def _upsert_student(
             summary=sd.summary, homework=sd.homework, transcript=sd.transcript,
             private_notes=sd.privateNotes, generated_report=sd.generatedReport,
             report_generated_at=sd.reportGeneratedAt,
+            zoom_meeting_id=sd.zoomMeetingId, zoom_join_url=sd.zoomJoinUrl, zoom_password=sd.zoomPassword,
             created_at=datetime.fromisoformat(sd.createdAt) if sd.createdAt else datetime.now(timezone.utc),
         ))
 
@@ -216,6 +231,16 @@ def _upsert_student(
         db.add(models.MindMap(
             id=m["id"], student_id=s.id, date=m["date"],
             title=m["title"], content=m["content"], created_at=m["createdAt"],
+        ))
+
+    # homework entries
+    db.query(models.HomeworkEntry).filter(models.HomeworkEntry.student_id == s.id).delete()
+    for h in (data.homeworkEntries or []):
+        db.add(models.HomeworkEntry(
+            id=h["id"], student_id=s.id, session_id=h.get("sessionId"),
+            date=h["date"], source_label=h["sourceLabel"],
+            deadline=h.get("deadline"), items=h.get("items", []),
+            comments=h.get("comments", ""), created_at=h["createdAt"],
         ))
 
     db.commit()

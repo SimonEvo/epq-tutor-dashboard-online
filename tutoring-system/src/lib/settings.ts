@@ -5,6 +5,8 @@ export interface AppSettings {
   aiApiKey: string
   aiModel: string
   aiBaseUrl: string
+  sessionReportTemplate: string   // empty = use built-in default
+  progressReportTemplate: string  // empty = use built-in default
 }
 
 const DEFAULTS: AppSettings = {
@@ -12,6 +14,8 @@ const DEFAULTS: AppSettings = {
   aiApiKey: '',
   aiModel: 'qwen-plus',
   aiBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+  sessionReportTemplate: '',
+  progressReportTemplate: '',
 }
 
 export function getSettings(): AppSettings {
