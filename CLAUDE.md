@@ -73,3 +73,17 @@ cd /opt/epq-tutor-backend && .venv/bin/python migrate_from_local.py --data-dir /
 
 ### Next Up
 - Dashboard 多视图（看板 / 时间线 / 统计等）
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues (`SimonEvo/epq-tutor-dashboard-online`). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Uses the default five-role label vocabulary. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context repo — one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
