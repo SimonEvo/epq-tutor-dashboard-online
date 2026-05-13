@@ -37,7 +37,7 @@ export interface ParsedStudent {
   name?: string; nameEn?: string; gender?: string
   school?: string; currentGrade?: string; universityEnrollment?: string
   submissionRound?: string; taughtElementType?: string; universityAspiration?: string
-  contact?: string; topic?: string; overview?: string
+  contact?: string; topic?: string; topicZh?: string; overview?: string
   supervisorId?: string | null; saHoursTotal?: number
   availabilityNote?: string; briefNote?: string; privateNotes?: string
   tencentDocUrl?: string; tags?: string[]
@@ -58,7 +58,7 @@ export async function parseAICommand(
   const today = new Date().toISOString().slice(0, 10)
 
   const studentList = students.length
-    ? students.map(s => `  id=${s.id}  姓名=${s.name}${s.nameEn ? `(${s.nameEn})` : ''}  课题=${s.topic}`).join('\n')
+    ? students.map(s => `  id=${s.id}  姓名=${s.name}${s.nameEn ? `(${s.nameEn})` : ''}  课题=${s.topicZh || s.topic}`).join('\n')
     : '（暂无）'
 
   const supervisorList = supervisors.length
@@ -159,7 +159,7 @@ export async function generateSessionReport(student: Student, session: SessionRe
 
   const parts: string[] = [
     `学生姓名：${student.name}${student.nameEn ? `（${student.nameEn}）` : ''}`,
-    `EPQ课题：${student.topic}`,
+    `EPQ课题：${student.topicZh || student.topic}`,
     `本次课程类型：${typeLabel}`,
     `日期：${session.date}${session.time ? ' ' + session.time : ''}`,
     `时长：${session.durationMinutes} 分钟`,
@@ -314,7 +314,7 @@ export async function generateProgressReport(student: Student): Promise<string> 
 
 以下是学生信息：
 学生姓名：${student.name}${student.nameEn ? `（${student.nameEn}）` : ''}
-EPQ课题：${student.topic}
+EPQ课题：${student.topicZh || student.topic}
 ${student.overview ? `课题与学生背景：\n${student.overview}\n\n` : ''}整体完成进度：${progress}%
 已用 SA 课次：${pastSaCount} / ${student.saHoursTotal}，剩余：${saRemaining}
 总课程次数：${student.sessions.length} 次（其中已完成 ${pastSessions.length} 次）

@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import LoginPage from '@/pages/LoginPage'
@@ -23,12 +22,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  const checkAuth = useAuthStore(s => s.checkAuth)
-
-  useEffect(() => {
-    checkAuth()
-  }, [checkAuth])
-
   return (
     <HashRouter>
       <Routes>

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { JWT_STORAGE_KEY } from '@/config'
-import { setToken, clearToken, getToken, apiFetch } from '@/lib/githubClient'
+import { setToken, clearToken, getToken } from '@/lib/githubClient'
 
 interface AuthState {
   isAuthenticated: boolean
@@ -11,8 +11,10 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
-  isAuthenticated: false,
-  isLoading: true,
+  // 从 localStorage 同步初始化，避免页面跳转闪烁
+  // Token 过期由 apiFetch 的 401 处理自动跳转 /login
+  isAuthenticated: !!getToken(),
+  isLoading: false,
 
   login: async (username: string, password: string) => {
     try {
@@ -37,17 +39,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   checkAuth: async () => {
-    const token = getToken()
-    if (!token) {
-      set({ isAuthenticated: false, isLoading: false })
-      return
-    }
-    try {
-      const res = await apiFetch('/health')
-      set({ isAuthenticated: res.ok, isLoading: false })
-    } catch {
-      set({ isAuthenticated: false, isLoading: false })
-    }
+    set({ isAuthenticated: !!getToken() })
   },
 }))
 

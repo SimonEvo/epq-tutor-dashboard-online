@@ -37,9 +37,10 @@ const MILESTONE_ICON: Record<MilestoneStatus, string> = {
 
 export default function StudentDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const { saveStudent, supervisors, fetchSupervisors, isLoading } = useStudentStore()
+  const { saveStudent, supervisors, fetchSupervisors } = useStudentStore()
 
   const [student, setStudent] = useState<Student | null>(null)
+  const [fetching, setFetching] = useState(true)
   const [saving, setSaving] = useState(false)
   const [editingBriefNote, setEditingBriefNote] = useState(false)
   const [briefNoteDraft, setBriefNoteDraft] = useState('')
@@ -66,7 +67,10 @@ export default function StudentDetailPage() {
 
   useEffect(() => {
     if (!id) return
-    dataService.getStudent(id).then(setStudent).catch(() => {})
+    setFetching(true)
+    dataService.getStudent(id)
+      .then(s => { setStudent(s); setFetching(false) })
+      .catch(() => setFetching(false))
   }, [id])
 
   const toggleSession = (sessionId: string) => {
@@ -78,7 +82,7 @@ export default function StudentDetailPage() {
     })
   }
 
-  if (isLoading && !student) {
+  if (fetching) {
     return (
       <div className="p-6 text-gray-400 text-sm animate-pulse">Loading student…</div>
     )
@@ -405,6 +409,9 @@ export default function StudentDetailPage() {
             {student.overview && <span className="ml-3 text-sm font-semibold text-indigo-600">{student.overview}</span>}
           </h1>
           <p className="text-gray-500 text-sm mt-0.5 max-w-xl italic">{student.topic}</p>
+          {student.topicZh && (
+            <p className="text-gray-700 text-sm mt-0.5 max-w-xl">{student.topicZh}</p>
+          )}
         </div>
         <div className="flex gap-2 shrink-0">
           <Link

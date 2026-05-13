@@ -2,29 +2,47 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { useStudentStore } from '@/stores/studentStore'
 import StudentFormFields, { useStudentFormState, buildStudentFromForm } from '@/components/StudentFormFields'
+import * as dataService from '@/lib/dataService'
+import type { Student } from '@/types'
 
 export default function EditStudentPage() {
   const { id } = useParams<{ id: string }>()
+  const [student, setStudent] = useState<Student | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!id) return
+    dataService.getStudent(id)
+      .then(setStudent)
+      .catch(() => setStudent(null))
+      .finally(() => setLoading(false))
+  }, [id])
+
+  if (loading) return <div className="p-6 text-sm text-gray-400">Loading…</div>
+  if (!student) return (
+    <div className="p-6 text-gray-400 text-sm">
+      Student not found. <Link to="/" className="text-indigo-500 underline">Back to dashboard</Link>
+    </div>
+  )
+
+  return <EditStudentForm student={student} />
+}
+
+function EditStudentForm({ student }: { student: Student }) {
   const navigate = useNavigate()
-  const { students, saveStudent, deleteStudent, tags: globalTags, fetchTags, saveTags, rounds: globalRounds, fetchRounds, saveRounds, supervisors, fetchSupervisors } = useStudentStore()
+  const { saveStudent, deleteStudent, tags: globalTags, fetchTags, saveTags, rounds: globalRounds, fetchRounds, saveRounds, supervisors, fetchSupervisors } = useStudentStore()
 
-  useEffect(() => { fetchSupervisors(); fetchRounds() }, [fetchSupervisors, fetchRounds])
+  useEffect(() => {
+    fetchSupervisors()
+    fetchRounds()
+    fetchTags()
+  }, [fetchSupervisors, fetchRounds, fetchTags])
 
-  const student = students.find(s => s.id === id)
   const formState = useStudentFormState(student)
-
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
-
-  if (!student) {
-    return (
-      <div className="p-6 text-gray-400 text-sm">
-        Student not found. <Link to="/" className="text-indigo-500 underline">Back to dashboard</Link>
-      </div>
-    )
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -32,9 +50,20 @@ export default function EditStudentPage() {
     setSaving(true)
     setError('')
     try {
-      const updated = {
+      const updated: Student = {
         ...student,
         ...buildStudentFromForm(formState),
+        // Preserve fields that the form doesn't edit
+        id: student.id,
+        saHoursUsed: student.saHoursUsed,
+        personalEntries: student.personalEntries,
+        milestones: student.milestones,
+        sessions: student.sessions,
+        mindMaps: student.mindMaps,
+        generatedProgressReport: student.generatedProgressReport,
+        progressReportGeneratedAt: student.progressReportGeneratedAt,
+        createdAt: student.createdAt,
+        updatedAt: student.updatedAt,
       }
       await saveStudent(updated)
       navigate(`/students/${student.id}`)

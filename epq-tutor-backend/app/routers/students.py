@@ -45,7 +45,7 @@ def _to_full_schema(s: models.Student) -> StudentSchema:
         taughtElementType=s.taught_element_type, universityAspiration=s.university_aspiration,
         currentGrade=s.current_grade, universityEnrollment=s.university_enrollment,
         contact=s.contact, supervisorId=s.supervisor_id,
-        topic=s.topic or "", overview=s.overview,
+        topic=s.topic or "", topicZh=s.topic_zh or "", overview=s.overview,
         saHoursTotal=s.sa_hours_total, saHoursUsed=s.sa_hours_used,
         nextSaSession=s.next_sa_session, nextTaSession=s.next_ta_session,
         nextTheorySession=s.next_theory_session,
@@ -67,7 +67,7 @@ def _to_summary(s: models.Student) -> StudentSummarySchema:
     past = [x for x in s.sessions if x.date <= datetime.now(timezone.utc).strftime("%Y-%m-%d")]
     last = max(past, key=lambda x: x.date, default=None) if past else None
     return StudentSummarySchema(
-        id=s.id, name=s.name, topic=s.topic or "",
+        id=s.id, name=s.name, topic=s.topic or "", topicZh=s.topic_zh or "",
         tags=_tags_list(s.tags),
         saHoursTotal=s.sa_hours_total, saHoursUsed=s.sa_hours_used,
         nextSaSession=s.next_sa_session, nextTaSession=s.next_ta_session,
@@ -165,7 +165,7 @@ def _upsert_student(
     s.university_aspiration = data.universityAspiration
     s.current_grade = data.currentGrade; s.university_enrollment = data.universityEnrollment
     s.contact = data.contact; s.supervisor_id = data.supervisorId
-    s.topic = data.topic; s.overview = data.overview
+    s.topic = data.topic; s.topic_zh = data.topicZh; s.overview = data.overview
     s.sa_hours_total = data.saHoursTotal; s.sa_hours_used = data.saHoursUsed
     s.next_sa_session = data.nextSaSession; s.next_ta_session = data.nextTaSession
     s.next_theory_session = data.nextTheorySession

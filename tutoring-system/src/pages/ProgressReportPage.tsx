@@ -3,25 +3,22 @@ import { useParams, Link } from 'react-router-dom'
 import { useStudentStore } from '@/stores/studentStore'
 import { generateProgressReport } from '@/lib/claudeService'
 import { getSettings } from '@/lib/settings'
+import * as dataService from '@/lib/dataService'
+import type { Student } from '@/types'
 
 function formatTimestamp(iso: string): string {
   return new Date(iso).toLocaleString('zh-CN', {
     timeZone: 'Asia/Shanghai',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
   })
 }
 
 export default function ProgressReportPage() {
   const { id } = useParams<{ id: string }>()
-  const { students, saveStudent } = useStudentStore()
+  const { saveStudent } = useStudentStore()
 
-  const student = students.find(s => s.id === id)
-
+  const [student, setStudent] = useState<Student | null>(null)
   const [report, setReport] = useState('')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -30,30 +27,34 @@ export default function ProgressReportPage() {
   const [fromCache, setFromCache] = useState(false)
 
   useEffect(() => {
-    if (!student) return
-    if (student.generatedProgressReport) {
-      setReport(student.generatedProgressReport)
-      setFromCache(true)
-    } else {
-      generate(false)
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    if (!id) return
+    dataService.getStudent(id).then(s => {
+      setStudent(s)
+      if (s.generatedProgressReport) {
+        setReport(s.generatedProgressReport)
+        setFromCache(true)
+      } else {
+        generateFor(s)
+      }
+    }).catch(() => {})
+  }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const generate = async (force: boolean) => {
-    if (!student) return
+  const generateFor = async (s: Student, force = false) => {
     setLoading(true)
     setError('')
     setFromCache(false)
     if (force) setReport('')
     try {
-      const text = await generateProgressReport(student)
+      const text = await generateProgressReport(s)
       setReport(text)
       setSaving(true)
-      await saveStudent({
-        ...student,
+      const updated: Student = {
+        ...s,
         generatedProgressReport: text,
         progressReportGeneratedAt: new Date().toISOString(),
-      })
+      }
+      await saveStudent(updated)
+      setStudent(updated)
     } catch (e) {
       setError(String(e))
     } finally {
@@ -69,16 +70,11 @@ export default function ProgressReportPage() {
   }
 
   if (!student) {
-    return (
-      <div className="p-6 text-gray-400 text-sm">
-        Student not found. <Link to="/" className="text-indigo-500 underline">Back to dashboard</Link>
-      </div>
-    )
+    return <div className="p-6 text-gray-400 text-sm">Loading… <Link to="/" className="text-indigo-500 underline">Back to dashboard</Link></div>
   }
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
-      {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <Link to={`/students/${student.id}`} className="text-gray-400 hover:text-gray-600 text-sm">
           ← {student.name}{student.nameEn ? ` · ${student.nameEn}` : ''}
@@ -87,10 +83,9 @@ export default function ProgressReportPage() {
         <h1 className="text-xl font-semibold text-gray-900">整体进度报告</h1>
       </div>
 
-      {/* Action bar */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <button
-          onClick={() => generate(true)}
+          onClick={() => generateFor(student, true)}
           disabled={loading || saving}
           className="text-sm px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50 transition-colors"
         >
@@ -98,19 +93,12 @@ export default function ProgressReportPage() {
         </button>
         {report && (
           <>
-            <button
-              onClick={copy}
-              className="text-sm px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
-            >
+            <button onClick={copy} className="text-sm px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors">
               {copied ? '已复制 ✓' : '复制报告'}
             </button>
             {student.tencentDocUrl && (
-              <a
-                href={student.tencentDocUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-              >
+              <a href={student.tencentDocUrl} target="_blank" rel="noopener noreferrer"
+                className="text-sm px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
                 打开腾讯文档 →
               </a>
             )}
@@ -121,19 +109,15 @@ export default function ProgressReportPage() {
             已缓存 · 生成于 {formatTimestamp(student.progressReportGeneratedAt)}
           </span>
         )}
-        {saving && (
-          <span className="text-xs text-gray-400 ml-1">保存中…</span>
-        )}
+        {saving && <span className="text-xs text-gray-400 ml-1">保存中…</span>}
       </div>
 
-      {/* Content */}
       {loading && (
         <div className="bg-white rounded-2xl border border-gray-200 p-8 flex items-center justify-center gap-3 text-gray-400 text-sm">
           <span className="animate-spin text-indigo-500">⟳</span>
-          正在调用 {getSettings().aiModel || 'qwen3.5-flash'} 生成报告，请稍候…
+          正在调用 {getSettings().aiModel || 'qwen-plus'} 生成报告，请稍候…
         </div>
       )}
-
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-2xl p-5 text-sm text-red-700">
           <p className="font-medium mb-1">生成失败</p>
@@ -143,13 +127,11 @@ export default function ProgressReportPage() {
           )}
         </div>
       )}
-
       {report && !loading && (
         <div className="bg-white rounded-2xl border border-gray-200 p-6">
           <pre className="whitespace-pre-wrap text-sm text-gray-800 leading-relaxed font-sans">{report}</pre>
         </div>
       )}
-
       {!report && !loading && !error && (
         <div className="bg-white rounded-2xl border border-gray-200 p-8 text-center text-gray-400 text-sm">
           点击「生成报告」开始

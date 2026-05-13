@@ -63,6 +63,7 @@ export interface Student {
   contact?: string
   supervisorId?: string
   topic: string
+  topicZh?: string
   overview?: string
   personalEntries: PersonalEntry[]
   mindMaps: MindMap[]
@@ -88,6 +89,7 @@ export interface StudentSummary {
   id: string
   name: string
   topic: string
+  topicZh?: string
   tags: string[]
   saHoursTotal: number
   saHoursUsed: number

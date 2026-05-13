@@ -75,7 +75,9 @@ export default function StudentCard({ student }: Props) {
       {student.overview && (
         <p className="text-xs font-semibold text-indigo-600 mb-0.5">{student.overview}</p>
       )}
-      <p className="text-xs text-gray-500 mb-3 line-clamp-1 italic">{student.topic}</p>
+      {(student.topicZh || student.topic) && (
+        <p className="text-xs text-gray-500 mb-3 line-clamp-1 italic">{student.topicZh || student.topic}</p>
+      )}
 
       {/* Tags */}
       {student.tags.length > 0 && (

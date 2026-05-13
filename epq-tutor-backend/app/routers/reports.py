@@ -29,12 +29,19 @@ def save_weekly_report(
     db: Session = Depends(get_db),
     _tutor: models.Tutor = Depends(get_current_tutor),
 ):
-    row = models.WeeklyReport(
-        generated_at=data.generatedAt,
-        content=data.content,
-        last_scan_at=data.cache.get("lastScanAt", data.generatedAt),
-        student_cache=data.cache.get("students", {}),
-    )
-    db.add(row)
+    row = db.query(models.WeeklyReport).order_by(models.WeeklyReport.id.desc()).first()
+    if row:
+        row.generated_at = data.generatedAt
+        row.content = data.content
+        row.last_scan_at = data.cache.get("lastScanAt", data.generatedAt)
+        row.student_cache = data.cache.get("students", {})
+    else:
+        row = models.WeeklyReport(
+            generated_at=data.generatedAt,
+            content=data.content,
+            last_scan_at=data.cache.get("lastScanAt", data.generatedAt),
+            student_cache=data.cache.get("students", {}),
+        )
+        db.add(row)
     db.commit()
     return data

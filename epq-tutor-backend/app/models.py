@@ -50,6 +50,7 @@ class Student(Base):
     contact = Column(String(256))
     supervisor_id = Column(String(64), ForeignKey("supervisors.id"))
     topic = Column(Text, nullable=False, default="")
+    topic_zh = Column(Text, nullable=True, default="")
     overview = Column(Text)
     sa_hours_total = Column(Integer, default=12)
     sa_hours_used = Column(Float, default=0)

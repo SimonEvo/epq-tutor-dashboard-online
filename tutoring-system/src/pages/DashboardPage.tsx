@@ -3,9 +3,23 @@ import { Link } from 'react-router-dom'
 import { useStudentStore } from '@/stores/studentStore'
 import StudentCard from '@/components/StudentCard'
 import AICommandCenter from '@/components/AICommandCenter'
+import StudentTableView from '@/components/views/StudentTableView'
+import KanbanRoundView from '@/components/views/KanbanRoundView'
+import KanbanProgressView from '@/components/views/KanbanProgressView'
+import MilestoneGridView from '@/components/views/MilestoneGridView'
 import type { Student, WeeklyReportData } from '@/types'
 import { formatHours } from '@/lib/formatters'
 import { generateWeeklyReport, getWeeklyReportData } from '@/lib/weeklyReportService'
+
+type ViewMode = 'grid' | 'list' | 'kanban-round' | 'kanban-progress' | 'milestone'
+
+const VIEW_BUTTONS: { mode: ViewMode; label: string }[] = [
+  { mode: 'grid', label: '卡片' },
+  { mode: 'list', label: '列表' },
+  { mode: 'kanban-round', label: '批次' },
+  { mode: 'kanban-progress', label: '进度' },
+  { mode: 'milestone', label: '里程碑' },
+]
 
 export default function DashboardPage() {
   const { students, tags, rounds, supervisors, isLoading, error, fetchAll, fetchTags, fetchRounds, fetchSupervisors } = useStudentStore()
@@ -13,10 +27,19 @@ export default function DashboardPage() {
   const [selectedRound, setSelectedRound] = useState<string>('')
   const [selectedSupervisor, setSelectedSupervisor] = useState<string>('')
   const [sortBy, setSortBy] = useState<'name' | 'lastSession'>('lastSession')
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    () => (localStorage.getItem('dashboard-view-mode') as ViewMode) ?? 'grid'
+  )
+
+  const handleViewMode = (mode: ViewMode) => {
+    setViewMode(mode)
+    localStorage.setItem('dashboard-view-mode', mode)
+  }
 
   // Stats modal
   const [showStats, setShowStats] = useState(false)
   const [statsCutoff, setStatsCutoff] = useState(new Date().toISOString().slice(0, 10))
+  const [statsRound, setStatsRound] = useState<string>('')
 
   // Weekly report modal
   const [showReport, setShowReport] = useState(false)
@@ -55,6 +78,7 @@ export default function DashboardPage() {
       const supervisor = supervisors.find(sv => sv.id === s.supervisorId)
       return !supervisor || supervisor.saType !== '中方SA'
     })
+    .filter(s => !statsRound || s.submissionRound === statsRound)
     .map(s => {
       const supervisor = supervisors.find(sv => sv.id === s.supervisorId)
       const doneSessions = s.sessions.filter(
@@ -105,22 +129,48 @@ export default function DashboardPage() {
             <button onClick={() => setShowStats(false)} className="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
           </div>
 
-          {/* Cutoff date picker */}
-          <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-3 shrink-0">
-            <label className="text-sm text-gray-600 shrink-0">截止日期</label>
-            <input
-              type="date"
-              value={statsCutoff}
-              onChange={e => setStatsCutoff(e.target.value)}
-              className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-            <span className="text-xs text-gray-400">仅统计英方SA学生（共 {statsRows.length} 人）</span>
-            <button
-              onClick={copyStatsText}
-              className="ml-auto text-xs px-3 py-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors shrink-0"
-            >
-              复制文本
-            </button>
+          {/* Cutoff date + round filter */}
+          <div className="px-5 py-3 border-b border-gray-100 flex flex-col gap-2 shrink-0">
+            <div className="flex items-center gap-3">
+              <label className="text-sm text-gray-600 shrink-0">截止日期</label>
+              <input
+                type="date"
+                value={statsCutoff}
+                onChange={e => setStatsCutoff(e.target.value)}
+                className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <span className="text-xs text-gray-400">英方SA · {statsRows.length} 人</span>
+              <button
+                onClick={copyStatsText}
+                className="ml-auto text-xs px-3 py-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors shrink-0"
+              >
+                复制文本
+              </button>
+            </div>
+            {rounds.length > 0 && (
+              <div className="flex gap-2 flex-wrap items-center">
+                <span className="text-xs text-gray-400 shrink-0">批次:</span>
+                <button
+                  onClick={() => setStatsRound('')}
+                  className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                    !statsRound ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  全部
+                </button>
+                {rounds.map(r => (
+                  <button
+                    key={r}
+                    onClick={() => setStatsRound(r === statsRound ? '' : r)}
+                    className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                      statsRound === r ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Table */}
@@ -270,16 +320,18 @@ export default function DashboardPage() {
       </div>
 
       <div className="flex flex-col gap-3 mb-6">
-        {/* Row 1: sort + round filter */}
+        {/* Row 1: sort + round filter + view switcher */}
         <div className="flex gap-3 flex-wrap items-center">
-          <select
-            value={sortBy}
-            onChange={e => setSortBy(e.target.value as 'name' | 'lastSession')}
-            className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white"
-          >
-            <option value="lastSession">Sort: Needs attention first</option>
-            <option value="name">Sort: Name A–Z</option>
-          </select>
+          {viewMode !== 'kanban-round' && viewMode !== 'kanban-progress' && viewMode !== 'milestone' && (
+            <select
+              value={sortBy}
+              onChange={e => setSortBy(e.target.value as 'name' | 'lastSession')}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white"
+            >
+              <option value="lastSession">Sort: Needs attention first</option>
+              <option value="name">Sort: Name A–Z</option>
+            </select>
+          )}
 
           {rounds.length > 0 && (
             <div className="flex gap-2 flex-wrap items-center">
@@ -309,6 +361,23 @@ export default function DashboardPage() {
               ))}
             </div>
           )}
+
+          {/* View mode switcher */}
+          <div className="ml-auto flex rounded-lg border border-gray-200 overflow-hidden">
+            {VIEW_BUTTONS.map(({ mode, label }) => (
+              <button
+                key={mode}
+                onClick={() => handleViewMode(mode)}
+                className={`text-xs px-3 py-1.5 transition-colors border-r border-gray-200 last:border-r-0 ${
+                  viewMode === mode
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-white text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Row 2: supervisor filter */}
@@ -363,6 +432,14 @@ export default function DashboardPage() {
         <div className="text-gray-400 text-sm py-16 text-center">
           {students.length === 0 ? 'No students yet. Add your first student!' : 'No students match this filter.'}
         </div>
+      ) : viewMode === 'list' ? (
+        <StudentTableView students={filtered} />
+      ) : viewMode === 'kanban-round' ? (
+        <KanbanRoundView students={filtered} rounds={rounds} />
+      ) : viewMode === 'kanban-progress' ? (
+        <KanbanProgressView students={filtered} />
+      ) : viewMode === 'milestone' ? (
+        <MilestoneGridView students={filtered} />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map(student => (

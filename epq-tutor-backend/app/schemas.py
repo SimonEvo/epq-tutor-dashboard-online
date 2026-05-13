@@ -71,6 +71,7 @@ class StudentSchema(BaseModel):
     contact: Optional[str] = None
     supervisorId: Optional[str] = None
     topic: str = ""
+    topicZh: str = ""
     overview: Optional[str] = None
     saHoursTotal: int = 12
     saHoursUsed: float = 0
@@ -105,6 +106,7 @@ class StudentSummarySchema(BaseModel):
     id: str
     name: str
     topic: str
+    topicZh: str = ""
     tags: list[str] = []
     saHoursTotal: int
     saHoursUsed: float

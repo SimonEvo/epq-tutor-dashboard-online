@@ -100,6 +100,12 @@ export async function saveCalendarGistId(gistId: string): Promise<void> {
   await api('/config/calendar', { method: 'PUT', body: JSON.stringify({ gistId }) })
 }
 
+// ─── Backup ───────────────────────────────────────────────────────────────────
+
+export async function exportBackup(): Promise<{ path: string; students: number; supervisors: number; tags: number }> {
+  return api('/backup/export', { method: 'POST' })
+}
+
 // ─── Auth check ──────────────────────────────────────────────────────────────
 
 export async function verifyAuth(): Promise<boolean> {

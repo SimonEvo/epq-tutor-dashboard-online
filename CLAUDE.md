@@ -1,5 +1,8 @@
 # CLAUDE.md
 
+Always respond in Chinese (Simplified).
+
+
 ## 项目概述
 EPQ 学生辅导进度管理系统，单人家教自用，最多 30 名学生。用于课时记录、SA 小时追踪、EPQ 里程碑管理、AI 报告生成。
 

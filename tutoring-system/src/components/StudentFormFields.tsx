@@ -15,6 +15,7 @@ export interface StudentFormState {
   universityAspiration: string; setUniversityAspiration: (v: string) => void
   contact: string; setContact: (v: string) => void
   topic: string; setTopic: (v: string) => void
+  topicZh: string; setTopicZh: (v: string) => void
   overview: string; setOverview: (v: string) => void
   saTotal: number; setSaTotal: (v: number) => void
   availabilityNote: string; setAvailabilityNote: (v: string) => void
@@ -37,6 +38,7 @@ export function useStudentFormState(initial?: Partial<Student>): StudentFormStat
   const [universityAspiration, setUniversityAspiration] = useState(initial?.universityAspiration ?? '')
   const [contact, setContact] = useState(initial?.contact ?? '')
   const [topic, setTopic] = useState(initial?.topic ?? '')
+  const [topicZh, setTopicZh] = useState(initial?.topicZh ?? '')
   const [overview, setOverview] = useState(initial?.overview ?? '')
   const [saTotal, setSaTotal] = useState(initial?.saHoursTotal ?? 12)
   const [availabilityNote, setAvailabilityNote] = useState(initial?.availabilityNote ?? '')
@@ -53,7 +55,7 @@ export function useStudentFormState(initial?: Partial<Student>): StudentFormStat
     submissionRound, setSubmissionRound,
     taughtElementType, setTaughtElementType,
     universityAspiration, setUniversityAspiration, contact, setContact,
-    topic, setTopic, overview, setOverview, saTotal, setSaTotal,
+    topic, setTopic, topicZh, setTopicZh, overview, setOverview, saTotal, setSaTotal,
     supervisorId, setSupervisorId,
     availabilityNote, setAvailabilityNote, briefNote, setBriefNote,
     privateNotes, setPrivateNotes, tencentDocUrl, setTencentDocUrl,
@@ -74,6 +76,7 @@ export function buildStudentFromForm(f: StudentFormState): Omit<Student, 'id' | 
     universityAspiration: f.universityAspiration.trim() || undefined,
     contact: f.contact.trim() || undefined,
     topic: f.topic.trim(),
+    topicZh: f.topicZh.trim() || undefined,
     overview: f.overview.trim() || undefined,
     supervisorId: f.supervisorId || undefined,
     tags: f.selectedTags,
@@ -204,10 +207,15 @@ export default function StudentFormFields({ state, globalTags, globalRounds, sup
 
       {/* Section: EPQ */}
       <SectionTitle>EPQ Details</SectionTitle>
-      <Field label="Research Topic *">
+      <Field label="Research Topic (English) *">
         <textarea value={state.topic} onChange={e => state.setTopic(e.target.value)}
           placeholder="e.g. The impact of social media on adolescent mental health"
           rows={2} className={inputCls} required />
+      </Field>
+      <Field label="课题中文版" hint="AI 报告和 Dashboard 卡片使用此字段">
+        <textarea value={state.topicZh} onChange={e => state.setTopicZh(e.target.value)}
+          placeholder="例：社交媒体对青少年心理健康的影响"
+          rows={2} className={inputCls} />
       </Field>
       <Field label="Overview" hint="Short phrase shown on the dashboard card, e.g. 脑机接口">
         <input value={state.overview} onChange={e => state.setOverview(e.target.value)}

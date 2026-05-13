@@ -63,7 +63,7 @@ else:
 
 # ── Weekly report ─────────────────────────────────────────────────────────────
 wr_file = DATA / 'config' / 'weekly_report.json'
-if wr_file.exists():
+if wr_file.exists() and not db.query(models.WeeklyReport).first():
     wr = read_json(wr_file)
     db.add(models.WeeklyReport(
         generated_at=wr.get("generatedAt", now_utc().isoformat()),
@@ -73,6 +73,8 @@ if wr_file.exists():
     ))
     db.commit()
     print("Weekly report: imported")
+elif wr_file.exists():
+    print("Weekly report: skipped (already exists in DB)")
 
 # ── Supervisors ───────────────────────────────────────────────────────────────
 sv_dir = DATA / 'supervisors'

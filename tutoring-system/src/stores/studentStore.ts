@@ -37,11 +37,10 @@ export const useStudentStore = create<StudentState>((set, get) => ({
   calendarUrl: null,
 
   fetchAll: async () => {
-    set({ isLoading: true, error: null })
+    // 只有第一次（没有缓存数据）才显示 loading，之后静默刷新避免闪烁
+    if (get().students.length === 0) set({ isLoading: true, error: null })
     try {
       const students = await dataService.listStudents()
-      // Only overwrite existing data if we got a non-empty list, or if we had nothing before.
-      // This prevents a transient GitHub API 404 from wiping an already-loaded student list.
       if (students.length > 0 || get().students.length === 0) {
         set({ students, isLoading: false })
       } else {

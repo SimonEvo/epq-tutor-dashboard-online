@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { getSettings, saveSettings, AI_PROVIDERS } from '@/lib/settings'
 import { publishCalendar, calendarUrl as getCalendarUrl } from '@/lib/calendarService'
 import { useStudentStore } from '@/stores/studentStore'
+import * as dataService from '@/lib/dataService'
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState(getSettings)
@@ -10,6 +11,8 @@ export default function SettingsPage() {
   const [calSyncing, setCalSyncing] = useState(false)
   const [calStatus, setCalStatus] = useState<'idle' | 'ok' | 'err'>('idle')
   const [calError, setCalError] = useState('')
+  const [backupStatus, setBackupStatus] = useState<'idle' | 'loading' | 'ok' | 'err'>('idle')
+  const [backupMsg, setBackupMsg] = useState('')
   const students = useStudentStore(s => s.students)
   const calendarUrlFromStore = useStudentStore(s => s.calendarUrl)
   const [calendarUrl, setCalendarUrl] = useState<string | null>(calendarUrlFromStore)
@@ -41,6 +44,19 @@ export default function SettingsPage() {
 
   const handleCopyUrl = () => {
     if (calendarUrl) navigator.clipboard.writeText(calendarUrl)
+  }
+
+  const handleBackup = async () => {
+    setBackupStatus('loading')
+    setBackupMsg('')
+    try {
+      const result = await dataService.exportBackup()
+      setBackupStatus('ok')
+      setBackupMsg(`已备份 ${result.students} 名学生、${result.supervisors} 位督导、${result.tags} 个标签 → ${result.path}`)
+    } catch (e) {
+      setBackupStatus('err')
+      setBackupMsg(e instanceof Error ? e.message : String(e))
+    }
   }
 
   const handleSave = (e: React.FormEvent) => {
@@ -176,6 +192,32 @@ export default function SettingsPage() {
                 className={inputCls}
               />
             </div>
+          </div>
+        </section>
+
+        {/* Data Backup */}
+        <section className="bg-white rounded-2xl border border-gray-200 p-6">
+          <h2 className="text-sm font-semibold text-gray-900 mb-1">数据备份</h2>
+          <p className="text-xs text-gray-400 mb-4">
+            将所有学生、督导、标签、周报数据以 JSON 文件导出至服务器
+            <code className="mx-1 bg-gray-100 px-1 rounded">/opt/epq-tutor-data_backup/</code>
+            目录，格式与原始数据一致，可直接用 migrate_from_local.py 还原。
+          </p>
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              type="button"
+              onClick={handleBackup}
+              disabled={backupStatus === 'loading'}
+              className="text-sm px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-colors"
+            >
+              {backupStatus === 'loading' ? '备份中…' : '立即备份到服务器'}
+            </button>
+            {backupStatus === 'ok' && (
+              <span className="text-xs text-green-600">{backupMsg}</span>
+            )}
+            {backupStatus === 'err' && (
+              <span className="text-xs text-red-500">备份失败：{backupMsg}</span>
+            )}
           </div>
         </section>
 

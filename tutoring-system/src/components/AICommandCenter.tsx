@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStudentStore } from '@/stores/studentStore'
 import { parseAICommand, type AICommandAction, type ParsedStudent } from '@/lib/claudeService'
+import * as dataService from '@/lib/dataService'
 import type { Student, SessionRecord, SessionType } from '@/types'
 
 function generateId() {
@@ -87,6 +88,7 @@ export default function AICommandCenter() {
           universityAspiration: d.universityAspiration || undefined,
           contact: d.contact || undefined,
           topic: d.topic ?? '',
+          topicZh: d.topicZh || undefined,
           overview: d.overview || undefined,
           supervisorId: d.supervisorId || undefined,
           saHoursTotal: d.saHoursTotal ?? 12,
@@ -110,8 +112,8 @@ export default function AICommandCenter() {
         setTimeout(() => navigate(`/students/${newStudent.id}/edit`), 800)
 
       } else if (preview.type === 'create_session') {
-        const student = students.find(s => s.id === preview.studentId)
-        if (!student) { setError('找不到对应学生'); return }
+        if (!preview.studentId) { setError('找不到对应学生'); return }
+        const student = await dataService.getStudent(preview.studentId)
         const d = preview.data
         const type: SessionType = (d.type as SessionType) ?? 'SA_MEETING'
         const date = d.date ?? new Date().toISOString().slice(0, 10)
