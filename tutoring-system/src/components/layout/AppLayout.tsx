@@ -1,8 +1,8 @@
-import { Outlet, Link } from 'react-router-dom'
-import { useAuthStore } from '@/stores/authStore'
+import { Outlet } from 'react-router-dom'
 import { useStudentStore } from '@/stores/studentStore'
 import { useEffect, useState } from 'react'
 import PromptTemplateEditor from '@/components/PromptTemplateEditor'
+import AppSidebar from './AppSidebar'
 
 function BeijingClock() {
   const [time, setTime] = useState('')
@@ -35,26 +35,19 @@ const CAL_LABEL = {
 } as const
 
 export default function AppLayout() {
-  const logout = useAuthStore(s => s.logout)
   const calendarSync = useStudentStore(s => s.calendarSync)
   const [promptEditorOpen, setPromptEditorOpen] = useState(false)
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-5">
-          <Link to="/" className="font-semibold text-gray-900 text-sm">📚 EPQ Tutor Dashboard</Link>
-          <Link to="/supervisors" className="text-xs text-gray-400 hover:text-gray-700 transition-colors">Supervisors</Link>
-          <Link to="/settings" className="text-xs text-gray-400 hover:text-gray-700 transition-colors">Settings</Link>
-          <Link to="/zoom-config" className="text-xs text-gray-400 hover:text-gray-700 transition-colors">Zoom</Link>
-          <button
-            onClick={() => setPromptEditorOpen(true)}
-            className="text-xs text-gray-400 hover:text-gray-700 transition-colors"
-          >
-            提示词
-          </button>
-        </div>
-        <div className="flex items-center gap-4">
+    <div className="flex h-screen overflow-hidden" style={{ background: '#f5f5f7' }}>
+      <AppSidebar onAiClick={() => setPromptEditorOpen(true)} />
+
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+        {/* Slim top bar: clock + calendar sync status */}
+        <div
+          className="flex items-center justify-end gap-4 px-6 shrink-0"
+          style={{ height: 40, borderBottom: '1px solid rgba(0,0,0,0.05)' }}
+        >
           {calendarSync !== 'idle' && (
             <span className={`text-xs transition-all ${
               calendarSync === 'syncing' ? 'text-gray-400 animate-pulse' :
@@ -65,14 +58,19 @@ export default function AppLayout() {
             </span>
           )}
           <BeijingClock />
-          <button onClick={logout} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
-            Sign out
+          <button
+            onClick={() => setPromptEditorOpen(true)}
+            className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            提示词
           </button>
         </div>
-      </header>
-      <main className="max-w-6xl mx-auto">
-        <Outlet />
-      </main>
+
+        <main className="flex-1 overflow-y-auto">
+          <Outlet />
+        </main>
+      </div>
+
       <PromptTemplateEditor open={promptEditorOpen} onClose={() => setPromptEditorOpen(false)} />
     </div>
   )
