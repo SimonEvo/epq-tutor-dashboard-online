@@ -7,13 +7,15 @@ import StudentTableView from '@/components/views/StudentTableView'
 import KanbanRoundView from '@/components/views/KanbanRoundView'
 import KanbanProgressView from '@/components/views/KanbanProgressView'
 import MilestoneGridView from '@/components/views/MilestoneGridView'
+import OverviewView from '@/components/views/OverviewView'
 import type { Student, WeeklyReportData } from '@/types'
 import { formatHours } from '@/lib/formatters'
 import { generateWeeklyReport, getWeeklyReportData } from '@/lib/weeklyReportService'
 
-type ViewMode = 'grid' | 'list' | 'kanban-round' | 'kanban-progress' | 'milestone'
+type ViewMode = 'overview' | 'grid' | 'list' | 'kanban-round' | 'kanban-progress' | 'milestone'
 
 const VIEW_BUTTONS: { mode: ViewMode; label: string }[] = [
+  { mode: 'overview', label: '概览' },
   { mode: 'grid', label: '卡片' },
   { mode: 'list', label: '列表' },
   { mode: 'kanban-round', label: '批次' },
@@ -28,7 +30,7 @@ export default function DashboardPage() {
   const [selectedSupervisor, setSelectedSupervisor] = useState<string>('')
   const [sortBy, setSortBy] = useState<'name' | 'lastSession'>('lastSession')
   const [viewMode, setViewMode] = useState<ViewMode>(
-    () => (localStorage.getItem('dashboard-view-mode') as ViewMode) ?? 'grid'
+    () => (localStorage.getItem('dashboard-view-mode') as ViewMode) ?? 'overview'
   )
 
   const handleViewMode = (mode: ViewMode) => {
@@ -432,6 +434,8 @@ export default function DashboardPage() {
         <div className="text-gray-400 text-sm py-16 text-center">
           {students.length === 0 ? 'No students yet. Add your first student!' : 'No students match this filter.'}
         </div>
+      ) : viewMode === 'overview' ? (
+        <OverviewView students={filtered} supervisors={supervisors} />
       ) : viewMode === 'list' ? (
         <StudentTableView students={filtered} />
       ) : viewMode === 'kanban-round' ? (
