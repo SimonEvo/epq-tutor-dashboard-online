@@ -57,6 +57,9 @@ Tutor's private diary/log. Not linked to any student. Not student-facing. Markdo
 ### Homework Entry
 A checklist of tasks assigned to a student after a session. Linked to its source session via `sourceLabel`. May have a deadline. Items are individually checkable (`done: boolean`).
 
+### Overview
+Short phrase categorising a student's EPQ topic — shown on the dashboard row as a compact identifier (e.g. "脑机接口", "气候变化"). Optional; if absent, nothing is shown. Distinct from Topic (the full EPQ title) and Brief Note (a freeform quick-reference).
+
 ### Brief Note
 One-liner shown on the student card in the dashboard. Tutor-facing quick reference.
 
@@ -65,3 +68,50 @@ Freeform labels on a student. Currently unused; candidate for removal.
 
 ### Private Notes
 Tutor-only notes on a student. Never included in any export or AI-generated output. Enforced at serialization layer.
+
+### Last-Touched
+The most recent timestamp at which any data for a student was modified — including adding a session, changing milestone status, or editing any student field. Distinct from Last-Meeting (which only tracks SA/TA meeting dates). Both signals are shown independently on the dashboard. **Backend gap**: `sessions` table has no `updated_at`; `student_milestones` has no timestamps. Full Last-Touched requires backend schema changes.
+
+## Dashboard Design Decisions
+
+### Primary Tasks
+1. Urgency scan — quickly identify which students need attention
+2. Record / schedule sessions
+
+### Target Density
+10–15 students visible at once (medium density). Current card grid (~6–8) is too sparse.
+
+### Key Signals Per Student (in priority order)
+1. Last-meeting urgency (days since last SA/TA meeting) → drives urgency accent color
+2. Last-Touched (days since any info update) → shown as separate indicator
+3. SA hours remaining (critical when ≤ 2h)
+4. Next SA date + Next TA date (for 中方SA students: next SA only)
+
+### Layout
+Sidebar replaces top horizontal nav. Structure:
+- 主要: 学生 (Dashboard) / 督导
+- 工具: AI 指令 / Zoom
+- 系统: 设置
+- Bottom: user avatar + logout
+
+View-switching (卡片/列表/批次/进度/里程碑) remains within the Dashboard page, not in sidebar. All 5 views retained.
+
+### Default Dashboard View
+New **概览行 (Overview Row)** view — denser than card grid, more visual than table. Each row:
+- Left urgency accent strip (red/amber/green based on last-meeting days)
+- Student name (Chinese) + English name + Overview label (e.g. "脑机接口"; omitted if empty)
+- Last-meeting signal (●Xd) + Last-touched signal (○Xd)
+- SA hours remaining bar + remaining hours count
+- Next SA date + Next TA date (中方SA students: next SA only)
+- Hover: reveals "+ Session" quick-action button
+- Row height ~56–64px; click navigates to student detail
+
+### Sidebar
+Collapsible (expanded = icon + label; collapsed = icon only). Structure:
+- 主要: 学生 / 督导
+- 工具: AI 指令 / Zoom
+- 系统: 设置
+- Bottom: user avatar + logout
+
+### Last-Touched Backend Fix
+`_upsert_student` already touches `students.updated_at` on every save (sessions/milestones are full-replaced each save, so any change triggers it). Gap: `StudentSummarySchema` doesn't expose `updatedAt`. Fix: add field to schema + `_to_summary` mapping.
