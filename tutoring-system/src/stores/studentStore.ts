@@ -20,6 +20,7 @@ interface StudentState {
   fetchSupervisors: () => Promise<void>
   saveStudent: (student: Student) => Promise<void>
   deleteStudent: (id: string) => Promise<void>
+  patchHomeworkItem: (studentId: string, entryId: string, itemIdx: number, done: boolean) => Promise<void>
   saveTags: (tags: string[]) => Promise<void>
   saveRounds: (rounds: string[]) => Promise<void>
   saveSupervisor: (supervisor: Supervisor) => Promise<void>
@@ -88,6 +89,19 @@ export const useStudentStore = create<StudentState>((set, get) => ({
   deleteStudent: async (id: string) => {
     await dataService.deleteStudent(id)
     set({ students: get().students.filter(s => s.id !== id) })
+  },
+
+  patchHomeworkItem: async (studentId, entryId, itemIdx, done) => {
+    await dataService.toggleHomeworkItem(studentId, entryId, itemIdx, done)
+    set({
+      students: get().students.map(s => {
+        if (s.id !== studentId || !s.latestHomeworkEntry || s.latestHomeworkEntry.id !== entryId) return s
+        const items = s.latestHomeworkEntry.items.map((item, i) =>
+          i === itemIdx ? { ...item, done } : item
+        )
+        return { ...s, latestHomeworkEntry: { ...s.latestHomeworkEntry, items } }
+      }),
+    })
   },
 
   saveTags: async (tags: string[]) => {

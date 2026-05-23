@@ -127,6 +127,8 @@ class StudentSummarySchema(BaseModel):
     nameEn: Optional[str] = None
     overview: Optional[str] = None
     sessions: list[SessionSummarySchema] = []
+    updatedAt: str = ""
+    latestHomeworkEntry: Optional[dict] = None
 
 
 # ── Tags ──────────────────────────────────────────────────────────────────────

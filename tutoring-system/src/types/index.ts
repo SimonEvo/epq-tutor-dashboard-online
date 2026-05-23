@@ -69,6 +69,7 @@ export interface MilestoneProgress {
 }
 
 export interface Student {
+  latestHomeworkEntry?: HomeworkEntry
   id: string
   name: string
   nameEn?: string

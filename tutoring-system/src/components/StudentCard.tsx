@@ -1,159 +1,111 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { Student } from '@/types'
-import { EPQ_MILESTONES } from '@/config'
-import { formatHours, isSessionStarted } from '@/lib/formatters'
+import { useStudentStore } from '@/stores/studentStore'
 
 interface Props {
   student: Student
 }
 
-const SESSION_LABEL: Record<string, string> = {
-  SA_MEETING: 'SA',
-  TA_MEETING: 'TA',
-  THEORY: 'Theory',
-}
-
 export default function StudentCard({ student }: Props) {
-  // Last SA/TA meeting: past only (started), exclude THEORY
-  const lastMeeting = [...student.sessions]
-    .filter(s => (s.type === 'SA_MEETING' || s.type === 'TA_MEETING') && isSessionStarted(s))
-    .sort((a, b) => b.date.localeCompare(a.date))[0]
-  const daysSinceLast = lastMeeting
-    ? Math.floor((Date.now() - new Date(lastMeeting.date).getTime()) / 86400000)
-    : null
+  const patchHomeworkItem = useStudentStore(s => s.patchHomeworkItem)
+  const entry = student.latestHomeworkEntry
+  const items = entry?.items ?? []
+  const [saving, setSaving] = useState<number | null>(null)
 
-  // Next SA meeting: not yet started, take earliest
-  const nextSaMeeting = [...student.sessions]
-    .filter(s => s.type === 'SA_MEETING' && !isSessionStarted(s))
-    .sort((a, b) => a.date.localeCompare(b.date))[0]
+  const doneCount = items.filter(i => i.done).length
+  const allDone = items.length > 0 && doneCount === items.length
+  const accentColor = items.length === 0
+    ? '#d1d5db'
+    : allDone ? '#10b981' : '#f59e0b'
 
-  const applicableMilestones = EPQ_MILESTONES.filter(
-    m => !m.optional || student.milestones[m.id] !== 'na'
-  )
-  const completed = applicableMilestones.filter(m => student.milestones[m.id] === 'completed').length
-  const progress = applicableMilestones.length > 0
-    ? Math.round((completed / applicableMilestones.length) * 100)
-    : 0
-
-  // Dots: count started SA sessions only — SESSION count for dimming (次数)
-  const pastSaCount = student.sessions.filter(
-    s => s.type === 'SA_MEETING' && isSessionStarted(s)
-  ).length
-
-  // Label: remaining HOURS from started sessions only (小时数，与次数独立计算)
-  const pastSaHoursUsed = student.sessions
-    .filter(s => s.type === 'SA_MEETING' && isSessionStarted(s))
-    .reduce((sum, s) => sum + s.durationMinutes / 60, 0)
-  const saHoursRemaining = student.saHoursTotal - pastSaHoursUsed
-  const saLow = saHoursRemaining <= 2
-
-  const urgencyColor = daysSinceLast === null
-    ? 'border-l-gray-200'
-    : daysSinceLast > 14
-    ? 'border-l-red-400'
-    : daysSinceLast > 7
-    ? 'border-l-amber-400'
-    : 'border-l-green-400'
+  const toggle = async (idx: number, e: React.MouseEvent) => {
+    e.preventDefault()
+    if (!entry || saving !== null) return
+    setSaving(idx)
+    try {
+      await patchHomeworkItem(student.id, entry.id, idx, !items[idx].done)
+    } finally {
+      setSaving(null)
+    }
+  }
 
   return (
-    <Link
-      to={`/students/${student.id}`}
-      className={`block bg-white rounded-xl border border-gray-200 border-l-4 ${urgencyColor} p-4 hover:shadow-md transition-shadow`}
+    <div
+      className="rounded-2xl overflow-hidden transition-all duration-200 hover:shadow-lg"
+      style={{
+        background: '#ffffff',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.06)',
+        borderLeft: `4px solid ${accentColor}`,
+      }}
     >
-      <div className="flex items-start justify-between gap-2 mb-1">
-        <h2 className="font-semibold text-gray-900 text-sm leading-snug">
-          {student.name}
-          {student.nameEn && <span className="text-gray-400 font-normal ml-1.5">{student.nameEn}</span>}
-        </h2>
-        {student.submissionRound && (
-          <span className="text-xs text-gray-500 bg-gray-100 rounded-full px-2 py-0.5 shrink-0 whitespace-nowrap">
-            {student.submissionRound}
-          </span>
-        )}
-      </div>
-
-      {student.overview && (
-        <p className="text-xs font-semibold text-indigo-600 mb-0.5">{student.overview}</p>
-      )}
-      {(student.topicZh || student.topic) && (
-        <p className="text-xs text-gray-500 mb-3 line-clamp-1 italic">{student.topicZh || student.topic}</p>
-      )}
-
-      {/* Tags */}
-      {student.tags.length > 0 && (
-        <div className="flex gap-1 flex-wrap mb-3">
-          {student.tags.map(tag => (
-            <span key={tag} className="text-xs bg-indigo-50 text-indigo-700 rounded-full px-2 py-0.5">
-              {tag}
+      {/* Header — clicks navigate to detail */}
+      <Link
+        to={`/students/${student.id}`}
+        className="block px-4 pt-4 pb-3 border-b border-gray-100 hover:bg-gray-50 transition-colors"
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-gray-900 leading-tight">
+              {student.name}
+            </h2>
+            {student.nameEn && (
+              <p className="text-xs text-gray-400 mt-0.5 tracking-wide">{student.nameEn}</p>
+            )}
+          </div>
+          {items.length > 0 && (
+            <span className="text-xs tabular-nums text-gray-400 shrink-0 mt-0.5">
+              {doneCount}/{items.length}
             </span>
-          ))}
+          )}
         </div>
-      )}
-
-      {/* Availability note */}
-      {student.availabilityNote && (
-        <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-2 py-1 mb-3">
-          📅 {student.availabilityNote}
-        </p>
-      )}
-
-      {/* Progress bar */}
-      <div className="mb-3">
-        <div className="flex justify-between text-xs text-gray-400 mb-1">
-          <span>EPQ Progress</span>
-          <span>{progress}%</span>
-        </div>
-        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-indigo-500 rounded-full transition-all"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-      </div>
-
-      {/* SA dots */}
-      <div className="mb-3">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {Array.from({ length: student.saHoursTotal }).map((_, i) => (
-            <span
-              key={i}
-              className={`w-2.5 h-2.5 rounded-full ${
-                i < pastSaCount
-                  ? 'bg-gray-200'
-                  : saLow
-                  ? 'bg-amber-400'
-                  : 'bg-green-400'
-              }`}
-            />
-          ))}
-          <span className={`text-xs ml-1 ${saLow ? 'text-amber-600 font-medium' : 'text-gray-400'}`}>
-            {formatHours(saHoursRemaining)} left
+        {student.overview && (
+          <span className="inline-block mt-1.5 text-xs font-semibold px-1.5 py-0.5 rounded bg-violet-50 text-violet-600">
+            {student.overview}
           </span>
-        </div>
-      </div>
+        )}
+      </Link>
 
-      {/* Footer */}
-      <div className="flex flex-col gap-0.5 text-xs text-gray-400 pt-2 border-t border-gray-100">
-        <span>
-          {lastMeeting
-            ? `Last: ${SESSION_LABEL[lastMeeting.type]} · ${lastMeeting.date} (${daysSinceLast}d ago)`
-            : 'No SA/TA meetings yet'}
-        </span>
-        {nextSaMeeting && (
-          <span className="text-indigo-500">Next SA: {nextSaMeeting.date}</span>
+      {/* Homework body — clicks toggle checkboxes */}
+      <div className="px-4 py-3">
+        {entry ? (
+          <>
+            <p className="text-xs text-gray-400 mb-2">{entry.sourceLabel}</p>
+            <ul className="space-y-1.5">
+              {items.map((item, idx) => (
+                <li
+                  key={idx}
+                  className="flex items-start gap-2 cursor-pointer select-none hover:bg-gray-50 -mx-2 px-2 py-0.5 rounded"
+                  onClick={e => toggle(idx, e)}
+                >
+                  <div
+                    className="mt-0.5 shrink-0 w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors"
+                    style={{
+                      background: item.done ? accentColor : 'transparent',
+                      borderColor: item.done ? accentColor : '#d1d5db',
+                      opacity: saving === idx ? 0.5 : 1,
+                    }}
+                  >
+                    {item.done && (
+                      <svg width="8" height="6" viewBox="0 0 8 6" fill="none">
+                        <path d="M1 3L3 5L7 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                  </div>
+                  <span
+                    className="text-xs leading-snug"
+                    style={{ color: item.done ? '#9ca3af' : '#374151', textDecoration: item.done ? 'line-through' : 'none' }}
+                  >
+                    {item.text}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <p className="text-xs text-gray-300">暂无作业</p>
         )}
       </div>
-
-      {/* Other next sessions */}
-      <div className="mt-1 flex flex-col gap-0.5 text-xs text-gray-400">
-        {student.nextTaSession && <span>📌 TA: {student.nextTaSession}</span>}
-        {student.nextTheorySession && <span>📌 Theory: {student.nextTheorySession}</span>}
-      </div>
-
-      {/* Brief note */}
-      {student.briefNote && (
-        <p className="mt-2 text-xs text-gray-500 italic line-clamp-1">{student.briefNote}</p>
-      )}
-    </Link>
+    </div>
   )
 }

@@ -79,6 +79,7 @@ def _to_full_schema(s: models.Student) -> StudentSchema:
 def _to_summary(s: models.Student) -> StudentSummarySchema:
     past = [x for x in s.sessions if x.date <= datetime.now(timezone.utc).strftime("%Y-%m-%d")]
     last = max(past, key=lambda x: x.date, default=None) if past else None
+    latest_hw = max(s.homework_entries, key=lambda h: h.date, default=None) if s.homework_entries else None
     return StudentSummarySchema(
         id=s.id, name=s.name, topic=s.topic or "", topicZh=s.topic_zh or "",
         tags=_tags_list(s.tags),
@@ -92,6 +93,8 @@ def _to_summary(s: models.Student) -> StudentSummarySchema:
         lastSessionDate=last.date if last else None,
         lastSessionType=last.type if last else None,
         milestones=_milestones_dict(s.milestones),
+        updatedAt=s.updated_at.isoformat() if s.updated_at else "",
+        latestHomeworkEntry=_homework_to_dict(latest_hw) if latest_hw else None,
     )
 
 
@@ -127,6 +130,7 @@ def list_students(
             selectinload(models.Student.sessions),
             selectinload(models.Student.milestones),
             selectinload(models.Student.tags),
+            selectinload(models.Student.homework_entries),
         )
         .filter(models.Student.tutor_id == tutor.id)
         .all()
@@ -245,3 +249,37 @@ def _upsert_student(
 
     db.commit()
     return _to_full_schema(_load_student(db, s.id, tutor.id))
+
+
+@router.patch("/{student_id}/homework/{entry_id}/item/{item_idx}")
+def toggle_homework_item(
+    student_id: str,
+    entry_id: str,
+    item_idx: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    tutor: models.Tutor = Depends(get_current_tutor),
+):
+    # Verify ownership
+    student = db.query(models.Student).filter(
+        models.Student.id == student_id,
+        models.Student.tutor_id == tutor.id,
+    ).first()
+    if student is None:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    entry = db.query(models.HomeworkEntry).filter(
+        models.HomeworkEntry.id == entry_id,
+        models.HomeworkEntry.student_id == student_id,
+    ).first()
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Homework entry not found")
+
+    items = list(entry.items or [])
+    if item_idx < 0 or item_idx >= len(items):
+        raise HTTPException(status_code=400, detail="Item index out of range")
+
+    items[item_idx] = {**items[item_idx], "done": bool(body.get("done", False))}
+    entry.items = items
+    db.commit()
+    return {"ok": True}

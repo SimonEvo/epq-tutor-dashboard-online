@@ -31,6 +31,18 @@ export async function deleteStudent(id: string): Promise<void> {
   if (!res.ok) throw new Error(`Delete failed: ${res.status}`)
 }
 
+export async function toggleHomeworkItem(
+  studentId: string,
+  entryId: string,
+  itemIdx: number,
+  done: boolean,
+): Promise<void> {
+  await api(`/students/${studentId}/homework/${entryId}/item/${itemIdx}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ done }),
+  })
+}
+
 // ─── Tags ────────────────────────────────────────────────────────────────────
 
 export async function getTags(): Promise<string[]> {
