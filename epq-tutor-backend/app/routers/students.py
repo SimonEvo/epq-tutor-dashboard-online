@@ -5,6 +5,7 @@ from app.database import get_db
 from app import models
 from app.auth import get_current_tutor
 from app.schemas import StudentSchema, StudentSummarySchema, SessionSummarySchema
+from app.action_logger import log_action
 
 router = APIRouter(prefix="/api/students", tags=["students"])
 
@@ -173,9 +174,40 @@ def _upsert_student(
     db: Session, tutor: models.Tutor, data: StudentSchema, is_new: bool
 ) -> StudentSchema:
     s = db.query(models.Student).filter(models.Student.id == data.id).first() if not is_new else None
+
+    # Capture old state for diff-based action logging
+    old_session_ids: set[str] = set()
+    old_session_reports: dict[str, str | None] = {}
+    old_milestones: dict[str, str] = {}
+    old_homework_ids: set[str] = set()
+    old_personal_ids: set[str] = set()
+    old_mindmap_ids: set[str] = set()
+    old_progress_report: str | None = None
+    if s is not None:
+        old_session_ids = {x.id for x in s.sessions}
+        old_session_reports = {x.id: x.generated_report for x in s.sessions}
+        old_milestones = {m.milestone_id: m.status for m in s.milestones}
+        old_homework_ids = {h.id for h in s.homework_entries}
+        old_personal_ids = {p.id for p in s.personal_entries}
+        old_mindmap_ids = {m.id for m in s.mind_maps}
+        old_progress_report = s.generated_progress_report
+
+    # AI generation detection: progress report newly set or changed
+    if data.generatedProgressReport and data.generatedProgressReport != old_progress_report:
+        log_action(db, "ai_generate", "progress_report", data.id, {"studentId": data.id})
+
+    # AI generation detection: any session report newly set or changed
+    for sd in (data.sessions or []):
+        if sd.generatedReport and sd.generatedReport != old_session_reports.get(sd.id):
+            log_action(db, "ai_generate", "session_report", sd.id,
+                       {"sessionId": sd.id, "studentId": data.id})
+
     if s is None:
         s = models.Student(id=data.id, tutor_id=tutor.id)
         db.add(s)
+        log_action(db, "create", "student", data.id, {"name": data.name})
+    else:
+        log_action(db, "update", "student", data.id)
 
     s.name = data.name; s.name_en = data.nameEn; s.gender = data.gender
     s.school = data.school; s.submission_round = data.submissionRound
@@ -194,6 +226,14 @@ def _upsert_student(
     s.updated_at = datetime.now(timezone.utc)
 
     # sessions
+    new_session_ids = {sd.id for sd in (data.sessions or [])}
+    for added in new_session_ids - old_session_ids:
+        sd = next((x for x in data.sessions if x.id == added), None)
+        log_action(db, "create", "session", added,
+                   {"type": sd.type, "studentId": s.id} if sd else {"studentId": s.id})
+    for removed in old_session_ids - new_session_ids:
+        log_action(db, "delete", "session", removed, {"studentId": s.id})
+
     db.query(models.Session).filter(models.Session.student_id == s.id).delete()
     for sd in (data.sessions or []):
         db.add(models.Session(
@@ -206,7 +246,13 @@ def _upsert_student(
             created_at=datetime.fromisoformat(sd.createdAt) if sd.createdAt else datetime.now(timezone.utc),
         ))
 
-    # milestones
+    # milestones — log status transitions
+    for mid, new_status in (data.milestones or {}).items():
+        old_status = old_milestones.get(mid)
+        if old_status != new_status:
+            log_action(db, "update", "milestone", mid,
+                       {"studentId": s.id, "from": old_status or "none", "to": new_status})
+
     db.query(models.StudentMilestone).filter(models.StudentMilestone.student_id == s.id).delete()
     for mid, status in (data.milestones or {}).items():
         db.add(models.StudentMilestone(student_id=s.id, milestone_id=mid, status=status))
@@ -222,6 +268,12 @@ def _upsert_student(
         s.tags.append(tag)
 
     # personal entries
+    new_personal_ids = {e["id"] for e in (data.personalEntries or [])}
+    for added in new_personal_ids - old_personal_ids:
+        log_action(db, "create", "personal_entry", added, {"studentId": s.id})
+    for removed in old_personal_ids - new_personal_ids:
+        log_action(db, "delete", "personal_entry", removed, {"studentId": s.id})
+
     db.query(models.PersonalEntry).filter(models.PersonalEntry.student_id == s.id).delete()
     for e in (data.personalEntries or []):
         db.add(models.PersonalEntry(
@@ -230,6 +282,12 @@ def _upsert_student(
         ))
 
     # mind maps
+    new_mindmap_ids = {m["id"] for m in (data.mindMaps or [])}
+    for added in new_mindmap_ids - old_mindmap_ids:
+        log_action(db, "create", "mind_map", added, {"studentId": s.id})
+    for removed in old_mindmap_ids - new_mindmap_ids:
+        log_action(db, "delete", "mind_map", removed, {"studentId": s.id})
+
     db.query(models.MindMap).filter(models.MindMap.student_id == s.id).delete()
     for m in (data.mindMaps or []):
         db.add(models.MindMap(
@@ -238,6 +296,12 @@ def _upsert_student(
         ))
 
     # homework entries
+    new_homework_ids = {h["id"] for h in (data.homeworkEntries or [])}
+    for added in new_homework_ids - old_homework_ids:
+        log_action(db, "create", "homework", added, {"studentId": s.id})
+    for removed in old_homework_ids - new_homework_ids:
+        log_action(db, "delete", "homework", removed, {"studentId": s.id})
+
     db.query(models.HomeworkEntry).filter(models.HomeworkEntry.student_id == s.id).delete()
     for h in (data.homeworkEntries or []):
         db.add(models.HomeworkEntry(

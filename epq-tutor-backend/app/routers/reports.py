@@ -4,6 +4,7 @@ from app.database import get_db
 from app import models
 from app.auth import get_current_tutor
 from app.schemas import WeeklyReportSchema
+from app.action_logger import log_action
 
 router = APIRouter(prefix="/api/weekly-report", tags=["reports"])
 
@@ -43,5 +44,6 @@ def save_weekly_report(
             student_cache=data.cache.get("students", {}),
         )
         db.add(row)
+    log_action(db, "ai_generate", "weekly_report")
     db.commit()
     return data

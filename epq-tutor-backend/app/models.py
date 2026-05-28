@@ -173,3 +173,59 @@ class WeeklyReport(Base):
 class Round(Base):
     __tablename__ = "rounds"
     name = Column(String(128), primary_key=True)
+
+
+class ActionLog(Base):
+    __tablename__ = "action_logs"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    timestamp = Column(DateTime, default=now_utc, nullable=False, index=True)
+    action = Column(String(32), nullable=False)        # create | update | delete | ai_generate
+    entity_type = Column(String(32), nullable=False)   # student | session | trial | ...
+    entity_id = Column(String(64), default="")
+    action_metadata = Column(JSON, default=dict)
+
+
+class ManualLog(Base):
+    __tablename__ = "manual_logs"
+    id = Column(String(64), primary_key=True)
+    occurred_at = Column(DateTime, nullable=False, index=True)
+    description = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=now_utc)
+    updated_at = Column(DateTime, default=now_utc, onupdate=now_utc)
+
+
+class WorkflowAnalysis(Base):
+    __tablename__ = "workflow_analyses"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    period_start = Column(DateTime, nullable=False)
+    period_end = Column(DateTime, nullable=False)
+    status = Column(String(16), default="pending", nullable=False)  # pending | generated
+    content = Column(Text, default="")
+    generated_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=now_utc)
+
+
+class Trial(Base):
+    __tablename__ = "trials"
+    id = Column(String(64), primary_key=True)
+    date = Column(String(16), nullable=False)
+    duration_category = Column(String(16), default="")
+    student_name = Column(String(128), nullable=False, default="")
+    grade = Column(String(16), default="")
+    intended_major = Column(String(256), default="")
+    target_university = Column(String(256), default="")
+    areas_of_interest = Column(String(512), default="")
+    english_level = Column(String(128), default="")
+    trial_topic = Column(String(512), default="")
+    topic_feasibility = Column(Integer, nullable=True)
+    student_motivation = Column(Integer, nullable=True)
+    epq_interest = Column(Integer, nullable=True)
+    epq_suitability = Column(Integer, nullable=True)
+    enrollment_intention = Column(String(8), default="")
+    feedback_for_student = Column(Text, default="")
+    feedback_for_consultant = Column(Text, default="")
+    retrospective = Column(Text, default="")
+    outcome = Column(String(16), default="pending")
+    linked_student_id = Column(String(64), nullable=True)
+    created_at = Column(DateTime, default=now_utc)
+    updated_at = Column(DateTime, default=now_utc, onupdate=now_utc)

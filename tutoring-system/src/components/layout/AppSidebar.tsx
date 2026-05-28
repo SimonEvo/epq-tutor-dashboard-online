@@ -21,6 +21,12 @@ const Icons = {
       <path d="M16 11l1.5 1.5L20 10"/>
     </svg>
   ),
+  trials: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <polygon points="10 8 16 12 10 16 10 8"/>
+    </svg>
+  ),
   ai: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 2l2 7h7l-5.5 4 2 7L12 16l-5.5 4 2-7L3 9h7z"/>
@@ -30,6 +36,12 @@ const Icons = {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M23 7l-7 5 7 5V7z"/>
       <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+    </svg>
+  ),
+  workflow: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 3v18h18"/>
+      <path d="M7 14l4-4 4 4 5-5"/>
     </svg>
   ),
   settings: (
@@ -74,6 +86,7 @@ export default function AppSidebar({ onAiClick }: Props) {
       label: '主要',
       items: [
         { to: '/', label: '学生', icon: Icons.students },
+        { to: '/trials', label: '试听课', icon: Icons.trials },
         { to: '/supervisors', label: '督导', icon: Icons.supervisors },
       ],
     },
@@ -82,6 +95,7 @@ export default function AppSidebar({ onAiClick }: Props) {
       items: [
         { label: 'AI 指令', icon: Icons.ai, onClick: onAiClick },
         { to: '/zoom-config', label: 'Zoom', icon: Icons.zoom },
+        { to: '/workflow-analysis', label: '工作流分析', icon: Icons.workflow },
       ],
     },
     {

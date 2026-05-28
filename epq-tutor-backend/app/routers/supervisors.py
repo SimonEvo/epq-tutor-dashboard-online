@@ -4,6 +4,7 @@ from app.database import get_db
 from app import models
 from app.auth import get_current_tutor
 from app.schemas import SupervisorSchema
+from app.action_logger import log_action
 import uuid
 
 router = APIRouter(prefix="/api/supervisors", tags=["supervisors"])
@@ -43,6 +44,7 @@ def save_supervisor(
     sv.direction = data.direction
     sv.notes = data.notes
     sv.sa_type = data.saType
+    log_action(db, "update", "supervisor", supervisor_id)
     db.commit()
     db.refresh(sv)
     return _to_schema(sv)
@@ -61,6 +63,7 @@ def create_supervisor(
         notes=data.notes, sa_type=data.saType,
     )
     db.add(sv)
+    log_action(db, "create", "supervisor", sv.id, {"name": data.name})
     db.commit()
     db.refresh(sv)
     return _to_schema(sv)
@@ -76,5 +79,6 @@ def delete_supervisor(
     if sv is None:
         raise HTTPException(status_code=404, detail="Supervisor not found")
     db.delete(sv)
+    log_action(db, "delete", "supervisor", supervisor_id)
     db.commit()
     return {"ok": True}

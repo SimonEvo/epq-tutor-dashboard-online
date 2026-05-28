@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { useStudentStore } from '@/stores/studentStore'
 import { EPQ_MILESTONES } from '@/config'
-import type { Student, MilestoneProgress } from '@/types'
+import type { Student, MilestoneProgress, TrialOutcome } from '@/types'
+import { listTrials, saveTrial } from '@/lib/dataService'
 import StudentFormFields, { useStudentFormState, buildStudentFromForm } from '@/components/StudentFormFields'
 
 function generateId() {
@@ -17,12 +18,24 @@ function buildDefaultMilestones(): MilestoneProgress {
 
 export default function NewStudentPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const fromTrial = (location.state as { fromTrial?: {
+    trialId: string; name: string; currentGrade: string;
+    universityAspiration: string; topic: string; overview: string
+  } } | null)?.fromTrial
+
   const { saveStudent, tags: globalTags, fetchTags, saveTags, rounds: globalRounds, fetchRounds, saveRounds, supervisors, fetchSupervisors } = useStudentStore()
 
   useEffect(() => { fetchSupervisors(); fetchRounds() }, [fetchSupervisors, fetchRounds])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const formState = useStudentFormState()
+  const formState = useStudentFormState(fromTrial ? {
+    name: fromTrial.name,
+    currentGrade: fromTrial.currentGrade,
+    universityAspiration: fromTrial.universityAspiration,
+    topic: fromTrial.topic,
+    overview: fromTrial.overview,
+  } : undefined)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -42,6 +55,18 @@ export default function NewStudentPage() {
         updatedAt: now,
       }
       await saveStudent(student)
+      // Link trial record back to the new student
+      if (fromTrial) {
+        try {
+          const trials = await listTrials()
+          const trial = trials.find(t => t.id === fromTrial.trialId)
+          if (trial) {
+            await saveTrial({ ...trial, outcome: 'deal_mine' as TrialOutcome, linkedStudentId: student.id })
+          }
+        } catch {
+          // non-fatal
+        }
+      }
       navigate(`/students/${student.id}`)
     } catch (e) {
       setError(String(e))

@@ -137,6 +137,69 @@ class TagsConfig(BaseModel):
     tags: list[str]
 
 
+# ── Workflow Analysis ─────────────────────────────────────────────────────────
+
+class ActionLogSchema(BaseModel):
+    id: int
+    timestamp: str
+    action: str
+    entityType: str
+    entityId: str = ""
+    metadata: dict = {}
+
+
+class ManualLogSchema(BaseModel):
+    id: str
+    occurredAt: str
+    description: str
+    createdAt: str = ""
+    updatedAt: str = ""
+
+
+class WorkflowAnalysisSchema(BaseModel):
+    id: int
+    periodStart: str
+    periodEnd: str
+    status: str  # pending | generated
+    content: str = ""
+    generatedAt: Optional[str] = None
+    createdAt: str = ""
+
+
+class WorkflowAnalysisUpdateSchema(BaseModel):
+    content: str
+
+
+# ── Trial (试听课) ────────────────────────────────────────────────────────────
+
+class TrialSchema(BaseModel):
+    id: str
+    date: str
+    durationCategory: str = ""
+    studentName: str = ""
+    grade: str = ""
+    intendedMajor: str = ""
+    targetUniversity: str = ""
+    areasOfInterest: str = ""
+    englishLevel: str = ""
+    trialTopic: str = ""
+    topicFeasibility: Optional[int] = None
+    studentMotivation: Optional[int] = None
+    epqInterest: Optional[int] = None
+    epqSuitability: Optional[int] = None
+    enrollmentIntention: str = ""
+    feedbackForStudent: str = ""
+    feedbackForConsultant: str = ""
+    retrospective: str = ""
+    outcome: str = "pending"
+    linkedStudentId: Optional[str] = None
+    createdAt: str = ""
+    updatedAt: str = ""
+
+    class Config:
+        from_attributes = True
+
+
 # ── Weekly report ─────────────────────────────────────────────────────────────
 
 class WeeklyReportSchema(BaseModel):

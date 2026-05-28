@@ -51,6 +51,25 @@ AI-generated full overview of a student's EPQ progress. Sent to parents less fre
 ### Weekly Report
 AI-generated summary across all students. For tutor's own reference only, not shared externally.
 
+### Action Log
+Append-only record of every data mutation in the system. One entry per create/update/delete on tracked entities (student, session, trial, supervisor, milestone, homework, personal entry, mind map) plus AI generation calls (session report / progress report / weekly report). Tags `tag` / `round` mutations, logins, and page views are NOT logged. Kept indefinitely. Read by [[workflow-analysis]] only; not user-facing as a list.
+
+Each entry: `timestamp`, `action` (`create` / `update` / `delete` / `ai_generate`), `entity_type`, `entity_id`, optional `metadata` (e.g. session type for session creates).
+
+### Manual Log Entry
+Tutor-authored free-text record of work not captured by [[action-log]] — e.g. "spent 2h preparing materials", "phone call with parent". Editable and deletable. Contains `description` (text) and `occurredAt` (timestamp, defaults to now but editable for retroactive entry).
+
+### Workflow Analysis
+AI-generated bi-weekly report analysing tutor's own work patterns. Independent from [[weekly-report]] (which is about students; this is about the tutor). Server-scheduled — fires every 14 days regardless of user activity. Past reports are retained and browsable.
+
+Report sections:
+1. **操作频率分布** — counts by action/entity type over the period
+2. **时间模式** — when actions cluster (days of week, times of day)
+3. **效率洞察** — AI commentary on observed patterns
+4. **自动化建议** — repetitive sequences AI thinks could be automated
+
+Data sources: [[action-log]] + [[manual-log-entry]] entries within the 14-day window.
+
 ### Personal Entry
 Tutor's private diary/log. Not linked to any student. Not student-facing. Markdown content.
 
@@ -68,6 +87,29 @@ Freeform labels on a student. Currently unused; candidate for removal.
 
 ### Private Notes
 Tutor-only notes on a student. Never included in any export or AI-generated output. Enforced at serialization layer.
+
+### Trial (试听课)
+A trial lesson conducted with a prospective student before any enrollment decision. The tutor is one participant in the enrollment pipeline (alongside a consultant). A Trial is a standalone top-level record — not linked to a Student until the outcome is known. Trials do not require a Prospect entity; each Trial is independent.
+
+**Outcome states:**
+- `pending` — outcome not yet decided
+- `no_deal` — 未成单, prospect did not enroll
+- `deal_mine` — 成单给我, prospect enrolled and became this tutor's Student (linked via `studentId`)
+- `deal_other` — 成单给其他老师, prospect enrolled with a different teacher
+
+**Core fields:** date, duration (minutes), student name, grade, intended major, target university, areas of interest, English level, trial topic.
+
+**Ratings (0–10):** topic feasibility (选题可行性), student motivation (学生积极性), EPQ interest (对EPQ感兴趣程度), EPQ suitability (参加EPQ适合程度).
+
+**Enrollment intention:** low / mid / high (低/中/高) — tutor's prediction at time of trial.
+
+**Feedback for student** (反馈留底): copy of what the tutor submitted to the 金数据 form. Written for the student/parent; praise-focused. Not private.
+
+**Feedback for consultant** (顾问反馈留底): copy of freeform notes submitted to the 金数据 form. Not private.
+
+**Retrospective** (复盘): tutor-only private notes about the lesson itself. Never exported or shared. Analogous to [[private-notes]] on a Student.
+
+**Trial page layout:** two tabs — 列表 (list) and 统计 (stats). Stats tab shows: overall conversion rate = (deal_mine + deal_other) / all non-pending trials, with time filtering via preset buttons (本月 / 近3月 / 今年 / 全部) plus a custom date range picker.
 
 ### Last-Touched
 The most recent timestamp at which any data for a student was modified — including adding a session, changing milestone status, or editing any student field. Distinct from Last-Meeting (which only tracks SA/TA meeting dates). Both signals are shown independently on the dashboard. **Backend gap**: `sessions` table has no `updated_at`; `student_milestones` has no timestamps. Full Last-Touched requires backend schema changes.
@@ -90,7 +132,7 @@ The most recent timestamp at which any data for a student was modified — inclu
 ### Layout
 Sidebar replaces top horizontal nav. Structure:
 - 主要: 学生 (Dashboard) / 督导
-- 工具: AI 指令 / Zoom
+- 工具: AI 指令 / Zoom / 工作流分析
 - 系统: 设置
 - Bottom: user avatar + logout
 
@@ -108,8 +150,8 @@ New **概览行 (Overview Row)** view — denser than card grid, more visual tha
 
 ### Sidebar
 Collapsible (expanded = icon + label; collapsed = icon only). Structure:
-- 主要: 学生 / 督导
-- 工具: AI 指令 / Zoom
+- 主要: 学生 / 试听课 / 督导
+- 工具: AI 指令 / Zoom / 工作流分析
 - 系统: 设置
 - Bottom: user avatar + logout
 

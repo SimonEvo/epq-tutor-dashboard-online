@@ -1,6 +1,6 @@
 import { apiFetch } from './githubClient'
 import { API_BASE_URL } from '@/config'
-import type { Student, Supervisor, WeeklyReportData } from '@/types'
+import type { Student, Supervisor, WeeklyReportData, Trial, ActionLog, ManualLog, WorkflowAnalysis } from '@/types'
 
 async function api<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await apiFetch(`${API_BASE_URL}${path}`, options)
@@ -81,6 +81,71 @@ export async function saveSupervisor(supervisor: Supervisor): Promise<void> {
 export async function deleteSupervisor(id: string): Promise<void> {
   const res = await apiFetch(`${API_BASE_URL}/supervisors/${id}`, { method: 'DELETE' })
   if (!res.ok) throw new Error(`Delete failed: ${res.status}`)
+}
+
+// ─── Trials ───────────────────────────────────────────────────────────────────
+
+export async function listTrials(): Promise<Trial[]> {
+  return api<Trial[]>('/trials')
+}
+
+export async function saveTrial(trial: Trial): Promise<Trial> {
+  return api<Trial>(`/trials/${trial.id}`, { method: 'PUT', body: JSON.stringify(trial) })
+}
+
+export async function createTrial(trial: Trial): Promise<Trial> {
+  return api<Trial>('/trials', { method: 'POST', body: JSON.stringify(trial) })
+}
+
+export async function deleteTrial(id: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE_URL}/trials/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`Delete failed: ${res.status}`)
+}
+
+// ─── Workflow Analysis ────────────────────────────────────────────────────────
+
+export async function listActionLogs(since?: string, until?: string): Promise<ActionLog[]> {
+  const params = new URLSearchParams()
+  if (since) params.set('since', since)
+  if (until) params.set('until', until)
+  const qs = params.toString()
+  return api<ActionLog[]>(`/workflow/action-logs${qs ? `?${qs}` : ''}`)
+}
+
+export async function listManualLogs(): Promise<ManualLog[]> {
+  return api<ManualLog[]>('/workflow/manual-logs')
+}
+
+export async function createManualLog(log: ManualLog): Promise<ManualLog> {
+  return api<ManualLog>('/workflow/manual-logs', { method: 'POST', body: JSON.stringify(log) })
+}
+
+export async function updateManualLog(log: ManualLog): Promise<ManualLog> {
+  return api<ManualLog>(`/workflow/manual-logs/${log.id}`, { method: 'PUT', body: JSON.stringify(log) })
+}
+
+export async function deleteManualLog(id: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE_URL}/workflow/manual-logs/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`Delete failed: ${res.status}`)
+}
+
+export async function listWorkflowAnalyses(): Promise<WorkflowAnalysis[]> {
+  return api<WorkflowAnalysis[]>('/workflow/analyses')
+}
+
+export async function getPendingAnalysis(): Promise<WorkflowAnalysis | null> {
+  try {
+    return await api<WorkflowAnalysis | null>('/workflow/analyses/pending')
+  } catch {
+    return null
+  }
+}
+
+export async function fillAnalysis(id: number, content: string): Promise<WorkflowAnalysis> {
+  return api<WorkflowAnalysis>(`/workflow/analyses/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({ content }),
+  })
 }
 
 // ─── Weekly Report ────────────────────────────────────────────────────────────

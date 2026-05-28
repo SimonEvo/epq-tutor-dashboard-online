@@ -136,6 +136,63 @@ export interface StudentReportCacheEntry {
   alias: string      // e.g. "学生A" — stable across scans
 }
 
+export interface ActionLog {
+  id: number
+  timestamp: string
+  action: 'create' | 'update' | 'delete' | 'ai_generate'
+  entityType: string
+  entityId: string
+  metadata: Record<string, unknown>
+}
+
+export interface ManualLog {
+  id: string
+  occurredAt: string
+  description: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface WorkflowAnalysis {
+  id: number
+  periodStart: string
+  periodEnd: string
+  status: 'pending' | 'generated'
+  content: string
+  generatedAt: string | null
+  createdAt: string
+}
+
+export type TrialOutcome = 'pending' | 'no_deal' | 'deal_mine' | 'deal_other'
+export type TrialDurationCategory = '<45' | '46-60' | '61-75' | '>75' | ''
+export type TrialGrade = '高一' | '高二' | '高三' | '其他' | ''
+export type TrialEnrollmentIntention = '低' | '中' | '高' | ''
+
+export interface Trial {
+  id: string
+  date: string
+  durationCategory: TrialDurationCategory
+  studentName: string
+  grade: TrialGrade
+  intendedMajor: string
+  targetUniversity: string
+  areasOfInterest: string
+  englishLevel: string
+  trialTopic: string
+  topicFeasibility: number | null
+  studentMotivation: number | null
+  epqInterest: number | null
+  epqSuitability: number | null
+  enrollmentIntention: TrialEnrollmentIntention
+  feedbackForStudent: string
+  feedbackForConsultant: string
+  retrospective: string
+  outcome: TrialOutcome
+  linkedStudentId?: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface WeeklyReportData {
   generatedAt: string   // ISO timestamp
   content: string       // decoded report text (real names restored)
