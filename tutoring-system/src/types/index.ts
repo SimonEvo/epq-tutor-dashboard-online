@@ -1,5 +1,13 @@
 export type SessionType = 'SA_MEETING' | 'TA_MEETING' | 'THEORY'
 
+export interface ScheduleEntry {
+  id: string
+  recordedAt: string   // YYYY-MM-DD
+  content: string
+  startDate?: string   // for future calendar view
+  endDate?: string
+}
+
 export interface Supervisor {
   id: string
   name: string
@@ -98,6 +106,7 @@ export interface Student {
   briefNote: string         // one-liner shown on card
   privateNotes: string      // never exported
   tencentDocUrl?: string    // shared Tencent Doc URL for this student's WeChat group
+  scheduleEntries: ScheduleEntry[]
   milestones: MilestoneProgress
   sessions: SessionRecord[]
   generatedProgressReport?: string    // cached AI-generated progress report
@@ -119,6 +128,7 @@ export interface StudentSummary {
   nextTheorySession?: string
   availabilityNote: string
   briefNote: string
+  latestScheduleEntry?: ScheduleEntry
   lastSessionDate?: string
   lastSessionType?: SessionType
   milestones: MilestoneProgress
@@ -132,8 +142,7 @@ export interface TagsConfig {
 // ─── Weekly Report ────────────────────────────────────────────────────────────
 
 export interface StudentReportCacheEntry {
-  updatedAt: string  // snapshot of student.updatedAt at last scan
-  alias: string      // e.g. "学生A" — stable across scans
+  updatedAt: string
 }
 
 export interface ActionLog {
@@ -164,14 +173,14 @@ export interface WorkflowAnalysis {
 }
 
 export type TrialOutcome = 'pending' | 'no_deal' | 'deal_mine' | 'deal_other'
-export type TrialDurationCategory = '<45' | '46-60' | '61-75' | '>75' | ''
 export type TrialGrade = '高一' | '高二' | '高三' | '其他' | ''
 export type TrialEnrollmentIntention = '低' | '中' | '高' | ''
 
 export interface Trial {
   id: string
   date: string
-  durationCategory: TrialDurationCategory
+  time: string
+  durationMinutes: number | null
   studentName: string
   grade: TrialGrade
   intendedMajor: string

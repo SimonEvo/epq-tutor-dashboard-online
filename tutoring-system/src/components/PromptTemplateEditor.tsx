@@ -4,6 +4,7 @@ import {
   DEFAULT_SESSION_REPORT_TEMPLATE,
   DEFAULT_PROGRESS_REPORT_TEMPLATE,
 } from '@/lib/claudeService'
+import { DEFAULT_WEEKLY_OUTPUT_TEMPLATE } from '@/lib/weeklyReportService'
 
 // ── Variable definitions ──────────────────────────────────────────────────────
 
@@ -54,30 +55,39 @@ interface Props {
   onClose: () => void
 }
 
-type Tab = 'session' | 'progress'
+const WEEKLY_VARS: VarDef[] = [
+  { name: '{{today}}',        desc: '今日日期（YYYY-MM-DD）' },
+  { name: '{{studentCount}}', desc: '学生总数' },
+  { name: '{{changedCount}}', desc: '本次有变化的学生数' },
+]
+
+type Tab = 'session' | 'progress' | 'weekly'
 
 export default function PromptTemplateEditor({ open, onClose }: Props) {
   const [tab, setTab] = useState<Tab>('session')
   const [sessionVal, setSessionVal] = useState('')
   const [progressVal, setProgressVal] = useState('')
+  const [weeklyVal, setWeeklyVal] = useState('')
   const [saved, setSaved] = useState(false)
   const sessionRef = useRef<HTMLTextAreaElement>(null)
   const progressRef = useRef<HTMLTextAreaElement>(null)
+  const weeklyRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     if (!open) return
     const s = getSettings()
     setSessionVal(s.sessionReportTemplate || DEFAULT_SESSION_REPORT_TEMPLATE)
     setProgressVal(s.progressReportTemplate || DEFAULT_PROGRESS_REPORT_TEMPLATE)
+    setWeeklyVal(s.weeklyReportOutputTemplate || DEFAULT_WEEKLY_OUTPUT_TEMPLATE)
     setSaved(false)
   }, [open])
 
-  const currentVal = tab === 'session' ? sessionVal : progressVal
-  const setCurrentVal = tab === 'session' ? setSessionVal : setProgressVal
-  const currentRef = tab === 'session' ? sessionRef : progressRef
-  const currentVars = tab === 'session' ? SESSION_VARS : PROGRESS_VARS
-  const currentDefault = tab === 'session' ? DEFAULT_SESSION_REPORT_TEMPLATE : DEFAULT_PROGRESS_REPORT_TEMPLATE
-  const autoBlock = tab === 'session' ? SESSION_AUTO_BLOCK : PROGRESS_AUTO_BLOCK
+  const currentVal = tab === 'session' ? sessionVal : tab === 'progress' ? progressVal : weeklyVal
+  const setCurrentVal = tab === 'session' ? setSessionVal : tab === 'progress' ? setProgressVal : setWeeklyVal
+  const currentRef = tab === 'session' ? sessionRef : tab === 'progress' ? progressRef : weeklyRef
+  const currentVars = tab === 'session' ? SESSION_VARS : tab === 'progress' ? PROGRESS_VARS : WEEKLY_VARS
+  const currentDefault = tab === 'session' ? DEFAULT_SESSION_REPORT_TEMPLATE : tab === 'progress' ? DEFAULT_PROGRESS_REPORT_TEMPLATE : DEFAULT_WEEKLY_OUTPUT_TEMPLATE
+  const autoBlock = tab === 'session' ? SESSION_AUTO_BLOCK : tab === 'progress' ? PROGRESS_AUTO_BLOCK : '学生数据区由系统自动生成，此处只编辑输出格式部分'
 
   const insertVar = (varName: string) => {
     const ta = currentRef.current
@@ -98,6 +108,7 @@ export default function PromptTemplateEditor({ open, onClose }: Props) {
       ...s,
       sessionReportTemplate: sessionVal === DEFAULT_SESSION_REPORT_TEMPLATE ? '' : sessionVal,
       progressReportTemplate: progressVal === DEFAULT_PROGRESS_REPORT_TEMPLATE ? '' : progressVal,
+      weeklyReportOutputTemplate: weeklyVal === DEFAULT_WEEKLY_OUTPUT_TEMPLATE ? '' : weeklyVal,
     })
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
@@ -140,6 +151,16 @@ export default function PromptTemplateEditor({ open, onClose }: Props) {
                 }`}
               >
                 进度报告
+              </button>
+              <button
+                onClick={() => setTab('weekly')}
+                className={`px-3 py-1.5 transition-colors border-l border-gray-200 ${
+                  tab === 'weekly'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-white text-gray-500 hover:bg-gray-50'
+                }`}
+              >
+                周报
               </button>
             </div>
           </div>

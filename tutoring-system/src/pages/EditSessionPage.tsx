@@ -71,14 +71,12 @@ export default function EditSessionPage() {
       const updatedSessions = student.sessions.map(s =>
         s.id === sessionId ? updatedSession : s
       )
-      const saHoursUsed = updatedSessions
-        .filter(s => s.type === 'SA_MEETING')
-        .reduce((sum, s) => sum + s.durationMinutes / 60, 0)
+      const saCount = updatedSessions.filter(s => s.type === 'SA_MEETING').length
 
       const updated: Student = {
         ...student,
         sessions: updatedSessions,
-        saHoursUsed: Math.round(saHoursUsed * 10) / 10,
+        saHoursUsed: saCount,
       }
       await saveStudent(updated)
       navigate(`/students/${student.id}`)
@@ -88,7 +86,8 @@ export default function EditSessionPage() {
     }
   }
 
-  const saRemaining = student.saHoursTotal - student.saHoursUsed
+  const saUsed = student.sessions.filter(s => s.type === 'SA_MEETING').length
+  const saRemaining = student.saHoursTotal - saUsed
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
@@ -118,7 +117,7 @@ export default function EditSessionPage() {
           </div>
           {type === 'SA_MEETING' && (
             <p className={`text-xs mt-2 ${saRemaining <= 2 ? 'text-amber-600' : 'text-gray-400'}`}>
-              SA hours remaining: <strong>{saRemaining}</strong> / {student.saHoursTotal}
+              SA 剩余课次: <strong>{saRemaining}</strong> / {student.saHoursTotal}
               {saRemaining <= 2 && ' ⚠️ Running low'}
             </p>
           )}

@@ -102,6 +102,7 @@ export default function AICommandCenter() {
           personalEntries: [],
           mindMaps: [],
           homeworkEntries: [],
+          scheduleEntries: [],
           milestones: {},
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),

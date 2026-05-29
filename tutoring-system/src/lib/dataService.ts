@@ -68,6 +68,54 @@ export async function saveRounds(rounds: string[]): Promise<void> {
   await api('/config/rounds', { method: 'PUT', body: JSON.stringify(rounds) })
 }
 
+export async function getDefaultRound(): Promise<string> {
+  try {
+    const res = await api<{ defaultRound: string }>('/config/default-round')
+    return res.defaultRound || ''
+  } catch {
+    return ''
+  }
+}
+
+export async function setDefaultRound(round: string): Promise<void> {
+  await api('/config/default-round', { method: 'PUT', body: JSON.stringify({ defaultRound: round }) })
+}
+
+export interface ArchivedRound {
+  name: string
+  studentCount: number
+  students: { id: string; name: string; nameEn?: string }[]
+}
+
+export async function getArchivedRounds(): Promise<ArchivedRound[]> {
+  try { return await api<ArchivedRound[]>('/config/rounds/archived') }
+  catch { return [] }
+}
+
+export async function archiveRound(name: string): Promise<void> {
+  await api(`/config/rounds/${encodeURIComponent(name)}/archive`, { method: 'POST' })
+}
+
+export async function unarchiveRound(name: string): Promise<void> {
+  await api(`/config/rounds/${encodeURIComponent(name)}/unarchive`, { method: 'POST' })
+}
+
+export function downloadRoundExport(name: string, token: string): void {
+  const url = `${API_BASE_URL}/config/rounds/${encodeURIComponent(name)}/export`
+  const a = document.createElement('a')
+  a.href = url
+  // Use fetch with auth header, then trigger download
+  fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    .then(r => r.blob())
+    .then(blob => {
+      const href = URL.createObjectURL(blob)
+      a.href = href
+      a.download = `${name}.json`
+      a.click()
+      URL.revokeObjectURL(href)
+    })
+}
+
 // ─── Supervisors ─────────────────────────────────────────────────────────────
 
 export async function listSupervisors(): Promise<Supervisor[]> {

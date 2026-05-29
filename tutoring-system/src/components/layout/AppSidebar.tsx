@@ -132,9 +132,11 @@ export default function AppSidebar({ onAiClick }: Props) {
       }}
     >
       {/* Logo */}
-      <div
-        className="flex items-center gap-2.5 px-3 py-4 border-b shrink-0"
+      <Link
+        to="/"
+        className="flex items-center gap-2.5 px-3 py-4 border-b shrink-0 hover:opacity-80 transition-opacity"
         style={{ borderColor: 'rgba(0,0,0,0.06)', minHeight: 56 }}
+        title="返回主页"
       >
         <div
           className="shrink-0 flex items-center justify-center rounded-lg text-white text-xs font-bold"
@@ -147,7 +149,7 @@ export default function AppSidebar({ onAiClick }: Props) {
             EPQ Tutor
           </span>
         )}
-      </div>
+      </Link>
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-4">

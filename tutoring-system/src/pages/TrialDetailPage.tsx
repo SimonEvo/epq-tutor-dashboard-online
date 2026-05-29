@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import { listTrials, createTrial, saveTrial } from '@/lib/dataService'
-import type { Trial, TrialOutcome, TrialDurationCategory, TrialGrade, TrialEnrollmentIntention } from '@/types'
+import type { Trial, TrialOutcome, TrialGrade, TrialEnrollmentIntention } from '@/types'
 
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
@@ -51,7 +51,8 @@ export default function TrialDetailPage() {
 
   // Form state
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
-  const [durationCategory, setDurationCategory] = useState<TrialDurationCategory>('')
+  const [time, setTime] = useState('')
+  const [durationMinutes, setDurationMinutes] = useState<number | ''>('')
   const [studentName, setStudentName] = useState('')
   const [grade, setGrade] = useState<TrialGrade>('')
   const [intendedMajor, setIntendedMajor] = useState('')
@@ -77,7 +78,8 @@ export default function TrialDetailPage() {
       const t = trials.find(x => x.id === id)
       if (!t) { navigate('/trials', { replace: true }); return }
       setDate(t.date)
-      setDurationCategory(t.durationCategory)
+      setTime(t.time || '')
+      setDurationMinutes(t.durationMinutes ?? '')
       setStudentName(t.studentName)
       setGrade(t.grade)
       setIntendedMajor(t.intendedMajor)
@@ -103,7 +105,8 @@ export default function TrialDetailPage() {
     const now = new Date().toISOString()
     return {
       id: id!,
-      date, durationCategory, studentName, grade, intendedMajor,
+      date, time, durationMinutes: durationMinutes === '' ? null : durationMinutes,
+      studentName, grade, intendedMajor,
       targetUniversity, areasOfInterest, englishLevel, trialTopic,
       topicFeasibility, studentMotivation, epqInterest, epqSuitability,
       enrollmentIntention, feedbackForStudent, feedbackForConsultant,
@@ -183,20 +186,22 @@ export default function TrialDetailPage() {
         <section className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
           <h2 className="text-sm font-semibold text-gray-700">基本信息</h2>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div>
               <label className={labelClass}>试听日期</label>
               <input type="date" value={date} onChange={e => setDate(e.target.value)} className={fieldClass} required />
             </div>
             <div>
-              <label className={labelClass}>时长</label>
-              <select value={durationCategory} onChange={e => setDurationCategory(e.target.value as TrialDurationCategory)} className={fieldClass}>
-                <option value="">—</option>
-                <option value="<45">小于 45 分钟</option>
-                <option value="46-60">46–60 分钟</option>
-                <option value="61-75">61–75 分钟</option>
-                <option value=">75">大于 75 分钟</option>
-              </select>
+              <label className={labelClass}>开始时间</label>
+              <input type="time" value={time} onChange={e => setTime(e.target.value)} className={fieldClass} />
+            </div>
+            <div>
+              <label className={labelClass}>时长（分钟）</label>
+              <input
+                type="number" min={1} value={durationMinutes}
+                onChange={e => setDurationMinutes(e.target.value === '' ? '' : Number(e.target.value))}
+                className={fieldClass} placeholder="上课后填写"
+              />
             </div>
           </div>
 

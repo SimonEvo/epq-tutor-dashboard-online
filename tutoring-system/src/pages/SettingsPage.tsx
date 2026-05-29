@@ -4,6 +4,8 @@ import { getSettings, saveSettings, AI_PROVIDERS } from '@/lib/settings'
 import { publishCalendar, calendarUrl as getCalendarUrl } from '@/lib/calendarService'
 import { useStudentStore } from '@/stores/studentStore'
 import * as dataService from '@/lib/dataService'
+import type { ArchivedRound } from '@/lib/dataService'
+import { getToken } from '@/lib/githubClient'
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState(getSettings)
@@ -13,12 +15,22 @@ export default function SettingsPage() {
   const [calError, setCalError] = useState('')
   const [backupStatus, setBackupStatus] = useState<'idle' | 'loading' | 'ok' | 'err'>('idle')
   const [backupMsg, setBackupMsg] = useState('')
+  const rounds = useStudentStore(s => s.rounds)
+  const fetchRounds = useStudentStore(s => s.fetchRounds)
+  const [defaultRound, setDefaultRound] = useState('')
+  const [defaultRoundSaving, setDefaultRoundSaving] = useState(false)
+  const [archivedRounds, setArchivedRounds] = useState<ArchivedRound[]>([])
+  const [expandedArchive, setExpandedArchive] = useState<string | null>(null)
+
   const students = useStudentStore(s => s.students)
   const calendarUrlFromStore = useStudentStore(s => s.calendarUrl)
   const [calendarUrl, setCalendarUrl] = useState<string | null>(calendarUrlFromStore)
 
   useEffect(() => {
     if (!calendarUrl) setCalendarUrl(getCalendarUrl())
+    fetchRounds()
+    dataService.getDefaultRound().then(setDefaultRound).catch(() => {})
+    dataService.getArchivedRounds().then(setArchivedRounds).catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keep in sync if a background save updated the store URL.
@@ -240,6 +252,122 @@ export default function SettingsPage() {
         </section>
 
         {/* Tencent Docs (future) */}
+        <section className="bg-white rounded-2xl border border-gray-200 p-6">
+          <h2 className="text-sm font-semibold text-gray-900 mb-1">默认学期</h2>
+          <p className="text-xs text-gray-400 mb-3">Dashboard 打开时若无记忆则自动筛选此学期。两个学期 overlap 时可在此切换。</p>
+          <div className="flex items-center gap-3">
+            <select
+              value={defaultRound}
+              onChange={e => setDefaultRound(e.target.value)}
+              className={`${inputCls} max-w-xs`}
+            >
+              <option value="">— 不设置默认（显示全部）</option>
+              {rounds.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+            <button
+              type="button"
+              disabled={defaultRoundSaving}
+              onClick={async () => {
+                setDefaultRoundSaving(true)
+                await dataService.setDefaultRound(defaultRound).catch(() => {})
+                setDefaultRoundSaving(false)
+              }}
+              className="text-sm px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-colors shrink-0"
+            >
+              {defaultRoundSaving ? '保存中…' : '保存'}
+            </button>
+          </div>
+        </section>
+
+        <section className="bg-white rounded-2xl border border-gray-200 p-6">
+          <h2 className="text-sm font-semibold text-gray-900 mb-1">归档管理</h2>
+          <p className="text-xs text-gray-400 mb-4">归档后的学期不在 Dashboard 显示。可查看学生、下载数据或取消归档。</p>
+
+          {/* Active rounds — archive button */}
+          {rounds.length > 0 && (
+            <div className="mb-4">
+              <p className="text-xs font-medium text-gray-500 mb-2">当前学期</p>
+              <div className="flex flex-col gap-1.5">
+                {rounds.map(r => (
+                  <div key={r} className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg">
+                    <span className="text-sm text-gray-800">{r}</span>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!confirm(`归档「${r}」？该学期学生将从 Dashboard 隐藏。`)) return
+                        await dataService.archiveRound(r)
+                        await fetchRounds()
+                        setArchivedRounds(await dataService.getArchivedRounds())
+                        if (defaultRound === r) setDefaultRound('')
+                      }}
+                      className="text-xs text-gray-400 hover:text-red-500 transition-colors"
+                    >
+                      归档
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Archived rounds */}
+          {archivedRounds.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-2">已归档</p>
+              <div className="flex flex-col gap-2">
+                {archivedRounds.map(ar => (
+                  <div key={ar.name} className="border border-gray-100 rounded-xl overflow-hidden">
+                    <div className="flex items-center justify-between px-3 py-2.5 bg-gray-50">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedArchive(expandedArchive === ar.name ? null : ar.name)}
+                        className="flex items-center gap-2 text-sm text-gray-700 hover:text-gray-900"
+                      >
+                        <span>{expandedArchive === ar.name ? '▾' : '▸'}</span>
+                        <span>{ar.name}</span>
+                        <span className="text-xs text-gray-400">{ar.studentCount} 名学生</span>
+                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => dataService.downloadRoundExport(ar.name, getToken() || '')}
+                          className="text-xs px-2.5 py-1 border border-gray-200 rounded-lg text-gray-600 hover:bg-white transition-colors"
+                        >
+                          下载 JSON
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await dataService.unarchiveRound(ar.name)
+                            await fetchRounds()
+                            setArchivedRounds(await dataService.getArchivedRounds())
+                          }}
+                          className="text-xs px-2.5 py-1 border border-gray-200 rounded-lg text-gray-600 hover:bg-white transition-colors"
+                        >
+                          取消归档
+                        </button>
+                      </div>
+                    </div>
+                    {expandedArchive === ar.name && (
+                      <div className="px-3 py-2 divide-y divide-gray-50">
+                        {ar.students.map(s => (
+                          <div key={s.id} className="py-1.5 text-sm text-gray-600">
+                            {s.name}{s.nameEn ? ` · ${s.nameEn}` : ''}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {rounds.length === 0 && archivedRounds.length === 0 && (
+            <p className="text-xs text-gray-400">暂无学期数据</p>
+          )}
+        </section>
+
         <section className="bg-white rounded-2xl border border-gray-200 p-6 opacity-60">
           <div className="flex items-center gap-2 mb-1">
             <h2 className="text-sm font-semibold text-gray-900">腾讯文档 API</h2>

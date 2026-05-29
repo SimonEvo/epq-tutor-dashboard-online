@@ -22,13 +22,24 @@ Two kinds:
 - **中方SA (Chinese-side SA)** — the tutor themselves acting as SA. No separate billing; SA hour tracking excluded.
 
 ### SA Hours
-The tracked duration of SA_MEETING sessions for a student. Only meaningful for students with a 英方SA. Used to monitor billing and ensure students meet EPQ quota requirements.
+Two independent SA signals per student:
 
-`saHoursTotal` = the student's contracted SA hour quota. Set by the tutor. Standard values: 9, 12, or 15 hours; 12 is the default (covers ~90% of cases). Edge cases exist.
-`saHoursUsed` = auto-computed from SA_MEETING session records.
+1. **SA 课次** — session count. `saHoursTotal` is the contracted SA session quota (typical values: 9, 12, 15; default 12). `saHoursUsed` stores the count of past SA_MEETING sessions. Remaining = `saHoursTotal - count`. Used to track how many SA meetings are left in the contract.
 
-### Submission Round
-The EPQ exam session in which a student submits their work. Occurs twice a year (e.g. "May 2025", "Jan 2026"). Groups students into cohorts. Stored as `submissionRound` on the student.
+2. **SA 时长** — cumulative time. Sum of `durationMinutes` across all past SA_MEETING sessions. Shown as h/min (e.g. "11h20min"). Used for billing reference and EPQ compliance (minimum hours).
+
+Both signals are displayed independently wherever SA info appears. `saHoursUsed` stores the session count (integer); time is always re-derived from session records, never cached.
+
+### Submission Round（学期）
+The teaching cohort a student belongs to. Occurs twice a year. Named by **teaching start time** (not submission date):
+- **XX春** — spring cohort: teaching starts ~February, submission in August of the same year. Example: "26春" = teaching started spring 2026, submits August 2026.
+- **XX秋** — autumn cohort: teaching starts ~September, submission the following March. Example: "25秋" = teaching started autumn 2025, submits March 2026.
+
+Stored as `submissionRound` on the student (a free-form string matching a name in the `rounds` table). Two cohorts may be active simultaneously during overlap periods.
+
+**Default Round** — configured per tutor in Settings → 默认学期. Stored as `tutors.default_round`. Dashboard remembers last-selected round in `localStorage('dashboard-round')`; if no memory, falls back to the configured default.
+
+**Archived Round** — a round marked `is_archived = true`. Archived rounds and their students are excluded from the dashboard entirely (including "全部" view). Managed in Settings → 归档管理: can view student list (read-only), download full JSON, or unarchive. Archiving auto-clears `default_round` if it matches.
 
 ### EPQ Milestones
 A fixed set of deliverables defined by the EPQ specification. Tracked per student as `not_started | in_progress | completed | na`.
@@ -82,6 +93,9 @@ Short phrase categorising a student's EPQ topic — shown on the dashboard row a
 ### Brief Note
 One-liner shown on the student card in the dashboard. Tutor-facing quick reference.
 
+### Schedule Entry
+A timestamped note recording a student's exam or availability window, as told to the tutor. Stored as `scheduleEntries: ScheduleEntry[]` (newest first) on the student. Each entry has `recordedAt` (date logged), `content` (free text), and optional `startDate`/`endDate` (reserved for future calendar view). The UI shows only the latest entry inline. The weekly report AI reads the latest entry to determine which students are currently in an exam period vs. available for nudging.
+
 ### Tags
 Freeform labels on a student. Currently unused; candidate for removal.
 
@@ -113,6 +127,32 @@ A trial lesson conducted with a prospective student before any enrollment decisi
 
 ### Last-Touched
 The most recent timestamp at which any data for a student was modified — including adding a session, changing milestone status, or editing any student field. Distinct from Last-Meeting (which only tracks SA/TA meeting dates). Both signals are shown independently on the dashboard. **Backend gap**: `sessions` table has no `updated_at`; `student_milestones` has no timestamps. Full Last-Touched requires backend schema changes.
+
+### Trial Lesson
+A one-off session with a prospective student (not yet enrolled). Tracked independently — not linked to any Student record. Fields: date, time (HH:MM), durationMinutes (filled after lesson ends), studentName, grade, intendedMajor, outcome. Outcome options: pending / no_deal / deal_mine / deal_other.
+
+A trial is **confirmed** once `durationMinutes` is filled. Unconfirmed trials (no duration) are excluded from overtime calculations.
+
+### Overtime (加班)
+Teaching time outside normal work hours. Used for weekly overtime applications submitted to management.
+
+**Normal work hours** (Mon–Fri): 09:00–12:30 and 13:30–18:00.
+
+**Overtime windows:**
+- Weekdays: before 09:00, 12:30–13:30 (lunch break), after 18:00
+- Weekends (Sat/Sun): all day
+
+Overtime duration for a session = exact overlap between the session's time range and the overtime windows. A session crossing a boundary (e.g. 12:00–13:00) contributes only the overlapping portion (30 min). Sessions without `durationMinutes` are excluded.
+
+**Application format** (weekly, copied as text):
+```
+05.28 12:30-13:00 SA -- 高同学 30min
+05.30 18:00-19:00 SA -- 高同学 60min
+05.25 10:00-11:30 试听课 -- 张景涵 90min
+加班总计：3小时0分
+```
+Time range always shows the **full session** (start to end). The `min` value shows only the **overtime portion** (overlap with overtime windows). Total is sum of overtime portions only.
+Modal has two tabs: 上周 / 本周 (Mon–Sun).
 
 ## Dashboard Design Decisions
 

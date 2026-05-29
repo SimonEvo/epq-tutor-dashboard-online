@@ -1,10 +1,28 @@
 import { useState } from 'react'
 import type { HomeworkEntry, HomeworkItem, SessionRecord } from '@/types'
 
+const TODO_HEADER = /^[\s]*(待办|行动项|action\s*items?|todo[s]?|next\s*steps?)[^\n]*/i
+
+function stripBullet(line: string): string {
+  return line
+    .replace(/^[\s]*[•·\-\*]\s*/, '')
+    .replace(/^[\s]*[①②③④⑤⑥⑦⑧⑨⑩]\s*/, '')
+    .replace(/^[\s]*[0-9]+[\.、]\s*/, '')
+    .replace(/^[\s]*[（(][0-9]+[)）]\s*/, '')
+    .trim()
+}
+
 function parseHomework(raw: string): HomeworkItem[] {
-  return raw
-    .split('\n')
-    .map(line => line.replace(/^[\s]*-\s*/, '').trim())
+  const lines = raw.split('\n')
+
+  // If there's a 待办/Action Items section, extract only those lines
+  const todoIdx = lines.findIndex(l => TODO_HEADER.test(l.trim()))
+  const sourceLines = todoIdx !== -1
+    ? lines.slice(todoIdx + 1).filter(l => /^[\s]*[•·\-\*①-⑩0-9（(]/.test(l))
+    : lines
+
+  return sourceLines
+    .map(stripBullet)
     .filter(Boolean)
     .map(text => ({ text, done: false }))
 }

@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    Column, String, Integer, Float, Text, DateTime, Enum, JSON,
+    Column, String, Integer, Float, Text, DateTime, Enum, JSON, Boolean,
     ForeignKey, PrimaryKeyConstraint, UniqueConstraint
 )
 from sqlalchemy.orm import relationship
@@ -16,6 +16,7 @@ class Tutor(Base):
     id = Column(String(64), primary_key=True)
     username = Column(String(64), unique=True, nullable=False)
     password_hash = Column(String(256), nullable=False)
+    default_round = Column(String(64), nullable=True)
     created_at = Column(DateTime, default=now_utc)
     students = relationship("Student", back_populates="tutor")
 
@@ -59,6 +60,7 @@ class Student(Base):
     next_theory_session = Column(String(16))
     availability_note = Column(Text, default="")
     brief_note = Column(Text, default="")
+    schedule_entries = Column(JSON, default=list)
     private_notes = Column(Text, default="")
     tencent_doc_url = Column(String(512))
     generated_progress_report = Column(Text)
@@ -173,6 +175,7 @@ class WeeklyReport(Base):
 class Round(Base):
     __tablename__ = "rounds"
     name = Column(String(128), primary_key=True)
+    is_archived = Column(Boolean, default=False, nullable=False)
 
 
 class ActionLog(Base):
@@ -209,7 +212,8 @@ class Trial(Base):
     __tablename__ = "trials"
     id = Column(String(64), primary_key=True)
     date = Column(String(16), nullable=False)
-    duration_category = Column(String(16), default="")
+    time = Column("time", String(8), nullable=True)
+    duration_minutes = Column(Integer, nullable=True)
     student_name = Column(String(128), nullable=False, default="")
     grade = Column(String(16), default="")
     intended_major = Column(String(256), default="")

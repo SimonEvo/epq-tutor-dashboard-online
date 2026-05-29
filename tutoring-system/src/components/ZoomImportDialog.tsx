@@ -8,10 +8,15 @@ import * as dataService from '@/lib/dataService'
 type ParsedFields = { summary: string; transcript: string; homework: string }
 
 const SECTION_MAP: Record<string, keyof ParsedFields> = {
+  // Zoom
   'quick recap': 'summary',
   'summary': 'transcript',
   'next steps': 'homework',
   'action items': 'homework',
+  // Tencent Meeting (腾讯会议)
+  '摘要': 'summary',
+  '待办': 'homework',
+  '行动项': 'homework',
 }
 
 function parseZoomRecap(text: string): ParsedFields {
@@ -22,7 +27,10 @@ function parseZoomRecap(text: string): ParsedFields {
 
   for (const line of lines) {
     const bare = line.replace(/^#+\s*/, '').trim()
-    const field = SECTION_MAP[bare.toLowerCase()]
+    const mapped = SECTION_MAP[bare.toLowerCase()]
+    // Numbered sections (e.g. "1. 三篇论文...") → transcript
+    const isNumbered = /^\d+[\.、]/.test(bare)
+    const field: keyof ParsedFields | undefined = mapped ?? (isNumbered ? 'transcript' : undefined)
     if (field !== undefined) {
       cur = field
       if (!buf[cur]) buf[cur] = []

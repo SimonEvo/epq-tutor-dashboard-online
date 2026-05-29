@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Student, Supervisor } from '@/types'
 import { isSessionStarted, formatHours } from '@/lib/formatters'
+import AddSessionModal from '@/components/AddSessionModal'
 
 interface Props {
   students: Student[]
@@ -61,8 +63,17 @@ function TH({ children, width }: { children: React.ReactNode; width: number }) {
 
 export default function OverviewView({ students, supervisors }: Props) {
   const navigate = useNavigate()
+  const [addSessionStudent, setAddSessionStudent] = useState<Student | null>(null)
 
   return (
+    <>
+    {addSessionStudent && (
+      <AddSessionModal
+        student={addSessionStudent}
+        onClose={() => setAddSessionStudent(null)}
+        onSaved={() => setAddSessionStudent(null)}
+      />
+    )}
     <div className="rounded-xl overflow-hidden border border-gray-200 bg-white">
       {/* Header */}
       <div
@@ -98,11 +109,11 @@ export default function OverviewView({ students, supervisors }: Props) {
         const touchedLabel = student.updatedAt ? formatTouched(student.updatedAt) : '—'
         const touchedToday = student.updatedAt ? daysSince(student.updatedAt) === 0 : false
 
-        const pastSaHours = student.sessions
-          .filter(s => s.type === 'SA_MEETING' && isSessionStarted(s))
-          .reduce((sum, s) => sum + s.durationMinutes / 60, 0)
-        const saRemaining = student.saHoursTotal - pastSaHours
+        const saUsed = student.sessions.filter(s => s.type === 'SA_MEETING' && isSessionStarted(s)).length
+        const saRemaining = student.saHoursTotal - saUsed
         const saLow = saRemaining <= 2
+        const saTotalMins = student.sessions.filter(s => s.type === 'SA_MEETING' && isSessionStarted(s)).reduce((s, x) => s + x.durationMinutes, 0)
+        const saRemainingMins = student.saHoursTotal * 60 - saTotalMins
         const saColor = saLow ? '#ef4444' : '#10b981'
 
         const nextSa = [...student.sessions]
@@ -175,7 +186,7 @@ export default function OverviewView({ students, supervisors }: Props) {
             <div className="px-2 shrink-0 flex flex-col gap-1 py-2" style={{ width: COL.sa }}>
               <div className="flex gap-0.5">
                 {Array.from({ length: Math.min(student.saHoursTotal, 20) }).map((_, i) => {
-                  const used = i < Math.round(pastSaHours)
+                  const used = i < saUsed
                   return (
                     <div
                       key={i}
@@ -186,7 +197,7 @@ export default function OverviewView({ students, supervisors }: Props) {
                 })}
               </div>
               <span className="text-xs font-semibold tabular-nums" style={{ color: saColor }}>
-                {formatHours(saRemaining)} 剩余
+                {formatHours(saRemainingMins / 60)}
               </span>
             </div>
 
@@ -224,10 +235,10 @@ export default function OverviewView({ students, supervisors }: Props) {
               className="absolute right-3 opacity-0 group-hover:opacity-100 transition-opacity"
               onClick={e => {
                 e.stopPropagation()
-                navigate(`/students/${student.id}/session/new`)
+                setAddSessionStudent(student)
               }}
             >
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-600 text-white">
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-600 text-white cursor-pointer">
                 + Session
               </span>
             </div>
@@ -235,5 +246,6 @@ export default function OverviewView({ students, supervisors }: Props) {
         )
       })}
     </div>
+    </>
   )
 }

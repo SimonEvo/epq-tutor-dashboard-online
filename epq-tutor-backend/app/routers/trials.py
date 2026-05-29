@@ -14,7 +14,8 @@ def _to_schema(t: models.Trial) -> TrialSchema:
     return TrialSchema(
         id=t.id,
         date=t.date,
-        durationCategory=t.duration_category or "",
+        time=t.time or "",
+        durationMinutes=t.duration_minutes,
         studentName=t.student_name or "",
         grade=t.grade or "",
         intendedMajor=t.intended_major or "",
@@ -54,7 +55,8 @@ def create_trial(
     trial = models.Trial(
         id=data.id or str(uuid.uuid4()),
         date=data.date,
-        duration_category=data.durationCategory,
+        time=data.time or None,
+        duration_minutes=data.durationMinutes,
         student_name=data.studentName,
         grade=data.grade,
         intended_major=data.intendedMajor,
@@ -91,7 +93,8 @@ def update_trial(
     if trial is None:
         raise HTTPException(status_code=404, detail="Trial not found")
     trial.date = data.date
-    trial.duration_category = data.durationCategory
+    trial.time = data.time or None
+    trial.duration_minutes = data.durationMinutes
     trial.student_name = data.studentName
     trial.grade = data.grade
     trial.intended_major = data.intendedMajor

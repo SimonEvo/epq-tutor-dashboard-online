@@ -8,9 +8,10 @@ import KanbanRoundView from '@/components/views/KanbanRoundView'
 import KanbanProgressView from '@/components/views/KanbanProgressView'
 import MilestoneGridView from '@/components/views/MilestoneGridView'
 import OverviewView from '@/components/views/OverviewView'
-import type { Student, WeeklyReportData } from '@/types'
-import { formatHours } from '@/lib/formatters'
+import type { Student, Supervisor, Trial, WeeklyReportData } from '@/types'
+import { formatHours, copyToClipboard } from '@/lib/formatters'
 import { generateWeeklyReport, getWeeklyReportData } from '@/lib/weeklyReportService'
+import { listTrials, getDefaultRound } from '@/lib/dataService'
 
 type ViewMode = 'overview' | 'grid' | 'list' | 'kanban-round' | 'kanban-progress' | 'milestone'
 
@@ -26,7 +27,9 @@ const VIEW_BUTTONS: { mode: ViewMode; label: string }[] = [
 export default function DashboardPage() {
   const { students, tags, rounds, supervisors, isLoading, error, fetchAll, fetchTags, fetchRounds, fetchSupervisors } = useStudentStore()
   const [selectedTag, setSelectedTag] = useState<string>('')
-  const [selectedRound, setSelectedRound] = useState<string>('')
+  const [selectedRound, setSelectedRound] = useState<string>(
+    () => localStorage.getItem('dashboard-round') ?? ''
+  )
   const [selectedSupervisor, setSelectedSupervisor] = useState<string>('')
   const [sortBy, setSortBy] = useState<'name' | 'lastSession'>('lastSession')
   const [viewMode, setViewMode] = useState<ViewMode>(
@@ -37,6 +40,12 @@ export default function DashboardPage() {
     setViewMode(mode)
     localStorage.setItem('dashboard-view-mode', mode)
   }
+
+  // Overtime modal
+  const [showOvertime, setShowOvertime] = useState(false)
+  const [overtimeTab, setOvertimeTab] = useState<'last' | 'current'>('last')
+  const [overtimeTrials, setOvertimeTrials] = useState<Trial[]>([])
+  const [overtimeCopied, setOvertimeCopied] = useState(false)
 
   // Stats modal
   const [showStats, setShowStats] = useState(false)
@@ -54,6 +63,10 @@ export default function DashboardPage() {
     fetchTags()
     fetchRounds()
     fetchSupervisors()
+    // If no round remembered, fall back to backend default
+    if (!localStorage.getItem('dashboard-round')) {
+      getDefaultRound().then(r => { if (r) setSelectedRound(r) }).catch(() => {})
+    }
     // Load cached weekly report silently
     getWeeklyReportData().then(d => { if (d) setWeeklyReport(d) }).catch(() => {})
   }, [fetchAll, fetchTags, fetchRounds, fetchSupervisors])
@@ -116,11 +129,85 @@ export default function DashboardPage() {
         `共 ${sessionCount} 节课  总时长 ${formatHours(totalMins / 60)}`,
       ].join('\n')
     ).join('\n\n')
-    navigator.clipboard.writeText(header + '\n\n' + rows)
+    copyToClipboard(header + '\n\n' + rows)
   }
 
   return (
     <>
+    {/* Overtime modal */}
+    {showOvertime && (() => {
+      const range = getWeekRange(overtimeTab === 'last' ? -1 : 0)
+      const entries = buildOvertimeEntries(students, overtimeTrials, supervisors, range.from, range.to)
+      const total = entries.reduce((s, e) => s + e.overtimeMins, 0)
+      const copyText = buildOvertimeCopyText(entries, range.from, range.to)
+      return (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center pt-16 px-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+              <h2 className="text-base font-semibold text-gray-900">加班申请</h2>
+              <button onClick={() => setShowOvertime(false)} className="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
+            </div>
+
+            {/* Tabs */}
+            <div className="px-5 pt-3 flex gap-1 shrink-0">
+              {([['last', '上周'], ['current', '本周']] as ['last'|'current', string][]).map(([tab, label]) => (
+                <button
+                  key={tab}
+                  onClick={() => setOvertimeTab(tab)}
+                  className={`text-sm px-4 py-1.5 rounded-lg border transition-colors ${
+                    overtimeTab === tab
+                      ? 'bg-indigo-600 text-white border-indigo-600'
+                      : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  {label}（{fmtDateShort(range.from)}–{fmtDateShort(range.to)}）
+                </button>
+              ))}
+            </div>
+
+            {/* List */}
+            <div className="flex-1 overflow-y-auto px-5 py-4">
+              {entries.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-10">本周期内无加班记录</p>
+              ) : (
+                <div className="space-y-2">
+                  {entries.map((e, i) => (
+                    <div key={i} className="flex items-center justify-between text-sm py-2 border-b border-gray-50 last:border-0">
+                      <div className="flex items-center gap-3">
+                        <span className="text-gray-400 text-xs w-12 shrink-0">{fmtDateShort(e.date)}</span>
+                        <span className="text-gray-500 text-xs w-24 shrink-0">{e.timeStart}–{e.timeEnd}</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 shrink-0">{e.label}</span>
+                        <span className="text-gray-700">{e.personName}</span>
+                      </div>
+                      <span className="text-gray-500 text-xs shrink-0 ml-2">{e.overtimeMins}min</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between text-sm font-semibold text-gray-900 pt-2">
+                    <span>加班总计</span>
+                    <span>{fmtDuration(total)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-3 border-t border-gray-100 shrink-0">
+              <button
+                onClick={async () => {
+                  await copyToClipboard(copyText)
+                  setOvertimeCopied(true)
+                  setTimeout(() => setOvertimeCopied(false), 2000)
+                }}
+                className="w-full text-sm py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+              >
+                {overtimeCopied ? '已复制 ✓' : '复制申请文本'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )
+    })()}
+
     {/* Stats modal */}
     {showStats && (
       <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center pt-16 px-4">
@@ -259,7 +346,7 @@ export default function DashboardPage() {
             </button>
             {weeklyReport && (
               <button
-                onClick={() => navigator.clipboard.writeText(weeklyReport.content)}
+                onClick={() => copyToClipboard(weeklyReport.content)}
                 className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
               >
                 复制
@@ -307,6 +394,12 @@ export default function DashboardPage() {
             )}
           </button>
           <button
+            onClick={() => { setShowOvertime(true); listTrials().then(setOvertimeTrials).catch(() => {}) }}
+            className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            加班申请
+          </button>
+          <button
             onClick={() => setShowStats(true)}
             className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
           >
@@ -339,7 +432,7 @@ export default function DashboardPage() {
             <div className="flex gap-2 flex-wrap items-center">
               <span className="text-xs text-gray-400">Round:</span>
               <button
-                onClick={() => setSelectedRound('')}
+                onClick={() => { setSelectedRound(''); localStorage.setItem('dashboard-round', '') }}
                 className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
                   !selectedRound
                     ? 'bg-gray-800 text-white border-gray-800'
@@ -351,7 +444,7 @@ export default function DashboardPage() {
               {rounds.map(r => (
                 <button
                   key={r}
-                  onClick={() => setSelectedRound(r === selectedRound ? '' : r)}
+                  onClick={() => { const v = r === selectedRound ? '' : r; setSelectedRound(v); localStorage.setItem('dashboard-round', v) }}
                   className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
                     selectedRound === r
                       ? 'bg-gray-800 text-white border-gray-800'
@@ -454,6 +547,141 @@ export default function DashboardPage() {
     </div>
     </>
   )
+}
+
+
+// ── Overtime helpers ──────────────────────────────────────────────────────────
+
+const WORK_START = 9 * 60
+const LUNCH_START = 12 * 60 + 30
+const LUNCH_END = 13 * 60 + 30
+const WORK_END = 18 * 60
+const WEEKDAY_OT_WINDOWS: [number, number][] = [
+  [0, WORK_START],
+  [LUNCH_START, LUNCH_END],
+  [WORK_END, 24 * 60],
+]
+
+function parseTimeMins(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(Number)
+  return h * 60 + m
+}
+
+function addMins(hhmm: string, mins: number): string {
+  const total = parseTimeMins(hhmm) + mins
+  const h = Math.floor(total / 60) % 24
+  const m = total % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
+
+function computeOvertimeMins(date: string, time: string, durationMins: number): number {
+  const dow = new Date(date + 'T12:00:00').getDay()
+  if (dow === 0 || dow === 6) return durationMins
+  const start = parseTimeMins(time)
+  const end = start + durationMins
+  let total = 0
+  for (const [ws, we] of WEEKDAY_OT_WINDOWS) {
+    const s = Math.max(start, ws)
+    const e = Math.min(end, we)
+    if (e > s) total += e - s
+  }
+  return total
+}
+
+function getWeekRange(weekOffset: 0 | -1): { from: string; to: string } {
+  const today = new Date()
+  const dow = today.getDay()
+  const diffToMon = dow === 0 ? -6 : 1 - dow
+  const mon = new Date(today)
+  mon.setDate(today.getDate() + diffToMon + weekOffset * 7)
+  const sun = new Date(mon)
+  sun.setDate(mon.getDate() + 6)
+  const fmt = (d: Date) => d.toISOString().slice(0, 10)
+  return { from: fmt(mon), to: fmt(sun) }
+}
+
+function fmtDateShort(iso: string): string {
+  return iso.slice(5).replace('-', '.')
+}
+
+function fmtDuration(mins: number): string {
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  return h > 0 ? (m > 0 ? `${h}小时${m}分` : `${h}小时`) : `${m}分`
+}
+
+interface OvertimeEntry {
+  date: string
+  timeStart: string
+  timeEnd: string
+  overtimeMins: number
+  label: string
+  personName: string
+}
+
+const SESSION_LABEL: Record<string, string> = {
+  SA_MEETING: 'SA',
+  TA_MEETING: 'TA',
+  THEORY: 'TE',
+}
+
+function buildOvertimeEntries(
+  students: Student[],
+  trials: Trial[],
+  supervisors: Supervisor[],
+  from: string,
+  to: string,
+): OvertimeEntry[] {
+  const entries: OvertimeEntry[] = []
+
+  for (const student of students) {
+    const supervisor = supervisors.find(sv => sv.id === student.supervisorId)
+    const isZhongFangSA = supervisor?.saType === '中方SA'
+
+    for (const s of student.sessions) {
+      if (!s.time || !s.durationMinutes) continue
+      if (s.date < from || s.date > to) continue
+      // SA_MEETING only counts for 中方SA students (tutor is the SA)
+      if (s.type === 'SA_MEETING' && !isZhongFangSA) continue
+      const ot = computeOvertimeMins(s.date, s.time, s.durationMinutes)
+      if (ot === 0) continue
+      entries.push({
+        date: s.date,
+        timeStart: s.time,
+        timeEnd: addMins(s.time, s.durationMinutes),
+        overtimeMins: ot,
+        label: SESSION_LABEL[s.type] ?? s.type,
+        personName: student.name,
+      })
+    }
+  }
+
+  for (const t of trials) {
+    if (!t.time || !t.durationMinutes) continue
+    if (t.date < from || t.date > to) continue
+    const ot = computeOvertimeMins(t.date, t.time, t.durationMinutes)
+    if (ot === 0) continue
+    entries.push({
+      date: t.date,
+      timeStart: t.time,
+      timeEnd: addMins(t.time, t.durationMinutes),
+      overtimeMins: ot,
+      label: '试听课',
+      personName: t.studentName,
+    })
+  }
+
+  return entries.sort((a, b) => a.date.localeCompare(b.date) || a.timeStart.localeCompare(b.timeStart))
+}
+
+function buildOvertimeCopyText(entries: OvertimeEntry[], from: string, to: string): string {
+  if (entries.length === 0) return `加班申请（${fmtDateShort(from)}–${fmtDateShort(to)}）\n\n本周无加班记录`
+  const total = entries.reduce((s, e) => s + e.overtimeMins, 0)
+  const lines = entries.map(e =>
+    `${fmtDateShort(e.date)} ${e.timeStart}-${e.timeEnd} ${e.label} -- ${e.personName} ${e.overtimeMins}min`
+  )
+  lines.push(`\n加班总计：${fmtDuration(total)}`)
+  return lines.join('\n')
 }
 
 function getLastSession(student: Student): string | undefined {

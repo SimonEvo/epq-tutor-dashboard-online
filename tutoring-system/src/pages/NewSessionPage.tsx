@@ -37,7 +37,7 @@ export default function NewSessionPage() {
   const [type, setType] = useState<SessionType>('SA_MEETING')
   const [date, setDate] = useState(todayStr)
   const [time, setTime] = useState('')
-  const [duration, setDuration] = useState(60)
+  const [duration, setDuration] = useState<number | ''>('')
   const [title, setTitle] = useState(() =>
     student ? computeAutoTitle(student.sessions, 'SA_MEETING', todayStr) : 'SA #1'
   )
@@ -72,7 +72,7 @@ export default function NewSessionPage() {
         type,
         date,
         time: time || undefined,
-        durationMinutes: duration,
+        durationMinutes: duration === '' ? 0 : duration,
         title: title.trim(),
         summary: summary.trim(),
         homework: homework.trim(),
@@ -83,14 +83,12 @@ export default function NewSessionPage() {
 
       // Recompute SA hours from all SA sessions including this new one
       const allSessions = [...student.sessions, session]
-      const saHoursUsed = allSessions
-        .filter(s => s.type === 'SA_MEETING')
-        .reduce((sum, s) => sum + s.durationMinutes / 60, 0)
+      const saCount = allSessions.filter(s => s.type === 'SA_MEETING').length
 
       const updated: Student = {
         ...student,
         sessions: allSessions,
-        saHoursUsed: Math.round(saHoursUsed * 10) / 10,
+        saHoursUsed: saCount,
       }
 
       await saveStudent(updated)
@@ -101,7 +99,8 @@ export default function NewSessionPage() {
     }
   }
 
-  const saRemaining = student.saHoursTotal - student.saHoursUsed
+  const saUsed = student.sessions.filter(s => s.type === 'SA_MEETING').length
+  const saRemaining = student.saHoursTotal - saUsed
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
@@ -136,7 +135,7 @@ export default function NewSessionPage() {
           </div>
           {type === 'SA_MEETING' && (
             <p className={`text-xs mt-2 ${saRemaining <= 2 ? 'text-amber-600' : 'text-gray-400'}`}>
-              SA hours remaining: <strong>{saRemaining}</strong> / {student.saHoursTotal}
+              SA 剩余课次: <strong>{saRemaining}</strong> / {student.saHoursTotal}
               {saRemaining <= 2 && ' ⚠️ Running low'}
             </p>
           )}
@@ -153,8 +152,8 @@ export default function NewSessionPage() {
               className={inputCls} />
           </Field>
           <Field label="Duration (minutes)">
-            <input type="number" min={1} value={duration}
-              onChange={e => setDuration(Number(e.target.value))} className={inputCls} required />
+            <input type="number" min={1} value={duration} placeholder="—"
+              onChange={e => setDuration(e.target.value === '' ? '' : Number(e.target.value))} className={inputCls} />
           </Field>
         </div>
 

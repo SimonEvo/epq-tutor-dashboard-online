@@ -15,6 +15,21 @@ export function isSessionStarted(s: { date: string; time?: string }): boolean {
   return nowHHMM >= s.time
 }
 
+/** Copy text to clipboard with textarea fallback for non-HTTPS environments. */
+export async function copyToClipboard(text: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text)
+  } catch {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.style.cssText = 'position:fixed;opacity:0'
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
+  }
+}
+
 /** Format decimal hours as xhxxmin. e.g. 1.5 → "1h30min", 0.75 → "45min", 2 → "2h" */
 export function formatHours(decimalHours: number): string {
   const totalMins = Math.round(decimalHours * 60)

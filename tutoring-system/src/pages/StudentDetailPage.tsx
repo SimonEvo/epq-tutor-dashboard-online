@@ -9,7 +9,7 @@ import MindMapEditor from '@/components/MindMapEditor'
 import HomeworkParseDialog from '@/components/HomeworkParseDialog'
 import ZoomImportDialog from '@/components/ZoomImportDialog'
 import ZoomScheduleDialog from '@/components/ZoomScheduleDialog'
-import { formatHours, isSessionStarted } from '@/lib/formatters'
+import { isSessionStarted, formatHours } from '@/lib/formatters'
 import * as dataService from '@/lib/dataService'
 
 const SESSION_LABEL: Record<SessionType, string> = {
@@ -47,6 +47,8 @@ export default function StudentDetailPage() {
   const [saving, setSaving] = useState(false)
   const [editingBriefNote, setEditingBriefNote] = useState(false)
   const [briefNoteDraft, setBriefNoteDraft] = useState('')
+  const [editingSchedule, setEditingSchedule] = useState(false)
+  const [scheduleDraft, setScheduleDraft] = useState('')
   const [sessionFilter, setSessionFilter] = useState<'all' | SessionType>('all')
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set())
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
@@ -305,13 +307,10 @@ export default function StudentDetailPage() {
 
   const deleteSession = async (sessionId: string) => {
     const updatedSessions = student.sessions.filter(s => s.id !== sessionId)
-    const saHoursUsed = updatedSessions
-      .filter(s => s.type === 'SA_MEETING')
-      .reduce((sum, s) => sum + s.durationMinutes / 60, 0)
     const updated: Student = {
       ...student,
       sessions: updatedSessions,
-      saHoursUsed: Math.round(saHoursUsed * 10) / 10,
+      saHoursUsed: updatedSessions.filter(s => s.type === 'SA_MEETING').length,
     }
     setStudent(updated)
     setConfirmDelete(null)
@@ -444,6 +443,22 @@ export default function StudentDetailPage() {
     setSaving(false)
   }
 
+  const saveScheduleEntry = async () => {
+    if (!scheduleDraft.trim()) { setEditingSchedule(false); return }
+    const entry = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      recordedAt: new Date().toISOString().slice(0, 10),
+      content: scheduleDraft.trim(),
+    }
+    const updated: Student = { ...student!, scheduleEntries: [entry, ...(student!.scheduleEntries || [])] }
+    setStudent(updated)
+    setEditingSchedule(false)
+    setScheduleDraft('')
+    setSaving(true)
+    await saveStudent(updated)
+    setSaving(false)
+  }
+
   const sortedSessions = [...student.sessions].sort((a, b) => b.date.localeCompare(a.date))
 
   // Compute per-type chronological numbers for display
@@ -479,10 +494,10 @@ export default function StudentDetailPage() {
     : sortedSessions.filter(s => s.type === sessionFilter)
 
   // SA hours remaining: count only past sessions, no intermediate rounding (let formatHours handle precision)
-  const pastSaHoursUsed = student.sessions
-    .filter(s => s.type === 'SA_MEETING' && isSessionStarted(s))
-    .reduce((sum, s) => sum + s.durationMinutes / 60, 0)
-  const saRemaining = student.saHoursTotal - pastSaHoursUsed
+  const saUsed = student.sessions.filter(s => s.type === 'SA_MEETING' && isSessionStarted(s)).length
+  const saRemaining = student.saHoursTotal - saUsed
+  const saTotalMins = student.sessions.filter(s => s.type === 'SA_MEETING' && isSessionStarted(s)).reduce((s, x) => s + x.durationMinutes, 0)
+  const saRemainingMins = student.saHoursTotal * 60 - saTotalMins
   const supervisor = supervisors.find(s => s.id === student.supervisorId)
 
   return (
@@ -628,10 +643,47 @@ export default function StudentDetailPage() {
         )}
       </div>
 
+      {/* Schedule Entry — inline editable */}
+      <div className="mb-5">
+        {editingSchedule ? (
+          <div className="flex gap-2 items-start">
+            <textarea
+              autoFocus
+              value={scheduleDraft}
+              onChange={e => setScheduleDraft(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveScheduleEntry() } if (e.key === 'Escape') setEditingSchedule(false) }}
+              rows={2}
+              placeholder="如：期末考 6/1-6/10，之后可约课"
+              className="flex-1 text-sm border border-indigo-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+            />
+            <div className="flex flex-col gap-1.5">
+              <button onClick={saveScheduleEntry} className="text-xs px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">保存</button>
+              <button onClick={() => setEditingSchedule(false)} className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50">取消</button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => { setScheduleDraft(''); setEditingSchedule(true) }}
+            className="w-full text-left group"
+          >
+            {student.scheduleEntries?.[0] ? (
+              <div className="border border-transparent rounded-lg px-3 py-2 group-hover:border-gray-200 group-hover:bg-gray-50 transition-colors">
+                <p className="text-xs text-gray-400 mb-0.5">📅 考试/时间安排 · {student.scheduleEntries[0].recordedAt}</p>
+                <p className="text-sm text-gray-700">{student.scheduleEntries[0].content}</p>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-300 italic border border-dashed border-gray-200 rounded-lg px-3 py-2 group-hover:border-gray-300 transition-colors">
+                📅 记录考试/时间安排…
+              </p>
+            )}
+          </button>
+        )}
+      </div>
+
       {/* Stats row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-        <InfoCard label="SA Hours" value={`${formatHours(saRemaining)} / ${student.saHoursTotal}h`} alert={saRemaining <= 2} />
-        <InfoCard label="Sessions" value={String(student.sessions.length)} />
+        <InfoCard label="SA 课次" value={`剩余 ${saRemaining} / ${student.saHoursTotal}`} alert={saRemaining <= 2} />
+        <InfoCard label="SA 时长剩余" value={formatHours(saRemainingMins / 60)} alert={saRemainingMins <= 120} />
         <InfoCard label="EPQ Progress" value={`${progress}%`} />
         <div className="rounded-xl border border-gray-200 bg-white p-3">
           <div className="flex flex-col gap-1.5">

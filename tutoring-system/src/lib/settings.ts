@@ -7,6 +7,7 @@ export interface AppSettings {
   aiBaseUrl: string
   sessionReportTemplate: string   // empty = use built-in default
   progressReportTemplate: string  // empty = use built-in default
+  weeklyReportOutputTemplate: string // empty = use built-in default
 }
 
 const DEFAULTS: AppSettings = {
@@ -16,6 +17,7 @@ const DEFAULTS: AppSettings = {
   aiBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
   sessionReportTemplate: '',
   progressReportTemplate: '',
+  weeklyReportOutputTemplate: '',
 }
 
 export function getSettings(): AppSettings {

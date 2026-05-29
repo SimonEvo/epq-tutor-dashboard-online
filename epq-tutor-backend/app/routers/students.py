@@ -64,6 +64,7 @@ def _to_full_schema(s: models.Student) -> StudentSchema:
         nextTheorySession=s.next_theory_session,
         availabilityNote=s.availability_note or "", briefNote=s.brief_note or "",
         privateNotes=s.private_notes or "", tencentDocUrl=s.tencent_doc_url,
+        scheduleEntries=s.schedule_entries or [],
         milestones=_milestones_dict(s.milestones),
         tags=_tags_list(s.tags),
         sessions=[_session_to_dict(x) for x in sorted_sessions],
@@ -89,8 +90,9 @@ def _to_summary(s: models.Student) -> StudentSummarySchema:
         nextTheorySession=s.next_theory_session,
         submissionRound=s.submission_round, supervisorId=s.supervisor_id,
         nameEn=s.name_en, overview=s.overview,
-        sessions=[SessionSummarySchema(id=x.id, type=x.type, date=x.date, durationMinutes=x.duration_minutes) for x in s.sessions],
+        sessions=[SessionSummarySchema(id=x.id, type=x.type, date=x.date, time=x.time, durationMinutes=x.duration_minutes) for x in s.sessions],
         availabilityNote=s.availability_note or "", briefNote=s.brief_note or "",
+        latestScheduleEntry=(s.schedule_entries or [None])[0],
         lastSessionDate=last.date if last else None,
         lastSessionType=last.type if last else None,
         milestones=_milestones_dict(s.milestones),
@@ -136,7 +138,8 @@ def list_students(
         .filter(models.Student.tutor_id == tutor.id)
         .all()
     )
-    return [_to_summary(s) for s in students]
+    archived_rounds = {r.name for r in db.query(models.Round).filter(models.Round.is_archived == True).all()}
+    return [_to_summary(s) for s in students if s.submission_round not in archived_rounds]
 
 
 @router.get("/{student_id}", response_model=StudentSchema)
@@ -220,6 +223,7 @@ def _upsert_student(
     s.next_sa_session = data.nextSaSession; s.next_ta_session = data.nextTaSession
     s.next_theory_session = data.nextTheorySession
     s.availability_note = data.availabilityNote; s.brief_note = data.briefNote
+    s.schedule_entries = data.scheduleEntries or []
     s.private_notes = data.privateNotes; s.tencent_doc_url = data.tencentDocUrl
     s.generated_progress_report = data.generatedProgressReport
     s.progress_report_generated_at = data.progressReportGeneratedAt

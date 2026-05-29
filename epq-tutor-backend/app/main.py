@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
-from app.routers import auth, students, supervisors, config, reports, calendar, backup, zoom, trials, workflow
+from app.routers import auth, students, supervisors, config, reports, calendar, backup, zoom, trials, workflow, ai
 from app.database import engine, SessionLocal
 from app import models
 
@@ -38,12 +38,24 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE sessions ADD COLUMN zoom_join_url TEXT",
             "ALTER TABLE sessions ADD COLUMN zoom_password VARCHAR(64)",
             "ALTER TABLE trials ADD COLUMN linked_student_id VARCHAR(64)",
+            "ALTER TABLE trials ADD COLUMN `time` VARCHAR(8)",
+            "ALTER TABLE trials ADD COLUMN duration_minutes INT",
+            "ALTER TABLE tutors ADD COLUMN default_round VARCHAR(64)",
+            "ALTER TABLE rounds ADD COLUMN is_archived BOOLEAN NOT NULL DEFAULT 0",
+            "ALTER TABLE students ADD COLUMN schedule_entries JSON",
         ]:
             try:
                 conn.execute(text(stmt))
                 conn.commit()
             except Exception:
                 pass
+
+    # One-time data migrations (idempotent — no-op if already done)
+    with engine.connect() as conn:
+        for old, new in [("August 2026", "26春"), ("March 2026", "25秋")]:
+            conn.execute(text("UPDATE rounds SET name = :new WHERE name = :old"), {"new": new, "old": old})
+            conn.execute(text("UPDATE students SET submission_round = :new WHERE submission_round = :old"), {"new": new, "old": old})
+        conn.commit()
 
     # Initial check at startup, then schedule recurring checks
     db = SessionLocal()
@@ -79,6 +91,7 @@ app.include_router(backup.router)
 app.include_router(zoom.router)
 app.include_router(trials.router)
 app.include_router(workflow.router)
+app.include_router(ai.router)
 
 
 @app.get("/health")

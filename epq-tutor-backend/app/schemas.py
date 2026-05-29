@@ -85,6 +85,7 @@ class StudentSchema(BaseModel):
     briefNote: str = ""
     privateNotes: str = ""
     tencentDocUrl: Optional[str] = None
+    scheduleEntries: list[dict] = []
     milestones: MilestoneProgress = {}
     tags: list[str] = []
     sessions: list[SessionSchema] = []
@@ -103,6 +104,7 @@ class SessionSummarySchema(BaseModel):
     id: str
     type: str
     date: str
+    time: Optional[str] = None
     durationMinutes: int = 60
 
 
@@ -119,6 +121,7 @@ class StudentSummarySchema(BaseModel):
     nextTheorySession: Optional[str] = None
     availabilityNote: str = ""
     briefNote: str = ""
+    latestScheduleEntry: Optional[dict] = None
     lastSessionDate: Optional[str] = None
     lastSessionType: Optional[str] = None
     milestones: MilestoneProgress = {}
@@ -175,7 +178,8 @@ class WorkflowAnalysisUpdateSchema(BaseModel):
 class TrialSchema(BaseModel):
     id: str
     date: str
-    durationCategory: str = ""
+    time: str = ""
+    durationMinutes: Optional[int] = None
     studentName: str = ""
     grade: str = ""
     intendedMajor: str = ""
