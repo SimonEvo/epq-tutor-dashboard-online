@@ -2,7 +2,14 @@
   "permissions": {
     "allow": [
       "Bash(npm run *)",
-      "Bash(./node_modules/.bin/tsc -b)"
+      "Bash(./node_modules/.bin/tsc -b)",
+      "Bash(git pull *)",
+      "Bash(./deploy.sh)",
+      "Bash(ssh root@121.43.194.213 \"journalctl -u epq-tutor -n 30 --no-pager\")",
+      "Bash(ssh *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)"
     ]
   }
 }
