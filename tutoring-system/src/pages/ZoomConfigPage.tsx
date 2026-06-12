@@ -125,8 +125,8 @@ export default function ZoomConfigPage() {
 
         {/* Add new form */}
         {adding && (
-          <div className="bg-white rounded-2xl border border-indigo-200 p-5">
-            <p className="text-xs font-semibold text-indigo-700 mb-3">新账号</p>
+          <div className="bg-white rounded-2xl border border-[var(--border)] p-5">
+            <p className="text-xs font-semibold text-[var(--primary-hover)] mb-3">新账号</p>
             <ConfigForm
               draft={addDraft}
               setDraft={setAddDraft}
@@ -141,7 +141,7 @@ export default function ZoomConfigPage() {
       {!adding && (
         <button
           onClick={() => setAdding(true)}
-          className="text-sm px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+          className="text-sm px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
         >
           + 添加账号
         </button>
@@ -188,7 +188,7 @@ function ConfigForm({
       </Field>
       <div className="flex gap-2 pt-1">
         <button onClick={onSave} disabled={!valid}
-          className="text-sm px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-40 transition-colors">
+          className="text-sm px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] disabled:opacity-40 transition-colors">
           {saveLabel}
         </button>
         <button onClick={onCancel}
@@ -209,4 +209,4 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
-const inputCls = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500'
+const inputCls = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]'

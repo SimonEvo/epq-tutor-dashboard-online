@@ -136,7 +136,7 @@ export default function PromptTemplateEditor({ open, onClose }: Props) {
                 onClick={() => setTab('session')}
                 className={`px-3 py-1.5 transition-colors ${
                   tab === 'session'
-                    ? 'bg-indigo-600 text-white'
+                    ? 'bg-[var(--primary)] text-white'
                     : 'bg-white text-gray-500 hover:bg-gray-50'
                 }`}
               >
@@ -146,7 +146,7 @@ export default function PromptTemplateEditor({ open, onClose }: Props) {
                 onClick={() => setTab('progress')}
                 className={`px-3 py-1.5 transition-colors border-l border-gray-200 ${
                   tab === 'progress'
-                    ? 'bg-indigo-600 text-white'
+                    ? 'bg-[var(--primary)] text-white'
                     : 'bg-white text-gray-500 hover:bg-gray-50'
                 }`}
               >
@@ -156,7 +156,7 @@ export default function PromptTemplateEditor({ open, onClose }: Props) {
                 onClick={() => setTab('weekly')}
                 className={`px-3 py-1.5 transition-colors border-l border-gray-200 ${
                   tab === 'weekly'
-                    ? 'bg-indigo-600 text-white'
+                    ? 'bg-[var(--primary)] text-white'
                     : 'bg-white text-gray-500 hover:bg-gray-50'
                 }`}
               >
@@ -186,7 +186,7 @@ export default function PromptTemplateEditor({ open, onClose }: Props) {
               value={currentVal}
               onChange={e => setCurrentVal(e.target.value)}
               spellCheck={false}
-              className="flex-1 w-full font-mono text-xs leading-relaxed resize-none border border-gray-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-800 bg-gray-50"
+              className="flex-1 w-full font-mono text-xs leading-relaxed resize-none border border-gray-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-gray-800 bg-gray-50"
             />
           </div>
 
@@ -205,9 +205,9 @@ export default function PromptTemplateEditor({ open, onClose }: Props) {
                   <button
                     key={v.name}
                     onClick={() => insertVar(v.name)}
-                    className="flex items-start gap-2 text-left px-2.5 py-2 rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 transition-colors group"
+                    className="flex items-start gap-2 text-left px-2.5 py-2 rounded-lg border border-gray-200 hover:border-[var(--primary)] hover:bg-[var(--primary-bg)] transition-colors group"
                   >
-                    <code className="text-xs font-mono text-indigo-600 shrink-0 group-hover:text-indigo-700">
+                    <code className="text-xs font-mono text-[var(--primary)] shrink-0 group-hover:text-[var(--primary-hover)]">
                       {v.name}
                     </code>
                     <span className="text-xs text-gray-500 leading-snug">{v.desc}</span>
@@ -247,7 +247,7 @@ export default function PromptTemplateEditor({ open, onClose }: Props) {
             )}
             <button
               onClick={handleSave}
-              className="text-xs bg-indigo-600 text-white px-4 py-1.5 rounded-lg hover:bg-indigo-700 transition-colors"
+              className="text-xs bg-[var(--primary)] text-white px-4 py-1.5 rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
             >
               保存
             </button>

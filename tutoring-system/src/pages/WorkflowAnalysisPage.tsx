@@ -153,8 +153,8 @@ export default function WorkflowAnalysisPage() {
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-gray-700">最新报告</h2>
           {(pending || generating) && (
-            <span className="text-xs text-indigo-600 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+            <span className="text-xs text-[var(--primary)] flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--primary)] animate-pulse" />
               {generating ? 'AI 正在分析…' : '待生成'}
             </span>
           )}
@@ -198,19 +198,19 @@ export default function WorkflowAnalysisPage() {
             value={newDesc}
             onChange={e => setNewDesc(e.target.value)}
             placeholder="刚刚 / 之前做了什么？"
-            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[60px] resize-y"
+            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--primary)] min-h-[60px] resize-y"
           />
           <div className="flex items-center gap-2">
             <input
               type="datetime-local"
               value={newOccurred}
               onChange={e => setNewOccurred(e.target.value)}
-              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
             />
             <button
               onClick={handleAddManual}
               disabled={!newDesc.trim()}
-              className="text-sm px-4 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-40 transition-colors ml-auto"
+              className="text-sm px-4 py-1.5 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] disabled:opacity-40 transition-colors ml-auto"
             >
               添加
             </button>
@@ -238,7 +238,7 @@ export default function WorkflowAnalysisPage() {
                         onChange={e => setEditOccurred(e.target.value)}
                         className="text-xs border border-gray-200 rounded-lg px-2 py-1"
                       />
-                      <button onClick={() => handleSaveEdit(m)} className="text-xs px-3 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 ml-auto">保存</button>
+                      <button onClick={() => handleSaveEdit(m)} className="text-xs px-3 py-1 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] ml-auto">保存</button>
                       <button onClick={() => setEditingId(null)} className="text-xs px-3 py-1 border border-gray-200 rounded-lg hover:bg-gray-50">取消</button>
                     </div>
                   </div>

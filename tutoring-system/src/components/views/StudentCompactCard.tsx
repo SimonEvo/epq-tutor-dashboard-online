@@ -43,12 +43,12 @@ export default function StudentCompactCard({ student }: Props) {
         <div>
           <p className="font-medium text-gray-900 text-sm leading-tight">{student.name}</p>
           {student.nameEn && <p className="text-xs text-gray-400">{student.nameEn}</p>}
-          {student.overview && <p className="text-xs font-semibold text-indigo-600 mt-0.5">{student.overview}</p>}
+          {student.overview && <p className="text-xs font-semibold text-[var(--primary)] mt-0.5">{student.overview}</p>}
         </div>
         {student.tags.length > 0 && (
           <div className="flex gap-1 flex-wrap justify-end">
             {student.tags.map(tag => (
-              <span key={tag} className="text-xs bg-indigo-50 text-indigo-700 rounded-full px-1.5 py-0.5 whitespace-nowrap">
+              <span key={tag} className="text-xs bg-[var(--primary-bg)] text-[var(--primary-hover)] rounded-full px-1.5 py-0.5 whitespace-nowrap">
                 {tag}
               </span>
             ))}
@@ -62,7 +62,7 @@ export default function StudentCompactCard({ student }: Props) {
           <span>{progress}%</span>
         </div>
         <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
-          <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${progress}%` }} />
+          <div className="h-full bg-[var(--primary)] rounded-full" style={{ width: `${progress}%` }} />
         </div>
       </div>
 
@@ -70,7 +70,7 @@ export default function StudentCompactCard({ student }: Props) {
         <span className={saLow ? 'text-amber-600 font-medium' : 'text-gray-400'}>
           SA {formatHours(pastSaHoursUsed)} / {student.saHoursTotal}h
         </span>
-        {nextSa && <span className="text-indigo-500">Next: {nextSa.date}</span>}
+        {nextSa && <span className="text-[var(--primary)]">Next: {nextSa.date}</span>}
       </div>
     </Link>
   )

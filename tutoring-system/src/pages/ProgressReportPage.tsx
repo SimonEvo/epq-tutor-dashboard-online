@@ -80,7 +80,7 @@ export default function ProgressReportPage() {
   }
 
   if (!student) {
-    return <div className="p-6 text-gray-400 text-sm">Loading… <Link to="/" className="text-indigo-500 underline">Back to dashboard</Link></div>
+    return <div className="p-6 text-gray-400 text-sm">Loading… <Link to="/" className="text-[var(--primary)] underline">Back to dashboard</Link></div>
   }
 
   return (
@@ -103,7 +103,7 @@ export default function ProgressReportPage() {
         </button>
         {report && (
           <>
-            <button onClick={copy} className="text-sm px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors">
+            <button onClick={copy} className="text-sm px-4 py-2 rounded-lg bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] transition-colors">
               {copied ? '已复制 ✓' : '复制报告'}
             </button>
             {student.tencentDocUrl && (
@@ -124,7 +124,7 @@ export default function ProgressReportPage() {
 
       {loading && (
         <div className="bg-white rounded-2xl border border-gray-200 p-8 flex items-center justify-center gap-3 text-gray-400 text-sm">
-          <span className="animate-spin text-indigo-500">⟳</span>
+          <span className="animate-spin text-[var(--primary)]">⟳</span>
           正在调用 {getSettings().aiModel || 'qwen-plus'} 生成报告，请稍候…
         </div>
       )}
@@ -133,7 +133,7 @@ export default function ProgressReportPage() {
           <p className="font-medium mb-1">生成失败</p>
           <p>{error}</p>
           {error.includes('API Key') && (
-            <Link to="/settings" className="text-indigo-600 underline mt-2 block">前往设置填写 API Key →</Link>
+            <Link to="/settings" className="text-[var(--primary)] underline mt-2 block">前往设置填写 API Key →</Link>
           )}
         </div>
       )}

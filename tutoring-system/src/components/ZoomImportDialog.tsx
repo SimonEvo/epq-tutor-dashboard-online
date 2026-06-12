@@ -131,7 +131,7 @@ export default function ZoomImportDialog({ session, onConfirm, onClose }: Props)
                 <select
                   value={selectedConfigId}
                   onChange={e => setSelectedConfigId(e.target.value)}
-                  className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                 >
                   {configs.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
@@ -141,12 +141,12 @@ export default function ZoomImportDialog({ session, onConfirm, onClose }: Props)
                 onChange={e => setMeetingId(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') handleFetchZoom() }}
                 placeholder="Zoom 会议 ID（数字）"
-                className="flex-1 min-w-0 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                className="flex-1 min-w-0 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
               />
               <button
                 onClick={handleFetchZoom}
                 disabled={fetching || !meetingId.trim()}
-                className="text-xs px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-40 transition-colors shrink-0"
+                className="text-xs px-3 py-1.5 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] disabled:opacity-40 transition-colors shrink-0"
               >
                 {fetching ? '拉取中…' : '从 Zoom API 拉取'}
               </button>
@@ -173,7 +173,7 @@ export default function ZoomImportDialog({ session, onConfirm, onClose }: Props)
               onChange={e => handleTextChange(e.target.value)}
               rows={9}
               placeholder={"## Quick Recap\n会议概述…\n\n## Summary\n详细讨论内容…\n\n## Next Steps\n- 下节课作业 1\n- 下节课作业 2"}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--primary)] resize-none"
             />
           </div>
 
@@ -187,8 +187,8 @@ export default function ZoomImportDialog({ session, onConfirm, onClose }: Props)
 
           {/* Parsed preview */}
           {parsed && (
-            <div className="border border-indigo-100 bg-indigo-50 rounded-xl p-4 flex flex-col gap-3">
-              <p className="text-xs font-semibold text-indigo-700">解析结果预览</p>
+            <div className="border border-[var(--border)] bg-[var(--primary-bg)] rounded-xl p-4 flex flex-col gap-3">
+              <p className="text-xs font-semibold text-[var(--primary-hover)]">解析结果预览</p>
               {parsed.summary   && <PreviewField label="Quick Recap → Summary（课程概要）"     value={parsed.summary} />}
               {parsed.transcript && <PreviewField label="Summary → Transcript（完整记录）"      value={parsed.transcript} clamp />}
               {parsed.homework  && <PreviewField label="Next Steps → Homework（作业/下一步）"   value={parsed.homework} />}
@@ -218,7 +218,7 @@ export default function ZoomImportDialog({ session, onConfirm, onClose }: Props)
           <button
             onClick={handleConfirm}
             disabled={!hasContent}
-            className="text-xs px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 transition-colors"
+            className="text-xs px-4 py-2 rounded-lg bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] disabled:opacity-40 transition-colors"
           >
             确认导入
           </button>
@@ -232,7 +232,7 @@ function PreviewField({ label, value, clamp }: { label: string; value: string; c
   return (
     <div>
       <p className="text-xs text-gray-500 mb-1">{label}</p>
-      <p className={`text-xs text-gray-700 bg-white rounded-lg p-2 border border-indigo-100 whitespace-pre-wrap leading-relaxed ${clamp ? 'line-clamp-5' : ''}`}>
+      <p className={`text-xs text-gray-700 bg-white rounded-lg p-2 border border-[var(--border)] whitespace-pre-wrap leading-relaxed ${clamp ? 'line-clamp-5' : ''}`}>
         {value}
       </p>
     </div>

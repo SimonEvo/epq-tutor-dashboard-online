@@ -9,7 +9,19 @@
       "Bash(ssh *)",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(grep -v \"^[0-9]*:.*[a-zA-Z0-9]{30,}\")",
+      "Bash(grep -v \"^[0-9]*:.*[a-z0-9]{40,}\")",
+      "Bash(python3)",
+      "Bash(rsync -avz dist/gantt-editor/ root@121.43.194.213:/opt/epq-tutor/dist/gantt-editor/)",
+      "Bash(rsync -avz dist/ root@121.43.194.213:/opt/epq-tutor/dist/)",
+      "Read(//private/tmp/monthly_pptx_extract/ppt/**)",
+      "Read(//private/tmp/monthly_pptx_extract/ppt/slides/**)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({**d.get\\('dependencies',{}\\), **d.get\\('devDependencies',{}\\)}, indent=2\\)\\)\")",
+      "Bash(npm install *)",
+      "Bash(read -t 12)",
+      "Bash(open *)",
+      "Bash(npx tsc *)"
     ]
   }
 }

@@ -135,7 +135,7 @@ export default function OverviewView({ students, supervisors }: Props) {
               borderBottom: idx < students.length - 1 ? '1px solid #f3f4f6' : 'none',
               minHeight: 56,
             }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#eff6ff' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--primary-bg)' }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = rowBg }}
             onClick={() => navigate(`/students/${student.id}`)}
           >
@@ -158,7 +158,7 @@ export default function OverviewView({ students, supervisors }: Props) {
             {/* 简介 */}
             <div className="px-2 shrink-0 overflow-hidden" style={{ width: COL.overview }}>
               {student.overview
-                ? <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-violet-50 text-violet-600 whitespace-nowrap">{student.overview}</span>
+                ? <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-[var(--primary-bg)] text-[var(--primary)] whitespace-nowrap">{student.overview}</span>
                 : <span className="text-xs text-gray-300">—</span>
               }
             </div>
@@ -238,7 +238,7 @@ export default function OverviewView({ students, supervisors }: Props) {
                 setAddSessionStudent(student)
               }}
             >
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-600 text-white cursor-pointer">
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-[var(--accent)] text-white cursor-pointer">
                 + Session
               </span>
             </div>

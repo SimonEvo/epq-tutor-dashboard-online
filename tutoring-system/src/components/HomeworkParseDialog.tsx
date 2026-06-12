@@ -93,7 +93,7 @@ export default function HomeworkParseDialog({ session, onConfirm, onClose }: Pro
               type="date"
               value={deadline}
               onChange={e => setDeadline(e.target.value)}
-              className="border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              className="border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
             />
           </div>
 
@@ -106,7 +106,7 @@ export default function HomeworkParseDialog({ session, onConfirm, onClose }: Pro
                 <input
                   value={item.text}
                   onChange={e => updateItem(idx, e.target.value)}
-                  className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                   placeholder="作业内容…"
                 />
                 <button
@@ -119,7 +119,7 @@ export default function HomeworkParseDialog({ session, onConfirm, onClose }: Pro
             ))}
             <button
               onClick={addItem}
-              className="text-xs text-indigo-500 hover:text-indigo-700 self-start mt-1"
+              className="text-xs text-[var(--primary)] hover:text-[var(--primary-hover)] self-start mt-1"
             >
               + 添加一项
             </button>
@@ -137,7 +137,7 @@ export default function HomeworkParseDialog({ session, onConfirm, onClose }: Pro
           <button
             onClick={handleConfirm}
             disabled={items.filter(i => i.text.trim()).length === 0}
-            className="text-xs px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 transition-colors"
+            className="text-xs px-4 py-2 rounded-lg bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] disabled:opacity-40 transition-colors"
           >
             添加到作业记录
           </button>

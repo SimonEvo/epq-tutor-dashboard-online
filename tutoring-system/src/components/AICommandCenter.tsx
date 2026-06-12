@@ -158,7 +158,7 @@ export default function AICommandCenter() {
       <button
         onClick={() => { setOpen(o => !o); reset() }}
         className={`text-sm px-4 py-2 rounded-lg border transition-colors ${
-          open ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+          open ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
         }`}
       >
         ✦ AI 操作台
@@ -180,13 +180,13 @@ export default function AICommandCenter() {
               onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleParse() }}
               rows={4}
               placeholder="输入指令…（⌘↵ 发送）"
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] resize-none"
             />
             <div className="flex gap-2">
               <button
                 onClick={handleParse}
                 disabled={loading || !input.trim()}
-                className="text-sm px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-40 transition-colors"
+                className="text-sm px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] disabled:opacity-40 transition-colors"
               >
                 {loading ? '解析中…' : '解析指令'}
               </button>
@@ -207,8 +207,8 @@ export default function AICommandCenter() {
 
           {/* Preview */}
           {preview && !done && (
-            <div className="border border-indigo-100 bg-indigo-50 rounded-xl p-4 flex flex-col gap-3">
-              <p className="text-xs font-semibold text-indigo-700">
+            <div className="border border-[var(--border)] bg-[var(--primary-bg)] rounded-xl p-4 flex flex-col gap-3">
+              <p className="text-xs font-semibold text-[var(--primary-hover)]">
                 {preview.type === 'create_student' ? '📋 新建学生 — 字段预览' : '📅 新建课程记录 — 字段预览'}
               </p>
 
@@ -274,11 +274,11 @@ export default function AICommandCenter() {
                 </div>
               )}
 
-              <div className="flex gap-2 pt-1 border-t border-indigo-100">
+              <div className="flex gap-2 pt-1 border-t border-[var(--border)]">
                 <button
                   onClick={handleConfirm}
                   disabled={executing}
-                  className="text-sm px-4 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-40 transition-colors"
+                  className="text-sm px-4 py-1.5 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] disabled:opacity-40 transition-colors"
                 >
                   {executing ? '执行中…' : '确认创建'}
                 </button>

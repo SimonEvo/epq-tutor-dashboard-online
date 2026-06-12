@@ -63,7 +63,7 @@ def _to_full_schema(s: models.Student) -> StudentSchema:
         nextSaSession=s.next_sa_session, nextTaSession=s.next_ta_session,
         nextTheorySession=s.next_theory_session,
         availabilityNote=s.availability_note or "", briefNote=s.brief_note or "",
-        privateNotes=s.private_notes or "", tencentDocUrl=s.tencent_doc_url,
+        privateNotes=s.private_notes or "", tencentDocUrl=s.tencent_doc_url, aiAlias=s.ai_alias,
         scheduleEntries=s.schedule_entries or [],
         milestones=_milestones_dict(s.milestones),
         tags=_tags_list(s.tags),
@@ -98,6 +98,7 @@ def _to_summary(s: models.Student) -> StudentSummarySchema:
         milestones=_milestones_dict(s.milestones),
         updatedAt=s.updated_at.isoformat() if s.updated_at else "",
         latestHomeworkEntry=_homework_to_dict(latest_hw) if latest_hw else None,
+        aiAlias=s.ai_alias,
     )
 
 
@@ -225,6 +226,8 @@ def _upsert_student(
     s.availability_note = data.availabilityNote; s.brief_note = data.briefNote
     s.schedule_entries = data.scheduleEntries or []
     s.private_notes = data.privateNotes; s.tencent_doc_url = data.tencentDocUrl
+    if data.aiAlias is not None:
+        s.ai_alias = data.aiAlias
     s.generated_progress_report = data.generatedProgressReport
     s.progress_report_generated_at = data.progressReportGeneratedAt
     s.updated_at = datetime.now(timezone.utc)
@@ -349,5 +352,24 @@ def toggle_homework_item(
 
     items[item_idx] = {**items[item_idx], "done": bool(body.get("done", False))}
     entry.items = items
+    db.commit()
+    return {"ok": True}
+
+
+@router.patch("/{student_id}/ai_alias")
+def patch_ai_alias(
+    student_id: str,
+    body: dict,
+    db: Session = Depends(get_db),
+    tutor: models.Tutor = Depends(get_current_tutor),
+):
+    """Update only the ai_alias field — never touches sessions or any other data."""
+    student = db.query(models.Student).filter(
+        models.Student.id == student_id,
+        models.Student.tutor_id == tutor.id,
+    ).first()
+    if student is None:
+        raise HTTPException(status_code=404, detail="Student not found")
+    student.ai_alias = body.get("aiAlias")
     db.commit()
     return {"ok": True}

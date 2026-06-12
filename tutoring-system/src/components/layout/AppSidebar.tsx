@@ -44,6 +44,13 @@ const Icons = {
       <path d="M7 14l4-4 4 4 5-5"/>
     </svg>
   ),
+  ppt: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="3" width="20" height="14" rx="2"/>
+      <path d="M8 21h8M12 17v4"/>
+      <path d="M7 8h4a2 2 0 0 1 0 4H7V8z"/>
+    </svg>
+  ),
   settings: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="3"/>
@@ -96,6 +103,7 @@ export default function AppSidebar({ onAiClick }: Props) {
         { label: 'AI 指令', icon: Icons.ai, onClick: onAiClick },
         { to: '/zoom-config', label: 'Zoom', icon: Icons.zoom },
         { to: '/workflow-analysis', label: '工作流分析', icon: Icons.workflow },
+        { to: '/monthly-meeting', label: '月会 PPT', icon: Icons.ppt },
       ],
     },
     {
@@ -140,7 +148,7 @@ export default function AppSidebar({ onAiClick }: Props) {
       >
         <div
           className="shrink-0 flex items-center justify-center rounded-lg text-white text-xs font-bold"
-          style={{ width: 32, height: 32, background: 'linear-gradient(135deg, #5B52D6, #818cf8)', fontSize: 14 }}
+          style={{ width: 32, height: 32, background: 'linear-gradient(135deg, var(--primary), var(--primary-hover))', fontSize: 14 }}
         >
           E
         </div>
@@ -164,8 +172,8 @@ export default function AppSidebar({ onAiClick }: Props) {
               {group.items.map(item => {
                 const active = item.to ? isActive(item.to) : false
                 const sharedStyle = {
-                  background: active ? 'rgba(91,82,214,0.08)' : 'transparent',
-                  color: active ? '#5B52D6' : '#6b7280',
+                  background: active ? 'var(--primary-subtle)' : 'transparent',
+                  color: active ? 'var(--primary)' : '#6b7280',
                 }
                 const sharedClass = "flex items-center gap-2.5 rounded-lg px-2 py-2 transition-all duration-150 w-full text-left"
                 const content = (
@@ -175,7 +183,7 @@ export default function AppSidebar({ onAiClick }: Props) {
                       <span className="text-sm font-medium whitespace-nowrap">{item.label}</span>
                     )}
                     {active && !collapsed && (
-                      <span className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
+                      <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[var(--primary)] shrink-0" />
                     )}
                   </>
                 )
@@ -184,7 +192,7 @@ export default function AppSidebar({ onAiClick }: Props) {
                     if (!active) (e.currentTarget as HTMLElement).style.background = 'rgba(0,0,0,0.04)'
                   },
                   onMouseLeave: (e: React.MouseEvent<HTMLElement>) => {
-                    if (!active) (e.currentTarget as HTMLElement).style.background = active ? 'rgba(91,82,214,0.08)' : 'transparent'
+                    if (!active) (e.currentTarget as HTMLElement).style.background = active ? 'var(--primary-subtle)' : 'transparent'
                   },
                 }
                 return item.to ? (

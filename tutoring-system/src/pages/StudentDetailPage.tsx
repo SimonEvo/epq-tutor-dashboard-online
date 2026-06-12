@@ -19,7 +19,7 @@ const SESSION_LABEL: Record<SessionType, string> = {
 }
 
 const SESSION_COLOR: Record<SessionType, string> = {
-  SA_MEETING: 'bg-purple-100 text-purple-700',
+  SA_MEETING: 'bg-[#FFF0EE] text-[#FA8072]',
   TA_MEETING: 'bg-blue-100 text-blue-700',
   THEORY: 'bg-green-100 text-green-700',
 }
@@ -49,6 +49,9 @@ export default function StudentDetailPage() {
   const [briefNoteDraft, setBriefNoteDraft] = useState('')
   const [editingSchedule, setEditingSchedule] = useState(false)
   const [scheduleDraft, setScheduleDraft] = useState('')
+  const [scheduleType, setScheduleType] = useState<'exam' | 'holiday' | 'other'>('exam')
+  const [scheduleStart, setScheduleStart] = useState('')
+  const [scheduleEnd, setScheduleEnd] = useState('')
   const [sessionFilter, setSessionFilter] = useState<'all' | SessionType>('all')
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set())
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
@@ -111,7 +114,7 @@ export default function StudentDetailPage() {
   if (!student) {
     return (
       <div className="p-6 text-gray-400 text-sm">
-        Student not found. <Link to="/" className="text-indigo-500 underline">Back to dashboard</Link>
+        Student not found. <Link to="/" className="text-[var(--primary)] underline">Back to dashboard</Link>
       </div>
     )
   }
@@ -449,11 +452,16 @@ export default function StudentDetailPage() {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       recordedAt: new Date().toISOString().slice(0, 10),
       content: scheduleDraft.trim(),
+      type: scheduleType,
+      startDate: scheduleStart || undefined,
+      endDate: scheduleEnd || scheduleStart || undefined,
     }
     const updated: Student = { ...student!, scheduleEntries: [entry, ...(student!.scheduleEntries || [])] }
     setStudent(updated)
     setEditingSchedule(false)
     setScheduleDraft('')
+    setScheduleStart('')
+    setScheduleEnd('')
     setSaving(true)
     await saveStudent(updated)
     setSaving(false)
@@ -544,7 +552,7 @@ export default function StudentDetailPage() {
           </button>
           <button
             onClick={() => exportMapAsPNG(fullscreenMap.title)}
-            className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors shrink-0"
+            className="text-xs px-3 py-1.5 rounded-lg bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] transition-colors shrink-0"
           >
             导出 PNG
           </button>
@@ -578,7 +586,7 @@ export default function StudentDetailPage() {
           <h1 className="text-2xl font-semibold text-gray-900">
             {student.name}
             {student.nameEn && <span className="text-gray-400 font-normal text-lg ml-2">{student.nameEn}</span>}
-            {student.overview && <span className="ml-3 text-sm font-semibold text-indigo-600">{student.overview}</span>}
+            {student.overview && <span className="ml-3 text-sm font-semibold text-[var(--primary)]">{student.overview}</span>}
           </h1>
           <p className="text-gray-500 text-sm mt-0.5 max-w-xl italic">{student.topic}</p>
           {student.topicZh && (
@@ -588,13 +596,13 @@ export default function StudentDetailPage() {
         <div className="flex gap-2 shrink-0">
           <Link
             to={`/students/${student.id}/session/new`}
-            className="bg-indigo-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+            className="bg-[var(--primary)] text-white text-sm px-4 py-2 rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
           >
             + Add Session
           </Link>
           <Link
             to={`/students/${student.id}/report`}
-            className="text-sm px-4 py-2 rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition-colors"
+            className="text-sm px-4 py-2 rounded-lg border border-[var(--border)] text-[var(--primary)] hover:bg-[var(--primary-bg)] transition-colors"
           >
             生成进度报告
           </Link>
@@ -618,10 +626,10 @@ export default function StudentDetailPage() {
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveBriefNote() } if (e.key === 'Escape') setEditingBriefNote(false) }}
               rows={2}
               placeholder="Brief note shown on dashboard card…"
-              className="flex-1 text-sm border border-indigo-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+              className="flex-1 text-sm border border-[var(--primary)] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--primary)] resize-none"
             />
             <div className="flex flex-col gap-1.5">
-              <button onClick={saveBriefNote} className="text-xs px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Save</button>
+              <button onClick={saveBriefNote} className="text-xs px-3 py-1.5 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)]">Save</button>
               <button onClick={() => setEditingBriefNote(false)} className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
             </div>
           </div>
@@ -646,19 +654,44 @@ export default function StudentDetailPage() {
       {/* Schedule Entry — inline editable */}
       <div className="mb-5">
         {editingSchedule ? (
-          <div className="flex gap-2 items-start">
-            <textarea
-              autoFocus
-              value={scheduleDraft}
-              onChange={e => setScheduleDraft(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveScheduleEntry() } if (e.key === 'Escape') setEditingSchedule(false) }}
-              rows={2}
-              placeholder="如：期末考 6/1-6/10，之后可约课"
-              className="flex-1 text-sm border border-indigo-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-            />
-            <div className="flex flex-col gap-1.5">
-              <button onClick={saveScheduleEntry} className="text-xs px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">保存</button>
-              <button onClick={() => setEditingSchedule(false)} className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50">取消</button>
+          <div className="flex flex-col gap-2">
+            <div className="flex gap-2">
+              {(['exam', 'holiday', 'other'] as const).map(t => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setScheduleType(t)}
+                  className="text-xs px-3 py-1.5 rounded-full border transition-colors"
+                  style={scheduleType === t ? {
+                    background: t === 'exam' ? 'var(--primary)' : t === 'holiday' ? '#FA8072' : '#A8A29E',
+                    color: '#fff', borderColor: 'transparent'
+                  } : { background: '#fff', color: '#6b7280', borderColor: '#e5e7eb' }}
+                >
+                  {t === 'exam' ? '考试' : t === 'holiday' ? '假期' : '其他'}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2 items-center">
+              <input type="date" value={scheduleStart} onChange={e => setScheduleStart(e.target.value)}
+                className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]" />
+              <span className="text-gray-400 text-xs">至</span>
+              <input type="date" value={scheduleEnd} onChange={e => setScheduleEnd(e.target.value)}
+                className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]" />
+            </div>
+            <div className="flex gap-2 items-start">
+              <textarea
+                autoFocus
+                value={scheduleDraft}
+                onChange={e => setScheduleDraft(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveScheduleEntry() } if (e.key === 'Escape') setEditingSchedule(false) }}
+                rows={2}
+                placeholder="备注（可选）如：期末考，之后可约课"
+                className="flex-1 text-sm border border-[var(--primary)] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--primary)] resize-none"
+              />
+              <div className="flex flex-col gap-1.5">
+                <button onClick={saveScheduleEntry} className="text-xs px-3 py-1.5 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)]">保存</button>
+                <button onClick={() => setEditingSchedule(false)} className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50">取消</button>
+              </div>
             </div>
           </div>
         ) : (
@@ -668,7 +701,16 @@ export default function StudentDetailPage() {
           >
             {student.scheduleEntries?.[0] ? (
               <div className="border border-transparent rounded-lg px-3 py-2 group-hover:border-gray-200 group-hover:bg-gray-50 transition-colors">
-                <p className="text-xs text-gray-400 mb-0.5">📅 考试/时间安排 · {student.scheduleEntries[0].recordedAt}</p>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="inline-block w-2 h-2 rounded-full" style={{
+                    background: student.scheduleEntries[0].type === 'exam' ? 'var(--primary)'
+                      : student.scheduleEntries[0].type === 'holiday' ? '#FA8072' : '#A8A29E'
+                  }} />
+                  <p className="text-xs text-gray-400">
+                    {student.scheduleEntries[0].type === 'exam' ? '考试' : student.scheduleEntries[0].type === 'holiday' ? '假期' : '其他'}
+                    {student.scheduleEntries[0].startDate && ` · ${student.scheduleEntries[0].startDate}${student.scheduleEntries[0].endDate && student.scheduleEntries[0].endDate !== student.scheduleEntries[0].startDate ? ` — ${student.scheduleEntries[0].endDate}` : ''}`}
+                  </p>
+                </div>
                 <p className="text-sm text-gray-700">{student.scheduleEntries[0].content}</p>
               </div>
             ) : (
@@ -697,7 +739,7 @@ export default function StudentDetailPage() {
             </div>
             <div className="border-t border-gray-100 pt-1.5">
               <p className="text-xs text-gray-400 mb-0.5">Next Session</p>
-              <p className="text-base font-semibold text-indigo-600">
+              <p className="text-base font-semibold text-[var(--primary)]">
                 {nextSession
                   ? `in ${Math.ceil((new Date(nextSession.date).getTime() - Date.now()) / 86400000)}d`
                   : '—'}
@@ -718,7 +760,7 @@ export default function StudentDetailPage() {
             <span className="text-xs text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">{student.sessions.length}</span>
             <span className="text-gray-300 text-xs">{sessionSectionOpen ? '▲' : '▼'}</span>
           </button>
-          <Link to={`/students/${student.id}/session/new`} className="text-xs text-indigo-600 hover:underline">+ Add</Link>
+          <Link to={`/students/${student.id}/session/new`} className="text-xs text-[var(--primary)] hover:underline">+ Add</Link>
         </div>
         {sessionSectionOpen && <>
         {/* Filter tabs */}
@@ -734,7 +776,7 @@ export default function StudentDetailPage() {
               onClick={() => setSessionFilter(val)}
               className={`text-xs px-3 py-1 rounded-full border transition-colors ${
                 sessionFilter === val
-                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
                   : 'text-gray-500 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
               }`}
             >
@@ -758,7 +800,7 @@ export default function StudentDetailPage() {
                     setExpandedSessions(new Set(filteredSessions.map(s => s.id)))
                   }
                 }}
-                className="text-xs text-gray-400 hover:text-indigo-600 transition-colors px-2 py-1"
+                className="text-xs text-gray-400 hover:text-[var(--primary)] transition-colors px-2 py-1"
               >
                 {filteredSessions.every(s => expandedSessions.has(s.id)) ? '▲ Collapse All' : '▼ Expand All'}
               </button>
@@ -796,7 +838,7 @@ export default function StudentDetailPage() {
                       <div className="flex gap-2 flex-wrap">
                         <Link
                           to={`/students/${student.id}/session/${session.id}/report`}
-                          className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+                          className="text-xs px-3 py-1.5 rounded-lg bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] transition-colors"
                         >
                           生成课后报告
                         </Link>
@@ -927,7 +969,7 @@ export default function StudentDetailPage() {
                                   type="date"
                                   value={homeworkEditDraft.deadline}
                                   onChange={e => setHomeworkEditDraft(d => d ? { ...d, deadline: e.target.value } : d)}
-                                  className="border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                                  className="border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                                 />
                               </div>
                               {/* Items */}
@@ -938,7 +980,7 @@ export default function StudentDetailPage() {
                                     <input
                                       value={item.text}
                                       onChange={e => setHomeworkEditDraft(d => d ? { ...d, items: d.items.map((it, i) => i === idx ? { ...it, text: e.target.value } : it) } : d)}
-                                      className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                                      className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                                       placeholder="作业内容…"
                                     />
                                     <button
@@ -951,7 +993,7 @@ export default function StudentDetailPage() {
                                 ))}
                                 <button
                                   onClick={() => setHomeworkEditDraft(d => d ? { ...d, items: [...d.items, { text: '', done: false }] } : d)}
-                                  className="text-xs text-indigo-500 hover:text-indigo-700 self-start mt-1"
+                                  className="text-xs text-[var(--primary)] hover:text-[var(--primary-hover)] self-start mt-1"
                                 >
                                   + 添加一项
                                 </button>
@@ -960,7 +1002,7 @@ export default function StudentDetailPage() {
                               <div className="flex gap-2 pt-1 border-t border-gray-100">
                                 <button
                                   onClick={() => saveHomeworkEdit(entry.id)}
-                                  className="text-xs px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                                  className="text-xs px-3 py-1.5 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
                                 >
                                   保存
                                 </button>
@@ -982,7 +1024,7 @@ export default function StudentDetailPage() {
                                       type="checkbox"
                                       checked={item.done}
                                       onChange={() => toggleHomeworkItem(entry.id, idx)}
-                                      className="mt-0.5 accent-indigo-600 shrink-0"
+                                      className="mt-0.5 accent-[var(--primary)] shrink-0"
                                     />
                                     <span className={`text-sm leading-snug ${item.done ? 'line-through text-gray-400' : 'text-gray-700'}`}>
                                       {item.text}
@@ -999,7 +1041,7 @@ export default function StudentDetailPage() {
                                   onBlur={e => updateHomeworkComments(entry.id, e.target.value)}
                                   rows={2}
                                   placeholder="TA 备注（可选，同步给 AI 报告）…"
-                                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
+                                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] resize-none"
                                 />
                               </div>
                               {/* Edit + Delete */}
@@ -1039,7 +1081,7 @@ export default function StudentDetailPage() {
           <span className="text-xs text-gray-400">{completedCount} / {applicableMilestones.length} completed</span>
         </div>
         <div className="h-2 bg-gray-100 rounded-full mb-4 overflow-hidden">
-          <div className="h-full bg-indigo-500 rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
+          <div className="h-full bg-[var(--primary)] rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
         </div>
         <div className="flex flex-wrap gap-2">
           {EPQ_MILESTONES.map(m => {
@@ -1067,7 +1109,7 @@ export default function StudentDetailPage() {
       <div className="bg-white rounded-xl border border-gray-200 mb-5 overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
           <h2 className="text-sm font-medium text-gray-900">🔒 Student Info</h2>
-          <Link to={`/students/${student.id}/edit`} className="text-xs text-indigo-500 hover:underline">Edit</Link>
+          <Link to={`/students/${student.id}/edit`} className="text-xs text-[var(--primary)] hover:underline">Edit</Link>
         </div>
         <table className="w-full text-sm">
           <tbody>
@@ -1080,7 +1122,7 @@ export default function StudentDetailPage() {
                     <span className="text-gray-700 font-medium text-sm flex items-center gap-1.5">
                       {supervisor.name}
                       {supervisor.gender && <span className="text-gray-400 font-normal text-xs">{supervisor.gender}</span>}
-                      <span className={`text-xs px-1.5 py-0.5 rounded-full font-normal ${supervisor.saType === '中方SA' ? 'bg-orange-50 text-orange-600' : 'bg-indigo-50 text-indigo-600'}`}>
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full font-normal ${supervisor.saType === '中方SA' ? 'bg-orange-50 text-orange-600' : 'bg-[var(--primary-bg)] text-[var(--primary)]'}`}>
                         {supervisor.saType ?? '英方SA'}
                       </span>
                     </span>
@@ -1106,7 +1148,7 @@ export default function StudentDetailPage() {
                 <td className="px-4 py-2.5">
                   <div className="flex gap-1.5 flex-wrap">
                     {student.tags.map(tag => (
-                      <span key={tag} className="text-xs bg-indigo-50 text-indigo-700 rounded-full px-2.5 py-0.5">
+                      <span key={tag} className="text-xs bg-[var(--primary-bg)] text-[var(--primary-hover)] rounded-full px-2.5 py-0.5">
                         {tag}
                       </span>
                     ))}
@@ -1146,7 +1188,7 @@ export default function StudentDetailPage() {
           <h2 className="text-sm font-medium text-gray-900">🔒 Personal Entries</h2>
           <button
             onClick={addEntry}
-            className="text-xs px-3 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            className="text-xs px-3 py-1 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
           >
             + New Entry
           </button>
@@ -1180,7 +1222,7 @@ export default function StudentDetailPage() {
                         onChange={e => setEntryDrafts(d => ({ ...d, [entry.id]: { ...draft, title: e.target.value } }))}
                         onClick={e => e.stopPropagation()}
                         placeholder="Entry title / topic…"
-                        className="flex-1 text-sm font-medium text-gray-900 border-b border-indigo-300 focus:outline-none bg-transparent pb-0.5"
+                        className="flex-1 text-sm font-medium text-gray-900 border-b border-[var(--primary)] focus:outline-none bg-transparent pb-0.5"
                       />
                     ) : (
                       <span className="flex-1 text-sm font-medium text-gray-900">
@@ -1201,12 +1243,12 @@ export default function StudentDetailPage() {
                             onChange={e => setEntryDrafts(d => ({ ...d, [entry.id]: { ...draft, content: e.target.value } }))}
                             rows={8}
                             placeholder="Write in Markdown…&#10;&#10;**Bold**, *italic*, `code`&#10;- list item"
-                            className="w-full text-sm font-mono text-gray-700 border border-gray-200 rounded-lg px-3 py-2 resize-y focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            className="w-full text-sm font-mono text-gray-700 border border-gray-200 rounded-lg px-3 py-2 resize-y focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                           />
                           <div className="flex gap-2 mt-2">
                             <button
                               onClick={() => saveEntry(entry.id)}
-                              className="text-xs px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                              className="text-xs px-3 py-1.5 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
                             >
                               Save
                             </button>
@@ -1279,7 +1321,7 @@ export default function StudentDetailPage() {
           <h2 className="text-sm font-medium text-gray-900">思维导图</h2>
           <button
             onClick={addMindMap}
-            className="text-xs px-3 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            className="text-xs px-3 py-1 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
           >
             + 新建导图
           </button>
@@ -1313,7 +1355,7 @@ export default function StudentDetailPage() {
                         onChange={e => setMapDrafts(d => ({ ...d, [map.id]: { ...draft, title: e.target.value } }))}
                         onClick={e => e.stopPropagation()}
                         placeholder="导图标题…"
-                        className="flex-1 text-sm font-medium text-gray-900 border-b border-indigo-300 focus:outline-none bg-transparent pb-0.5"
+                        className="flex-1 text-sm font-medium text-gray-900 border-b border-[var(--primary)] focus:outline-none bg-transparent pb-0.5"
                       />
                     ) : (
                       <span className="flex-1 text-sm font-medium text-gray-900">
@@ -1335,7 +1377,7 @@ export default function StudentDetailPage() {
                           <div className="flex gap-2 mt-2">
                             <button
                               onClick={() => saveMindMap(map.id)}
-                              className="text-xs px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                              className="text-xs px-3 py-1.5 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
                             >
                               保存并渲染
                             </button>

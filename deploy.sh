@@ -16,4 +16,9 @@ cd ../tutoring-system
 npm run build && rsync -avz dist/ root@$SERVER:/opt/epq-tutor/dist/
 
 echo ""
+echo "=== Deploying gantt-pro ==="
+ssh root@$SERVER "mkdir -p /opt/gantt-pro"
+rsync -avz ../gantt-chart-tool/gantt-pro.html root@$SERVER:/opt/gantt-pro/gantt-pro.html
+
+echo ""
 echo "=== Done ==="

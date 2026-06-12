@@ -17,11 +17,8 @@ def _write(path: Path, data: object) -> None:
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-@router.post("/export")
-def export_backup(
-    db: Session = Depends(get_db),
-    _tutor: models.Tutor = Depends(get_current_tutor),
-):
+def run_backup(db: Session) -> dict:
+    """可直接调用（无需 HTTP 上下文），供定时任务使用。"""
     counts = {"students": 0, "supervisors": 0}
 
     # ── Students ──────────────────────────────────────────────────────────────
@@ -124,3 +121,11 @@ def export_backup(
         "supervisors": counts["supervisors"],
         "tags": len(tags),
     }
+
+
+@router.post("/export")
+def export_backup(
+    db: Session = Depends(get_db),
+    _tutor: models.Tutor = Depends(get_current_tutor),
+):
+    return run_backup(db)

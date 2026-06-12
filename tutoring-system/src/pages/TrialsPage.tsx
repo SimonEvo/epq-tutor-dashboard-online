@@ -165,7 +165,7 @@ export default function TrialsPage() {
         </h1>
         <button
           onClick={handleNew}
-          className="bg-indigo-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+          className="bg-[var(--primary)] text-white text-sm px-4 py-2 rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
         >
           + 新建试听
         </button>
@@ -179,7 +179,7 @@ export default function TrialsPage() {
             onClick={() => setTab(t)}
             className={`text-sm px-4 py-2 border-b-2 transition-colors -mb-px ${
               tab === t
-                ? 'border-indigo-500 text-indigo-600 font-medium'
+                ? 'border-[var(--primary)] text-[var(--primary)] font-medium'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
@@ -270,14 +270,14 @@ export default function TrialsPage() {
                 type="date"
                 value={customFrom}
                 onChange={e => { setCustomFrom(e.target.value); setPreset('all') }}
-                className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
               />
               <span className="text-xs text-gray-400">—</span>
               <input
                 type="date"
                 value={customTo}
                 onChange={e => { setCustomTo(e.target.value); setPreset('all') }}
-                className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
               />
             </div>
           </div>

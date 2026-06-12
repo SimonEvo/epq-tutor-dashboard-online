@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Student, Supervisor } from '@/types'
+import { generateAiAlias } from '@/lib/claudeService'
 
 // ── Shared form state hook ────────────────────────────────────────────────────
 
@@ -24,6 +25,7 @@ export interface StudentFormState {
   tencentDocUrl: string; setTencentDocUrl: (v: string) => void
   selectedTags: string[]; setSelectedTags: (v: string[]) => void
   supervisorId: string; setSupervisorId: (v: string) => void
+  aiAlias: string; setAiAlias: (v: string) => void
 }
 
 export function useStudentFormState(initial?: Partial<Student>): StudentFormState {
@@ -47,6 +49,7 @@ export function useStudentFormState(initial?: Partial<Student>): StudentFormStat
   const [tencentDocUrl, setTencentDocUrl] = useState(initial?.tencentDocUrl ?? '')
   const [selectedTags, setSelectedTags] = useState<string[]>(initial?.tags ?? [])
   const [supervisorId, setSupervisorId] = useState(initial?.supervisorId ?? '')
+  const [aiAlias, setAiAlias] = useState(initial?.aiAlias ?? generateAiAlias())
 
   return {
     name, setName, nameEn, setNameEn, gender, setGender,
@@ -60,6 +63,7 @@ export function useStudentFormState(initial?: Partial<Student>): StudentFormStat
     availabilityNote, setAvailabilityNote, briefNote, setBriefNote,
     privateNotes, setPrivateNotes, tencentDocUrl, setTencentDocUrl,
     selectedTags, setSelectedTags,
+    aiAlias, setAiAlias,
   }
 }
 
@@ -85,6 +89,7 @@ export function buildStudentFromForm(f: StudentFormState): Omit<Student, 'id' | 
     briefNote: f.briefNote.trim(),
     privateNotes: f.privateNotes.trim(),
     tencentDocUrl: f.tencentDocUrl.trim() || undefined,
+    aiAlias: f.aiAlias.trim() || undefined,
     mindMaps: [],
     homeworkEntries: [],
     scheduleEntries: [],
@@ -175,7 +180,7 @@ export default function StudentFormFields({ state, globalTags, globalRounds, sup
                 }
               }}
               placeholder="New round…"
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-28"
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] w-28"
             />
             <button
               type="button"
@@ -246,7 +251,7 @@ export default function StudentFormFields({ state, globalTags, globalRounds, sup
             <button key={tag} type="button" onClick={() => toggleTag(tag)}
               className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
                 state.selectedTags.includes(tag)
-                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
                   : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
               }`}>
               {tag}
@@ -278,11 +283,24 @@ export default function StudentFormFields({ state, globalTags, globalRounds, sup
         <textarea value={state.privateNotes} onChange={e => state.setPrivateNotes(e.target.value)}
           placeholder="Optional" rows={3} className={inputCls} />
       </Field>
+      <Field label="AI 化名" hint="月会草稿发给 AI 时使用的替代姓名，防止真实姓名进入 AI 日志">
+        <div className="flex gap-2">
+          <input value={state.aiAlias} onChange={e => state.setAiAlias(e.target.value)}
+            placeholder="e.g. 王坤鹏" className={`${inputCls} flex-1`} />
+          <button
+            type="button"
+            onClick={() => state.setAiAlias(generateAiAlias())}
+            className="text-sm px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 whitespace-nowrap"
+          >
+            随机
+          </button>
+        </div>
+      </Field>
     </>
   )
 }
 
-const inputCls = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500'
+const inputCls = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]'
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (

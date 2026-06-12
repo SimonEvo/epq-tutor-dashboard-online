@@ -3,22 +3,22 @@ import { Link } from 'react-router-dom'
 import { useStudentStore } from '@/stores/studentStore'
 import StudentCard from '@/components/StudentCard'
 import AICommandCenter from '@/components/AICommandCenter'
-import StudentTableView from '@/components/views/StudentTableView'
 import KanbanRoundView from '@/components/views/KanbanRoundView'
 import KanbanProgressView from '@/components/views/KanbanProgressView'
 import MilestoneGridView from '@/components/views/MilestoneGridView'
 import OverviewView from '@/components/views/OverviewView'
+import GanttView from '@/components/views/GanttView'
 import type { Student, Supervisor, Trial, WeeklyReportData } from '@/types'
 import { formatHours, copyToClipboard } from '@/lib/formatters'
 import { generateWeeklyReport, getWeeklyReportData } from '@/lib/weeklyReportService'
 import { listTrials, getDefaultRound } from '@/lib/dataService'
 
-type ViewMode = 'overview' | 'grid' | 'list' | 'kanban-round' | 'kanban-progress' | 'milestone'
+type ViewMode = 'overview' | 'grid' | 'gantt' | 'kanban-round' | 'kanban-progress' | 'milestone'
 
 const VIEW_BUTTONS: { mode: ViewMode; label: string }[] = [
   { mode: 'overview', label: '概览' },
   { mode: 'grid', label: '卡片' },
-  { mode: 'list', label: '列表' },
+  { mode: 'gantt', label: '甘特图' },
   { mode: 'kanban-round', label: '批次' },
   { mode: 'kanban-progress', label: '进度' },
   { mode: 'milestone', label: '里程碑' },
@@ -150,19 +150,22 @@ export default function DashboardPage() {
 
             {/* Tabs */}
             <div className="px-5 pt-3 flex gap-1 shrink-0">
-              {([['last', '上周'], ['current', '本周']] as ['last'|'current', string][]).map(([tab, label]) => (
-                <button
-                  key={tab}
-                  onClick={() => setOvertimeTab(tab)}
-                  className={`text-sm px-4 py-1.5 rounded-lg border transition-colors ${
-                    overtimeTab === tab
-                      ? 'bg-indigo-600 text-white border-indigo-600'
-                      : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                  }`}
-                >
-                  {label}（{fmtDateShort(range.from)}–{fmtDateShort(range.to)}）
-                </button>
-              ))}
+              {([['last', '上周'], ['current', '本周']] as ['last'|'current', string][]).map(([tab, label]) => {
+                const btnRange = getWeekRange(tab === 'last' ? -1 : 0)
+                return (
+                  <button
+                    key={tab}
+                    onClick={() => setOvertimeTab(tab)}
+                    className={`text-sm px-4 py-1.5 rounded-lg border transition-colors ${
+                      overtimeTab === tab
+                        ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
+                        : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                    }`}
+                  >
+                    {label}（{fmtDateShort(btnRange.from)}–{fmtDateShort(btnRange.to)}）
+                  </button>
+                )
+              })}
             </div>
 
             {/* List */}
@@ -176,7 +179,7 @@ export default function DashboardPage() {
                       <div className="flex items-center gap-3">
                         <span className="text-gray-400 text-xs w-12 shrink-0">{fmtDateShort(e.date)}</span>
                         <span className="text-gray-500 text-xs w-24 shrink-0">{e.timeStart}–{e.timeEnd}</span>
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 shrink-0">{e.label}</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--primary-bg)] text-[var(--primary)] shrink-0">{e.label}</span>
                         <span className="text-gray-700">{e.personName}</span>
                       </div>
                       <span className="text-gray-500 text-xs shrink-0 ml-2">{e.overtimeMins}min</span>
@@ -198,7 +201,7 @@ export default function DashboardPage() {
                   setOvertimeCopied(true)
                   setTimeout(() => setOvertimeCopied(false), 2000)
                 }}
-                className="w-full text-sm py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+                className="w-full text-sm py-2 rounded-lg bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] transition-colors"
               >
                 {overtimeCopied ? '已复制 ✓' : '复制申请文本'}
               </button>
@@ -226,7 +229,7 @@ export default function DashboardPage() {
                 type="date"
                 value={statsCutoff}
                 onChange={e => setStatsCutoff(e.target.value)}
-                className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
               />
               <span className="text-xs text-gray-400">英方SA · {statsRows.length} 人</span>
               <button
@@ -285,7 +288,7 @@ export default function DashboardPage() {
                       </td>
                       <td className="px-4 py-3">
                         {supervisor && (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 mr-1.5">{supervisor.saType ?? '英方SA'}</span>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--primary-bg)] text-[var(--primary)] mr-1.5">{supervisor.saType ?? '英方SA'}</span>
                         )}
                         <span className="text-xs text-gray-500">
                           已用 {formatHours(pastSaHours)} / 共 {s.saHoursTotal}h
@@ -340,7 +343,7 @@ export default function DashboardPage() {
             <button
               onClick={handleGenerateReport}
               disabled={generatingReport || students.length === 0}
-              className="text-sm px-4 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-40 transition-colors"
+              className="text-sm px-4 py-1.5 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] disabled:opacity-40 transition-colors"
             >
               {generatingReport ? '生成中…' : weeklyReport ? '重新生成' : '生成周报'}
             </button>
@@ -390,7 +393,7 @@ export default function DashboardPage() {
           >
             进度提醒
             {weeklyReport && (
-              <span className="absolute -top-1 -right-1 w-2 h-2 bg-indigo-500 rounded-full" />
+              <span className="absolute -top-1 -right-1 w-2 h-2 bg-[var(--accent)] rounded-full" />
             )}
           </button>
           <button
@@ -407,7 +410,7 @@ export default function DashboardPage() {
           </button>
           <Link
             to="/students/new"
-            className="bg-indigo-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+            className="bg-[var(--primary)] text-white text-sm px-4 py-2 rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
           >
             + Add Student
           </Link>
@@ -465,7 +468,7 @@ export default function DashboardPage() {
                 onClick={() => handleViewMode(mode)}
                 className={`text-xs px-3 py-1.5 transition-colors border-r border-gray-200 last:border-r-0 ${
                   viewMode === mode
-                    ? 'bg-indigo-600 text-white'
+                    ? 'bg-[var(--primary)] text-white'
                     : 'bg-white text-gray-600 hover:bg-gray-50'
                 }`}
               >
@@ -500,7 +503,7 @@ export default function DashboardPage() {
               onClick={() => setSelectedTag('')}
               className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
                 !selectedTag
-                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
                   : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
               }`}
             >
@@ -512,7 +515,7 @@ export default function DashboardPage() {
                 onClick={() => setSelectedTag(tag === selectedTag ? '' : tag)}
                 className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
                   selectedTag === tag
-                    ? 'bg-indigo-600 text-white border-indigo-600'
+                    ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
                     : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
                 }`}
               >
@@ -529,8 +532,8 @@ export default function DashboardPage() {
         </div>
       ) : viewMode === 'overview' ? (
         <OverviewView students={filtered} supervisors={supervisors} />
-      ) : viewMode === 'list' ? (
-        <StudentTableView students={filtered} />
+      ) : viewMode === 'gantt' ? (
+        <GanttView students={filtered} />
       ) : viewMode === 'kanban-round' ? (
         <KanbanRoundView students={filtered} rounds={rounds} />
       ) : viewMode === 'kanban-progress' ? (
@@ -596,7 +599,7 @@ function getWeekRange(weekOffset: 0 | -1): { from: string; to: string } {
   mon.setDate(today.getDate() + diffToMon + weekOffset * 7)
   const sun = new Date(mon)
   sun.setDate(mon.getDate() + 6)
-  const fmt = (d: Date) => d.toISOString().slice(0, 10)
+  const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
   return { from: fmt(mon), to: fmt(sun) }
 }
 

@@ -17,7 +17,7 @@ export default function SupervisorDetailPage() {
   if (!sa) {
     return (
       <div className="p-6 text-gray-400 text-sm">
-        Supervisor not found. <Link to="/supervisors" className="text-indigo-500 underline">Back</Link>
+        Supervisor not found. <Link to="/supervisors" className="text-[var(--primary)] underline">Back</Link>
       </div>
     )
   }
@@ -98,7 +98,7 @@ export default function SupervisorDetailPage() {
                     <p className="text-sm font-medium text-gray-900">
                       {student.name}
                       {student.nameEn && <span className="text-gray-400 font-normal ml-1.5 text-xs">{student.nameEn}</span>}
-                      {student.overview && <span className="ml-2 text-xs font-semibold text-indigo-600">{student.overview}</span>}
+                      {student.overview && <span className="ml-2 text-xs font-semibold text-[var(--primary)]">{student.overview}</span>}
                     </p>
                     <p className="text-xs text-gray-400 italic truncate">{student.topic}</p>
                   </div>

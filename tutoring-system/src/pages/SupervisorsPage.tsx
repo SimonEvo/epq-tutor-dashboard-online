@@ -31,7 +31,7 @@ export default function SupervisorsPage() {
         <h1 className="text-2xl font-semibold text-gray-900">Supervisors (SA)</h1>
         <button
           onClick={() => setEditing(empty())}
-          className="bg-indigo-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+          className="bg-[var(--primary)] text-white text-sm px-4 py-2 rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
         >
           + Add SA
         </button>
@@ -39,7 +39,7 @@ export default function SupervisorsPage() {
 
       {/* Form */}
       {editing && (
-        <div className="bg-white rounded-2xl border border-indigo-200 p-5 mb-6 flex flex-col gap-4">
+        <div className="bg-white rounded-2xl border border-[var(--border)] p-5 mb-6 flex flex-col gap-4">
           <h2 className="text-sm font-semibold text-gray-700">{editing.id && supervisors.find(s => s.id === editing.id) ? 'Edit SA' : 'New SA'}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Name *">
@@ -79,7 +79,7 @@ export default function SupervisorsPage() {
           </Field>
           <div className="flex gap-2 pt-1">
             <button onClick={handleSave} disabled={saving || !editing.name.trim()}
-              className="bg-indigo-600 text-white text-sm px-5 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+              className="bg-[var(--primary)] text-white text-sm px-5 py-2 rounded-lg hover:bg-[var(--primary-hover)] disabled:opacity-50 transition-colors">
               {saving ? 'Saving…' : 'Save'}
             </button>
             <button onClick={() => setEditing(null)}
@@ -103,7 +103,7 @@ export default function SupervisorsPage() {
                     <p className="font-medium text-gray-900 text-sm">{sa.name}
                       {sa.gender && <span className="text-gray-400 font-normal ml-2 text-xs">{sa.gender}</span>}
                     </p>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${sa.saType === '中方SA' ? 'bg-orange-50 text-orange-600' : 'bg-indigo-50 text-indigo-600'}`}>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${sa.saType === '中方SA' ? 'bg-orange-50 text-orange-600' : 'bg-[var(--primary-bg)] text-[var(--primary)]'}`}>
                       {sa.saType ?? '英方SA'}
                     </span>
                   </div>
@@ -146,7 +146,7 @@ export default function SupervisorsPage() {
   )
 }
 
-const inputCls = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500'
+const inputCls = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

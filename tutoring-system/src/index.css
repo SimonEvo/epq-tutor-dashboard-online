@@ -8,5 +8,83 @@
 
 body {
   margin: 0;
-  background-color: #f9fafb;
+  background-color: var(--bg);
+}
+
+/* ── Theme: Dodger Blue × Salmon Pink (default) ── */
+[data-theme="dodger-salmon"] {
+  --primary:         #1E90FF;
+  --primary-hover:   #1877E0;
+  --primary-bg:      #EFF6FF;
+  --primary-subtle:  rgba(30,144,255,0.08);
+  --accent:          #FA8072;
+  --accent-hover:    #F26B5E;
+  --bg:              #F7F4EF;
+  --surface:         #FFFFFF;
+  --border:          #E8E3DB;
+}
+
+/* ── Theme: Klein Blue × Electric Orange ── */
+[data-theme="klein-orange"] {
+  --primary:         #002FA7;
+  --primary-hover:   #00258C;
+  --primary-bg:      #EDF0FA;
+  --primary-subtle:  rgba(0,47,167,0.08);
+  --accent:          #F25C2A;
+  --accent-hover:    #D94E20;
+  --bg:              #F5F5F8;
+  --surface:         #FFFFFF;
+  --border:          #E2E2EC;
+}
+
+/* ── Theme: Forest Green × Burgundy ── */
+[data-theme="green-burgundy"] {
+  --primary:         #2D6A4F;
+  --primary-hover:   #245840;
+  --primary-bg:      #EAF2ED;
+  --primary-subtle:  rgba(45,106,79,0.08);
+  --accent:          #8B1A2B;
+  --accent-hover:    #751621;
+  --bg:              #F2F5F1;
+  --surface:         #FFFFFF;
+  --border:          #D9E4D5;
+}
+
+/* ── Theme: Electric Blue × Caramel ── */
+[data-theme="caramel-electric"] {
+  --primary:         #2148C0;
+  --primary-hover:   #1A3BA0;
+  --primary-bg:      #EBF0FA;
+  --primary-subtle:  rgba(33,72,192,0.08);
+  --accent:          #C0802A;
+  --accent-hover:    #A36A22;
+  --bg:              #F5F3EF;
+  --surface:         #FFFFFF;
+  --border:          #E5E0D6;
+}
+
+/* ── Theme: Teal × Coral ── */
+[data-theme="teal-coral"] {
+  --primary:         #0D9488;
+  --primary-hover:   #0A7C73;
+  --primary-bg:      #E6F4F3;
+  --primary-subtle:  rgba(13,148,136,0.08);
+  --accent:          #E45B50;
+  --accent-hover:    #CE4E44;
+  --bg:              #F0F7F6;
+  --surface:         #FFFFFF;
+  --border:          #D0E8E5;
+}
+
+/* ── Theme: Morandi Blue-Gray × Warm Tan ── */
+[data-theme="morandi"] {
+  --primary:         #6B8299;
+  --primary-hover:   #596E83;
+  --primary-bg:      #EEF2F5;
+  --primary-subtle:  rgba(107,130,153,0.08);
+  --accent:          #C09070;
+  --accent-hover:    #A67A5C;
+  --bg:              #F4F2EF;
+  --surface:         #FFFFFF;
+  --border:          #DFD9D1;
 }

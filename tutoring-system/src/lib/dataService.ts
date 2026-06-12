@@ -1,6 +1,6 @@
 import { apiFetch } from './githubClient'
 import { API_BASE_URL } from '@/config'
-import type { Student, Supervisor, WeeklyReportData, Trial, ActionLog, ManualLog, WorkflowAnalysis } from '@/types'
+import type { Student, Supervisor, WeeklyReportData, Trial, ActionLog, ManualLog, WorkflowAnalysis, GanttProject, GanttProjectSummary } from '@/types'
 
 async function api<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await apiFetch(`${API_BASE_URL}${path}`, options)
@@ -24,6 +24,10 @@ export async function getStudent(id: string): Promise<Student> {
 
 export async function saveStudent(student: Student): Promise<void> {
   await api(`/students/${student.id}`, { method: 'PUT', body: JSON.stringify(student) })
+}
+
+export async function patchStudentAlias(id: string, aiAlias: string): Promise<void> {
+  await api(`/students/${id}/ai_alias`, { method: 'PATCH', body: JSON.stringify({ aiAlias }) })
 }
 
 export async function deleteStudent(id: string): Promise<void> {
@@ -321,4 +325,25 @@ export async function createZoomMeeting(params: {
     throw new Error(msg ?? `API error ${res.status}`)
   }
   return res.json() as Promise<{ meetingId: string; joinUrl: string; password: string; startUrl: string }>
+}
+
+// ── Gantt ─────────────────────────────────────────────────────────────────────
+
+export async function getGanttProjects(): Promise<GanttProjectSummary[]> {
+  return api<GanttProjectSummary[]>('/gantt/projects')
+}
+
+export async function getGanttProject(ownerType: string, ownerId: string): Promise<GanttProject | null> {
+  const res = await apiFetch(`/api/gantt/projects/${ownerType}/${ownerId}`)
+  if (res.status === 404) return null
+  if (!res.ok) throw new Error(`API error ${res.status}`)
+  return res.json() as Promise<GanttProject>
+}
+
+export async function upsertGanttProject(ownerType: string, ownerId: string, name: string, data: object): Promise<GanttProject> {
+  return api<GanttProject>(`/gantt/projects/${ownerType}/${ownerId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, data }),
+  })
 }

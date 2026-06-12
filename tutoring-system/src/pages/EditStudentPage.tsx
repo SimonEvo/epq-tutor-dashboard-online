@@ -21,7 +21,7 @@ export default function EditStudentPage() {
   if (loading) return <div className="p-6 text-sm text-gray-400">Loading…</div>
   if (!student) return (
     <div className="p-6 text-gray-400 text-sm">
-      Student not found. <Link to="/" className="text-indigo-500 underline">Back to dashboard</Link>
+      Student not found. <Link to="/" className="text-[var(--primary)] underline">Back to dashboard</Link>
     </div>
   )
 
@@ -60,6 +60,8 @@ function EditStudentForm({ student }: { student: Student }) {
         milestones: student.milestones,
         sessions: student.sessions,
         mindMaps: student.mindMaps,
+        scheduleEntries: student.scheduleEntries,
+        homeworkEntries: student.homeworkEntries,
         generatedProgressReport: student.generatedProgressReport,
         progressReportGeneratedAt: student.progressReportGeneratedAt,
         createdAt: student.createdAt,
@@ -96,7 +98,7 @@ function EditStudentForm({ student }: { student: Student }) {
           <button
             type="submit"
             disabled={saving || !formState.name.trim() || !formState.topic.trim()}
-            className="bg-indigo-600 text-white text-sm px-5 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+            className="bg-[var(--primary)] text-white text-sm px-5 py-2 rounded-lg hover:bg-[var(--primary-hover)] disabled:opacity-50 transition-colors"
           >
             {saving ? 'Saving…' : 'Save Changes'}
           </button>

@@ -1,10 +1,13 @@
 export type SessionType = 'SA_MEETING' | 'TA_MEETING' | 'THEORY'
 
+export type ScheduleEntryType = 'exam' | 'holiday' | 'other'
+
 export interface ScheduleEntry {
   id: string
   recordedAt: string   // YYYY-MM-DD
   content: string
-  startDate?: string   // for future calendar view
+  type?: ScheduleEntryType
+  startDate?: string
   endDate?: string
 }
 
@@ -105,8 +108,10 @@ export interface Student {
   availabilityNote: string  // e.g. "Exam prep until June"
   briefNote: string         // one-liner shown on card
   privateNotes: string      // never exported
+  aiAlias?: string          // anonymisation alias used when sending data to AI
   tencentDocUrl?: string    // shared Tencent Doc URL for this student's WeChat group
   scheduleEntries: ScheduleEntry[]
+  latestScheduleEntry?: ScheduleEntry
   milestones: MilestoneProgress
   sessions: SessionRecord[]
   generatedProgressReport?: string    // cached AI-generated progress report
@@ -200,6 +205,39 @@ export interface Trial {
   linkedStudentId?: string
   createdAt: string
   updatedAt: string
+}
+
+export interface GanttTask {
+  id: string
+  name: string
+  startDate: string
+  endDate: string
+  milestone: boolean
+  color?: string
+  assignee?: string
+  sectionId?: string | null
+  notes?: string
+  progress?: number
+  dependencies?: string[]
+}
+
+export interface GanttProjectData {
+  projectName: string
+  sections: Array<{ id: string; name: string; collapsed?: boolean }>
+  tasks: GanttTask[]
+}
+
+export interface GanttProject {
+  ownerType: string
+  ownerId: string | null
+  name: string
+  data: GanttProjectData
+}
+
+export interface GanttProjectSummary {
+  ownerType: string
+  ownerId: string | null
+  name: string
 }
 
 export interface WeeklyReportData {

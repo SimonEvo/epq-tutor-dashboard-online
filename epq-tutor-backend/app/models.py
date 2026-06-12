@@ -63,6 +63,7 @@ class Student(Base):
     schedule_entries = Column(JSON, default=list)
     private_notes = Column(Text, default="")
     tencent_doc_url = Column(String(512))
+    ai_alias = Column(String(128))
     generated_progress_report = Column(Text)
     progress_report_generated_at = Column(String(32))
     created_at = Column(DateTime, default=now_utc)
@@ -233,3 +234,19 @@ class Trial(Base):
     linked_student_id = Column(String(64), nullable=True)
     created_at = Column(DateTime, default=now_utc)
     updated_at = Column(DateTime, default=now_utc, onupdate=now_utc)
+
+
+class GanttProject(Base):
+    __tablename__ = "gantt_projects"
+    id = Column(String(64), primary_key=True)
+    tutor_id = Column(String(64), ForeignKey("tutors.id"), nullable=False)
+    owner_type = Column(String(16), nullable=False)  # 'tutor' | 'student'
+    owner_id = Column(String(64), nullable=True)     # null when owner_type = 'tutor'
+    name = Column(String(128), nullable=False, default="")
+    data = Column(JSON, default=dict)                # {projectName, sections, tasks}
+    created_at = Column(DateTime, default=now_utc)
+    updated_at = Column(DateTime, default=now_utc, onupdate=now_utc)
+
+    __table_args__ = (
+        UniqueConstraint('tutor_id', 'owner_type', 'owner_id', name='uq_gantt_project_owner'),
+    )

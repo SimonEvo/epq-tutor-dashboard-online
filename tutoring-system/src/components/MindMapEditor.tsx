@@ -156,7 +156,7 @@ export default function MindMapEditor({ value, onChange, rows = 14 }: Props) {
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-300">
+    <div className="rounded-lg border border-gray-200 overflow-hidden focus-within:ring-2 focus-within:ring-[var(--primary)] focus-within:border-[var(--primary)]">
       {/* Mini toolbar */}
       <div className="flex items-center gap-1 px-2 py-1.5 bg-gray-50 border-b border-gray-200 flex-wrap">
         {[

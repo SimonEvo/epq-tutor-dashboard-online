@@ -16,6 +16,7 @@ import SupervisorDetailPage from '@/pages/SupervisorDetailPage'
 import SettingsPage from '@/pages/SettingsPage'
 import ZoomConfigPage from '@/pages/ZoomConfigPage'
 import WorkflowAnalysisPage from '@/pages/WorkflowAnalysisPage'
+import MonthlyMeetingPage from '@/pages/MonthlyMeetingPage'
 import AppLayout from '@/components/layout/AppLayout'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -53,6 +54,7 @@ export default function App() {
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/zoom-config" element={<ZoomConfigPage />} />
           <Route path="/workflow-analysis" element={<WorkflowAnalysisPage />} />
+          <Route path="/monthly-meeting" element={<MonthlyMeetingPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

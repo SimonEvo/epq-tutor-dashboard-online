@@ -57,7 +57,7 @@ export default function NewSessionPage() {
   if (!student) {
     return (
       <div className="p-6 text-gray-400 text-sm">
-        Student not found. <Link to="/" className="text-indigo-500 underline">Back to dashboard</Link>
+        Student not found. <Link to="/" className="text-[var(--primary)] underline">Back to dashboard</Link>
       </div>
     )
   }
@@ -125,7 +125,7 @@ export default function NewSessionPage() {
                 onClick={() => setType(t)}
                 className={`flex-1 py-2 text-sm rounded-lg border transition-colors ${
                   type === t
-                    ? 'bg-indigo-600 text-white border-indigo-600'
+                    ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
                     : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
                 }`}
               >
@@ -212,7 +212,7 @@ export default function NewSessionPage() {
           <button
             type="submit"
             disabled={saving}
-            className="bg-indigo-600 text-white text-sm px-5 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+            className="bg-[var(--primary)] text-white text-sm px-5 py-2 rounded-lg hover:bg-[var(--primary-hover)] disabled:opacity-50 transition-colors"
           >
             {saving ? 'Saving…' : 'Save Session'}
           </button>
@@ -228,7 +228,7 @@ export default function NewSessionPage() {
   )
 }
 
-const inputCls = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500'
+const inputCls = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]'
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (

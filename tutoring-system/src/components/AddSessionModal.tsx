@@ -24,7 +24,7 @@ interface Props {
   onSaved: () => void
 }
 
-const inputCls = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500'
+const inputCls = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]'
 
 export default function AddSessionModal({ student, onClose, onSaved }: Props) {
   const { saveStudent } = useStudentStore()
@@ -94,7 +94,7 @@ export default function AddSessionModal({ student, onClose, onSaved }: Props) {
               <button
                 key={t} type="button" onClick={() => setType(t)}
                 className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${
-                  type === t ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                  type === t ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
                 }`}
               >
                 {t === 'SA_MEETING' ? 'SA' : t === 'TA_MEETING' ? 'TA' : 'Theory'}
@@ -137,7 +137,7 @@ export default function AddSessionModal({ student, onClose, onSaved }: Props) {
 
           <div className="flex gap-3 pt-1">
             <button type="submit" disabled={saving}
-              className="flex-1 bg-indigo-600 text-white text-sm py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+              className="flex-1 bg-[var(--primary)] text-white text-sm py-2 rounded-lg hover:bg-[var(--primary-hover)] disabled:opacity-50 transition-colors">
               {saving ? 'Saving…' : 'Save Session'}
             </button>
             <button type="button" onClick={onClose}

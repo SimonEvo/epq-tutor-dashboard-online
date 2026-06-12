@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
-from app.routers import auth, students, supervisors, config, reports, calendar, backup, zoom, trials, workflow, ai
+from app.routers import auth, students, supervisors, config, reports, calendar, backup as backup_router, zoom, trials, workflow, ai, gantt
 from app.database import engine, SessionLocal
 from app import models
 
@@ -11,6 +11,21 @@ from app import models
 # Check workflow scheduler this often. Inside the helper we still only create a
 # new pending row when 14 days have passed, so this just controls timeliness.
 SCHEDULER_CHECK_INTERVAL_SECONDS = 60 * 60 * 6  # every 6h
+BACKUP_INTERVAL_SECONDS = 60 * 60 * 24  # every 24h
+
+
+async def _backup_loop():
+    """每 24 小时自动备份一次到磁盘。"""
+    while True:
+        await asyncio.sleep(BACKUP_INTERVAL_SECONDS)
+        try:
+            db = SessionLocal()
+            try:
+                backup_router.run_backup(db)
+            finally:
+                db.close()
+        except Exception:
+            pass
 
 
 async def _scheduler_loop():
@@ -43,6 +58,7 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE tutors ADD COLUMN default_round VARCHAR(64)",
             "ALTER TABLE rounds ADD COLUMN is_archived BOOLEAN NOT NULL DEFAULT 0",
             "ALTER TABLE students ADD COLUMN schedule_entries JSON",
+            "ALTER TABLE students ADD COLUMN ai_alias VARCHAR(128)",
         ]:
             try:
                 conn.execute(text(stmt))
@@ -65,17 +81,27 @@ async def lifespan(app: FastAPI):
         db.close()
 
     task = asyncio.create_task(_scheduler_loop())
+    backup_task = asyncio.create_task(_backup_loop())
     try:
         yield
     finally:
         task.cancel()
+        backup_task.cancel()
 
 
 app = FastAPI(title="EPQ Tutor API", lifespan=lifespan)
 
+_ALLOWED_ORIGINS = [
+    "https://epq.simonevo.top",
+    "https://gantt.simonevo.top",
+    # local dev
+    "http://localhost:5173",
+    "http://localhost:3000",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -87,11 +113,12 @@ app.include_router(supervisors.router)
 app.include_router(config.router)
 app.include_router(reports.router)
 app.include_router(calendar.router)
-app.include_router(backup.router)
+app.include_router(backup_router.router)
 app.include_router(zoom.router)
 app.include_router(trials.router)
 app.include_router(workflow.router)
 app.include_router(ai.router)
+app.include_router(gantt.router)
 
 
 @app.get("/health")

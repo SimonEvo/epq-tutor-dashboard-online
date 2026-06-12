@@ -94,6 +94,7 @@ class StudentSchema(BaseModel):
     homeworkEntries: list[dict] = []
     generatedProgressReport: Optional[str] = None
     progressReportGeneratedAt: Optional[str] = None
+    aiAlias: Optional[str] = None
     createdAt: str = ""
     updatedAt: str = ""
 
@@ -132,6 +133,7 @@ class StudentSummarySchema(BaseModel):
     sessions: list[SessionSummarySchema] = []
     updatedAt: str = ""
     latestHomeworkEntry: Optional[dict] = None
+    aiAlias: Optional[str] = None
 
 
 # ── Tags ──────────────────────────────────────────────────────────────────────

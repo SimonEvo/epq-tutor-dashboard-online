@@ -60,7 +60,7 @@ export default function StudentCard({ student }: Props) {
           )}
         </div>
         {student.overview && (
-          <span className="inline-block mt-1.5 text-xs font-semibold px-1.5 py-0.5 rounded bg-violet-50 text-violet-600">
+          <span className="inline-block mt-1.5 text-xs font-semibold px-1.5 py-0.5 rounded bg-[var(--primary-bg)] text-[var(--primary)]">
             {student.overview}
           </span>
         )}

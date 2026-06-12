@@ -6,6 +6,8 @@ import { useStudentStore } from '@/stores/studentStore'
 import * as dataService from '@/lib/dataService'
 import type { ArchivedRound } from '@/lib/dataService'
 import { getToken } from '@/lib/githubClient'
+import { THEMES } from '@/lib/themes'
+import { useThemeStore } from '@/stores/themeStore'
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState(getSettings)
@@ -21,6 +23,9 @@ export default function SettingsPage() {
   const [defaultRoundSaving, setDefaultRoundSaving] = useState(false)
   const [archivedRounds, setArchivedRounds] = useState<ArchivedRound[]>([])
   const [expandedArchive, setExpandedArchive] = useState<string | null>(null)
+
+  const themeId = useThemeStore(s => s.themeId)
+  const setTheme = useThemeStore(s => s.setTheme)
 
   const students = useStudentStore(s => s.students)
   const calendarUrlFromStore = useStudentStore(s => s.calendarUrl)
@@ -87,6 +92,34 @@ export default function SettingsPage() {
       </div>
 
       <form onSubmit={handleSave} className="flex flex-col gap-5">
+
+        {/* Theme */}
+        <section className="bg-white rounded-2xl border border-gray-200 p-6">
+          <h2 className="text-sm font-semibold text-gray-900 mb-1">界面主题</h2>
+          <p className="text-xs text-gray-400 mb-4">即时切换，无需刷新页面。</p>
+          <div className="grid grid-cols-3 gap-3">
+            {THEMES.map(t => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTheme(t.id)}
+                className={`relative flex flex-col gap-2 rounded-xl border-2 p-3 text-left transition-all ${
+                  themeId === t.id ? 'border-[var(--primary)] bg-[var(--primary-bg)]' : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex gap-1.5">
+                  <span className="w-5 h-5 rounded-full shrink-0" style={{ background: t.primary }} />
+                  <span className="w-5 h-5 rounded-full shrink-0" style={{ background: t.accent }} />
+                  <span className="w-5 h-5 rounded-full shrink-0 border border-gray-200" style={{ background: t.bg }} />
+                </div>
+                <span className="text-xs font-medium text-gray-700 leading-tight">{t.label}</span>
+                {themeId === t.id && (
+                  <span className="absolute top-2 right-2 text-[var(--primary)] text-xs font-bold">✓</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </section>
 
         {/* iCloud Calendar */}
         <section className="bg-white rounded-2xl border border-gray-200 p-6">
@@ -164,7 +197,7 @@ export default function SettingsPage() {
                 onClick={() => setSettings(s => ({ ...s, aiBaseUrl: p.baseUrl, aiModel: p.model }))}
                 className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
                   settings.aiBaseUrl === p.baseUrl
-                    ? 'bg-indigo-600 text-white border-indigo-600'
+                    ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
                     : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
                 }`}
               >
@@ -382,7 +415,7 @@ export default function SettingsPage() {
         <div className="flex gap-3">
           <button
             type="submit"
-            className="bg-indigo-600 text-white text-sm px-5 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+            className="bg-[var(--primary)] text-white text-sm px-5 py-2 rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
           >
             {saved ? '已保存 ✓' : 'Save Settings'}
           </button>
@@ -395,4 +428,4 @@ export default function SettingsPage() {
   )
 }
 
-const inputCls = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500'
+const inputCls = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]'

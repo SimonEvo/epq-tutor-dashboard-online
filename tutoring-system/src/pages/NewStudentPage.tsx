@@ -95,7 +95,7 @@ export default function NewStudentPage() {
           <button
             type="submit"
             disabled={saving || !formState.name.trim() || !formState.topic.trim()}
-            className="bg-indigo-600 text-white text-sm px-5 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+            className="bg-[var(--primary)] text-white text-sm px-5 py-2 rounded-lg hover:bg-[var(--primary-hover)] disabled:opacity-50 transition-colors"
           >
             {saving ? 'Saving…' : 'Create Student'}
           </button>

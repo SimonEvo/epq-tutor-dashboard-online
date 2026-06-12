@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 
 export default function LoginPage() {
@@ -9,6 +9,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const login = useAuthStore(s => s.login)
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -16,7 +17,12 @@ export default function LoginPage() {
     setLoading(true)
     const ok = await login(username.trim(), password)
     if (ok) {
-      navigate('/')
+      const redirect = searchParams.get('redirect')
+      if (redirect && redirect.startsWith('https://gantt.simonevo.top')) {
+        window.location.href = redirect
+      } else {
+        navigate('/')
+      }
     } else {
       setError('用户名或密码错误')
     }
@@ -35,7 +41,7 @@ export default function LoginPage() {
             onChange={e => setUsername(e.target.value)}
             placeholder="用户名"
             autoComplete="username"
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
             required
           />
           <input
@@ -44,14 +50,14 @@ export default function LoginPage() {
             onChange={e => setPassword(e.target.value)}
             placeholder="密码"
             autoComplete="current-password"
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
             required
           />
           {error && <p className="text-red-500 text-xs">{error}</p>}
           <button
             type="submit"
             disabled={loading || !username.trim() || !password}
-            className="bg-indigo-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+            className="bg-[var(--primary)] text-white rounded-lg py-2 text-sm font-medium hover:bg-[var(--primary-hover)] disabled:opacity-50 transition-colors"
           >
             {loading ? '登录中…' : '登录'}
           </button>

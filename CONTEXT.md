@@ -53,6 +53,35 @@ Three groups:
 ### Mind Map
 Per-student concept map for the student's EPQ topic. Tutor-created. Low-priority, largely unused feature.
 
+### Monthly Meeting（月会）
+Monthly sync attended by all Chinese-side tutors, organized by YUSHEN/ASEEDER management. Each tutor presents their own student cohort independently. Output: a PPTX deck filled out by the tutor before the meeting, covering student progress and teaching discussion points.
+
+The deck follows a fixed five-slide template:
+- Slide 1: Title (tutor name + date)
+- Slide 2: Monthly overview (total students + key teaching action keywords)
+- Slides 3+: Student progress table (one row per student; up to 7 per slide)
+- Last slide: Difficult cases and experience sharing (manual free text)
+
+**Output mode:** The system generates AI-drafted text content for each section; the tutor fills the template manually. No PPTX file is generated — the value is in the AI summarization, not file generation.
+
+**Data sources for AI:** Current month's session `summary` fields + student `privateNotes`. Private notes are permitted here because the output is tutor-only and never exported. This is an explicit exception to the "privateNotes never in exports" rule — scope: monthly meeting AI draft only.
+
+**AI output format:** AI reports the factual situation per student. No 进度档位 classification — the tutor assigns the color label manually after reading the AI draft.
+
+**AI Name Encoding（AI 匿名编码）:** Before sending data to the AI, all student names are replaced with fixed alias names (e.g. 章哲睿 → 王坤鹏). Both full name and given-name-only variants are encoded (e.g. 哲睿 → 坤鹏). AI output is decoded back to real names before display. This prevents real student identities from entering the AI provider's logs.
+
+Each student has an `aiAlias` field. Auto-generated (random 3-char Chinese name) when not set; editable from the Edit Student page. Alias is permanent once set — changing it after monthly reports exist would break continuity but is allowed.
+
+Encoding scope: full name (e.g. 章哲睿 → 王坤鹏) and given name only / 2-char suffix (哲睿 → 坤鹏). Single-char surname is NOT encoded to avoid false positives. Decoding reverses all replacements in AI output before display.
+
+**Output structure (on-page):** Two blocks matching PPT layout:
+1. Slide 2 block — AI-generated keyword list for 本月主要教学动作
+2. Per-student block — one paragraph per student with factual situation summary; students with no sessions in the selected month are included with a "本月无课" note
+
+**Caching:** AI output is cached in `localStorage`, keyed by `(month, round)`. Displayed immediately on return visits. "重新生成" button clears cache and re-runs.
+
+**Month selection:** Defaults to current month; user can navigate to any past month. "Current round" is whichever round is active in the Dashboard at time of generation.
+
 ### Session Report
 AI-generated post-session summary for a single session. Sent to parents (student, parent, marketing staff). Incorporates the latest Progress Report for continuity context.
 
@@ -197,3 +226,21 @@ Collapsible (expanded = icon + label; collapsed = icon only). Structure:
 
 ### Last-Touched Backend Fix
 `_upsert_student` already touches `students.updated_at` on every save (sessions/milestones are full-replaced each save, so any change triggers it). Gap: `StudentSummarySchema` doesn't expose `updatedAt`. Fix: add field to schema + `_to_summary` mapping.
+
+### Gantt Project
+A named collection of [[gantt-event|Gantt Events]] with an owner. Owner is either the tutor (`owner_type = tutor`) or a student (`owner_type = student`, `owner_id = studentId`). Stored in `gantt_projects` table. Corresponds 1:1 to the `state` object in `gantt-pro.html` (`{projectName, sections, tasks}`).
+
+Each tutor or student has at most one Gantt Project. The tutor's own project tracks the tutor's personal schedule; student projects track that student's exam windows, holidays, and deadlines.
+
+### Gantt Event
+A single entry within a [[gantt-project|Gantt Project]]. Two visual forms:
+- **Bar** — a date range (e.g. exam period, holiday). Has `startDate` and `endDate`.
+- **Diamond** — a point-in-time marker (e.g. submission deadline, SA meeting). `startDate = endDate`. Called "milestone" in the gantt editor UI.
+
+Gantt Events are independent from EPQ Milestones — they are manually entered and carry no status tracking.
+
+### Gantt View
+The Dashboard view that replaces the old List view. Renders a read-only horizontal strip showing the **next 14 days** across all active students. Each student occupies one row; bars and diamonds within the 14-day window are drawn inline. Clicking a row navigates to that student's detail page. Edit button opens the [[gantt-editor|Gantt Editor]].
+
+### Gantt Editor
+`gantt-pro.html` served as a standalone static page by Nginx (not a React route). Supports editing all Gantt Projects: tutor's own and all student projects. Authenticates by reading the JWT from `localStorage('token')` — same token as the React dashboard (same domain). Two entry points: global `/gantt-editor` (sidebar link), and per-student link from the student detail page.

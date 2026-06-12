@@ -37,7 +37,7 @@ export default function MilestoneGridView({ students }: Props) {
             <div>
               <span className="font-semibold text-gray-900 text-sm">{student.name}</span>
               {student.nameEn && <span className="text-gray-400 text-sm ml-1.5">{student.nameEn}</span>}
-              {student.overview && <p className="text-xs font-semibold text-indigo-600 mt-0.5">{student.overview}</p>}
+              {student.overview && <p className="text-xs font-semibold text-[var(--primary)] mt-0.5">{student.overview}</p>}
             </div>
             {student.submissionRound && (
               <span className="text-xs text-gray-500 bg-gray-100 rounded-full px-2 py-0.5 shrink-0 ml-2">

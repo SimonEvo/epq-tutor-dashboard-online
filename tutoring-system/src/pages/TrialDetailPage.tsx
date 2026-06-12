@@ -23,15 +23,15 @@ function RatingInput({ label, value, onChange }: {
             onClick={() => onChange(value === i ? null : i)}
             className={`w-8 h-8 text-xs rounded-lg border transition-colors ${
               value === i
-                ? 'bg-indigo-600 text-white border-indigo-600'
-                : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'
+                ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-[var(--primary)]'
             }`}
           >
             {i}
           </button>
         ))}
         {value !== null && (
-          <span className="text-xs text-indigo-600 font-medium ml-1">{value}</span>
+          <span className="text-xs text-[var(--primary)] font-medium ml-1">{value}</span>
         )}
       </div>
     </div>
@@ -167,7 +167,7 @@ export default function TrialDetailPage() {
 
   if (loading) return <div className="p-8 text-gray-400 text-sm">Loading…</div>
 
-  const fieldClass = "w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+  const fieldClass = "w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-white"
   const labelClass = "block text-xs font-medium text-gray-600 mb-1"
 
   return (
@@ -267,8 +267,8 @@ export default function TrialDetailPage() {
                   onClick={() => setEnrollmentIntention(enrollmentIntention === v ? '' : v)}
                   className={`text-sm px-4 py-1.5 rounded-lg border transition-colors ${
                     enrollmentIntention === v
-                      ? 'bg-indigo-600 text-white border-indigo-600'
-                      : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'
+                      ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-[var(--primary)]'
                   }`}
                 >
                   {v}
@@ -328,8 +328,8 @@ export default function TrialDetailPage() {
                 onClick={() => setOutcome(v)}
                 className={`text-sm px-4 py-1.5 rounded-lg border transition-colors ${
                   outcome === v
-                    ? 'bg-indigo-600 text-white border-indigo-600'
-                    : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'
+                    ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-[var(--primary)]'
                 }`}
               >
                 {label}
@@ -370,7 +370,7 @@ export default function TrialDetailPage() {
           <button
             type="submit"
             disabled={saving}
-            className="bg-indigo-600 text-white text-sm px-5 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+            className="bg-[var(--primary)] text-white text-sm px-5 py-2 rounded-lg hover:bg-[var(--primary-hover)] disabled:opacity-50 transition-colors"
           >
             {saving ? '保存中…' : '保存'}
           </button>

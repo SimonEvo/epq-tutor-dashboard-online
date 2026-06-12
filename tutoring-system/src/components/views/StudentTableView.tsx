@@ -115,13 +115,13 @@ export default function StudentTableView({ students }: Props) {
                   {student.nameEn && <p className="text-xs text-gray-400">{student.nameEn}</p>}
                 </td>
                 <td className="px-3 py-3 max-w-[180px]">
-                  {student.overview && <p className="text-xs font-semibold text-indigo-600 truncate">{student.overview}</p>}
+                  {student.overview && <p className="text-xs font-semibold text-[var(--primary)] truncate">{student.overview}</p>}
                   <p className="text-xs text-gray-500 truncate italic">{student.topicZh || student.topic}</p>
                 </td>
                 <td className="px-3 py-3">
                   <div className="flex gap-1 flex-wrap">
                     {student.tags.map(tag => (
-                      <span key={tag} className="text-xs bg-indigo-50 text-indigo-700 rounded-full px-1.5 py-0.5 whitespace-nowrap">
+                      <span key={tag} className="text-xs bg-[var(--primary-bg)] text-[var(--primary-hover)] rounded-full px-1.5 py-0.5 whitespace-nowrap">
                         {tag}
                       </span>
                     ))}
@@ -144,7 +144,7 @@ export default function StudentTableView({ students }: Props) {
                 <td className="px-3 py-3 min-w-[90px]">
                   <div className="flex items-center gap-2">
                     <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${progress}%` }} />
+                      <div className="h-full bg-[var(--primary)] rounded-full" style={{ width: `${progress}%` }} />
                     </div>
                     <span className="text-xs text-gray-500 whitespace-nowrap">{progress}%</span>
                   </div>
@@ -154,7 +154,7 @@ export default function StudentTableView({ students }: Props) {
                 </td>
                 <td className="px-3 py-3 text-xs whitespace-nowrap">
                   {next
-                    ? <span className="text-indigo-600">{SESSION_LABEL[next.type]} {next.date}</span>
+                    ? <span className="text-[var(--primary)]">{SESSION_LABEL[next.type]} {next.date}</span>
                     : <span className="text-gray-400">—</span>}
                 </td>
                 <td className="px-3 py-3 text-xs text-gray-500 max-w-[160px]">
