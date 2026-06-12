@@ -3,7 +3,7 @@ import { EPQ_MILESTONES } from '@/config'
 import type { Student, SessionRecord } from '@/types'
 import { isSessionStarted } from './formatters'
 
-async function callAI(prompt: string): Promise<string> {
+async function callAI(prompt: string, options?: { maxTokens?: number }): Promise<string> {
   const { aiApiKey, aiModel, aiBaseUrl } = getSettings()
   if (!aiApiKey) throw new Error('请先在设置页面填写 API Key')
   const base = (aiBaseUrl || 'https://dashscope.aliyuncs.com/compatible-mode/v1').replace(/\/$/, '')
@@ -17,7 +17,7 @@ async function callAI(prompt: string): Promise<string> {
     body: JSON.stringify({
       model: aiModel || 'qwen-plus',
       messages: [{ role: 'user', content: prompt }],
-      max_tokens: 2048,
+      max_tokens: options?.maxTokens ?? 2048,
     }),
   })
 
@@ -381,4 +381,117 @@ ${student.briefNote ? `\n导师简评：${student.briefNote}` : ''}
 ${homeworkBlock || '暂无'}`
 
   return callAI(`${instructionPart}\n\n以下是学生信息：\n${dataBlock}`)
+}
+
+// ── AI Alias utilities ────────────────────────────────────────────────────────
+
+const ALIAS_POOL = [
+  '王坤鹏', '李明辉', '张建国', '刘文博', '陈志远', '杨天宇', '赵海波', '黄俊豪',
+  '周德旺', '吴清泉', '徐浩然', '孙立伟', '胡国庆', '朱晓松', '高伟民', '林亚男',
+  '何广正', '郭文龙', '马志强', '罗宇轩', '韩泽宇', '唐建平', '冯明宇', '许志强',
+  '魏俊杰', '董成功', '萧文轩', '蒋国华', '卢德明', '薛俊平', '程建辉', '谢文强',
+  '傅海龙', '曹志明', '严国庆', '覃浩宇', '白文博', '田俊豪', '洪德旺', '龚清泉',
+  '余志远', '秦浩然', '阮立伟', '苏国庆', '钱伟民', '钟海波', '贺文龙', '赖志强',
+  '段宇轩', '邓泽宇', '邱建平', '彭俊杰', '陆成功', '葛国华', '梅德明', '雷俊平',
+  '郝建辉', '贾文强', '欧海龙', '殷志明', '柏国庆', '施文博', '汤俊豪', '柴德旺',
+  '易志远', '宫浩然', '步立伟', '乔国庆', '席晓松', '巩伟民', '麻海波', '卜文龙',
+  '管志强', '祁宇轩', '能文博', '班俊豪', '寇德旺', '谭清泉', '鲁志远', '纪浩然',
+]
+
+export function generateAiAlias(existing: string[] = []): string {
+  const available = ALIAS_POOL.filter(a => !existing.includes(a))
+  const pool = available.length > 0 ? available : ALIAS_POOL
+  return pool[Math.floor(Math.random() * pool.length)]
+}
+
+export interface NameMapping { realName: string; alias: string }
+
+export function buildNameMappings(students: Student[]): NameMapping[] {
+  return students
+    .filter(s => s.aiAlias)
+    .map(s => ({ realName: s.name.trim(), alias: s.aiAlias!.trim() }))
+}
+
+export function encodeNames(text: string, mappings: NameMapping[]): string {
+  let result = text
+  // Full names first (longest first to avoid partial collision)
+  const sorted = [...mappings].sort((a, b) => b.realName.length - a.realName.length)
+  for (const m of sorted) {
+    result = result.replaceAll(m.realName, m.alias)
+  }
+  // Then given names (realName[1:] → alias[1:])
+  for (const m of sorted) {
+    if (m.realName.length >= 2 && m.alias.length >= 2) {
+      result = result.replaceAll(m.realName.slice(1), m.alias.slice(1))
+    }
+  }
+  return result
+}
+
+export function decodeNames(text: string, mappings: NameMapping[]): string {
+  let result = text
+  const sorted = [...mappings].sort((a, b) => b.alias.length - a.alias.length)
+  // Full aliases first
+  for (const m of sorted) {
+    result = result.replaceAll(m.alias, m.realName)
+  }
+  // Then given aliases
+  for (const m of sorted) {
+    if (m.realName.length >= 2 && m.alias.length >= 2) {
+      result = result.replaceAll(m.alias.slice(1), m.realName.slice(1))
+    }
+  }
+  return result
+}
+
+// ── Monthly Meeting Report ────────────────────────────────────────────────────
+
+export async function generateMonthlyReport(
+  students: Student[],
+  year: number,
+  month: number,
+): Promise<string> {
+  const mappings = buildNameMappings(students)
+  const monthStr = `${year}年${month}月`
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const monthPrefix = `${year}-${pad(month)}`
+
+  const studentBlocks = students.map(s => {
+    const alias = s.aiAlias || s.name
+    const topic = encodeNames(s.topicZh || s.topic, mappings)
+    const monthSessions = s.sessions.filter(sess => sess.date.startsWith(monthPrefix))
+
+    const sessionsText = monthSessions.length === 0
+      ? '本月无课。'
+      : monthSessions.map(sess => {
+          const typeLabel = sess.type === 'SA_MEETING' ? 'SA' : sess.type === 'TA_MEETING' ? 'TA' : '理论课'
+          const summary = encodeNames(sess.summary || '（无记录）', mappings)
+          return `  - ${sess.date} [${typeLabel}]${sess.title ? ` ${sess.title}` : ''}：${summary}`
+        }).join('\n')
+
+    const privateNotes = s.privateNotes?.trim()
+      ? `导师私人备注：${encodeNames(s.privateNotes, mappings)}`
+      : ''
+
+    return `【${alias}】课题：${topic}
+${sessionsText}${privateNotes ? `\n${privateNotes}` : ''}`
+  }).join('\n\n')
+
+  const prompt = `你是一个EPQ教学助理。请根据以下学生本月的课程记录，生成月会PPT草稿内容。
+
+月份：${monthStr}
+注意：以下学生姓名均为化名，请直接使用。
+
+${studentBlocks}
+
+请按以下格式输出，不要添加其他内容：
+
+## Slide 2：本月主要教学动作关键词
+（列出4-8个关键词，每行一个，反映本月主要教学工作类型，例如：选题探索、文献指导、SA会议准备）
+
+## 学生进度
+（每位学生一段。如实陈述本月情况：做了什么、进展如何、有无异常。如本月无课请注明。不需要做价值判断，不需要给进度分级。）`
+
+  const encoded = await callAI(prompt, { maxTokens: 4096 })
+  return decodeNames(encoded, mappings)
 }

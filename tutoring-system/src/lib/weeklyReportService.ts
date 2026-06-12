@@ -1,6 +1,7 @@
 import { getSettings } from './settings'
 import { apiFetch } from './githubClient'
 import { API_BASE_URL } from '@/config'
+import { buildNameMappings, encodeNames, decodeNames } from './claudeService'
 
 export const DEFAULT_WEEKLY_OUTPUT_TEMPLATE = `请严格按以下格式输出，不要任何多余的解释或前言：
 
@@ -119,11 +120,14 @@ export async function generateWeeklyReport(students: Student[]): Promise<WeeklyR
       .map(s => s.id),
   )
 
-  // 3. Build prompt sections with real names
+  // 3. Build prompt sections with aliases (frontend encoding)
+  const mappings = buildNameMappings(students)
   const studentSections = students
     .map(s => {
       const changed = changedIds.has(s.id)
-      return `【${s.name}${s.nameEn ? ` · ${s.nameEn}` : ''}】${changed ? '' : ' (无变化)'}\n${summariseStudent(s, today, changed)}`
+      const displayName = s.aiAlias || s.name
+      const section = summariseStudent(s, today, changed)
+      return `【${displayName}】${changed ? '' : ' (无变化)'}\n${encodeNames(section, mappings)}`
     })
     .join('\n\n')
 
@@ -137,6 +141,7 @@ export async function generateWeeklyReport(students: Student[]): Promise<WeeklyR
 
 今天日期：${today}
 学生总数：${students.length}人，本次有变化：${changedIds.size}人
+注意：以下学生姓名均为化名，请直接使用。
 
 ━━━ 学生数据 ━━━
 ${studentSections}
@@ -149,7 +154,8 @@ ${outputTemplate}`
   const trimmedPrompt = prompt.length > MAX_PROMPT_CHARS
     ? prompt.slice(0, MAX_PROMPT_CHARS) + '\n\n[部分学生数据因长度限制被截断，请根据已有数据生成报告]'
     : prompt
-  const content = await callAI(trimmedPrompt)
+  const rawContent = await callAI(trimmedPrompt)
+  const content = decodeNames(rawContent, mappings)
 
   // 5. Build updated cache
   const newStudentCache: Record<string, StudentReportCacheEntry> = {}
