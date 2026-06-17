@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "tutoring-system",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "/Users/simonsong/Documents/projects/epq-tutor-dashboard-online/tutoring-system",
+      "port": 5173
+    }
+  ]
+}

@@ -89,7 +89,8 @@ export default function SettingsPage() {
       const result = await dataService.restoreBackup(date)
       const r = result.restored
       setRestoreStatus('ok')
-      setRestoreMsg(`已恢复 ${r.students} 名学生、${r.supervisors} 位督导、${r.tags} 个标签`)
+      setRestoreMsg(`已恢复 ${r.students} 名学生、${r.supervisors} 位督导、${r.tags} 个标签，即将刷新页面…`)
+      setTimeout(() => window.location.reload(), 1500)
     } catch (e) {
       setRestoreStatus('err')
       setRestoreMsg(e instanceof Error ? e.message : String(e))

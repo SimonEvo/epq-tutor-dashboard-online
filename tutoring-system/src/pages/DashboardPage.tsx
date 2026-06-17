@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { useStudentStore } from '@/stores/studentStore'
 import StudentCard from '@/components/StudentCard'
 import AICommandCenter from '@/components/AICommandCenter'
-import KanbanRoundView from '@/components/views/KanbanRoundView'
 import KanbanProgressView from '@/components/views/KanbanProgressView'
 import MilestoneGridView from '@/components/views/MilestoneGridView'
 import OverviewView from '@/components/views/OverviewView'
@@ -13,13 +12,12 @@ import { formatHours, copyToClipboard } from '@/lib/formatters'
 import { generateWeeklyReport, getWeeklyReportData } from '@/lib/weeklyReportService'
 import { listTrials, getDefaultRound } from '@/lib/dataService'
 
-type ViewMode = 'overview' | 'grid' | 'gantt' | 'kanban-round' | 'kanban-progress' | 'milestone'
+type ViewMode = 'overview' | 'grid' | 'gantt' | 'kanban-progress' | 'milestone'
 
 const VIEW_BUTTONS: { mode: ViewMode; label: string }[] = [
   { mode: 'overview', label: '概览' },
   { mode: 'grid', label: '卡片' },
   { mode: 'gantt', label: '甘特图' },
-  { mode: 'kanban-round', label: '批次' },
   { mode: 'kanban-progress', label: '进度' },
   { mode: 'milestone', label: '里程碑' },
 ]
@@ -420,7 +418,7 @@ export default function DashboardPage() {
       <div className="flex flex-col gap-3 mb-6">
         {/* Row 1: sort + round filter + view switcher */}
         <div className="flex gap-3 flex-wrap items-center">
-          {viewMode !== 'kanban-round' && viewMode !== 'kanban-progress' && viewMode !== 'milestone' && (
+          {viewMode !== 'kanban-progress' && viewMode !== 'milestone' && (
             <select
               value={sortBy}
               onChange={e => setSortBy(e.target.value as 'name' | 'lastSession')}
@@ -534,8 +532,6 @@ export default function DashboardPage() {
         <OverviewView students={filtered} supervisors={supervisors} />
       ) : viewMode === 'gantt' ? (
         <GanttView students={filtered} />
-      ) : viewMode === 'kanban-round' ? (
-        <KanbanRoundView students={filtered} rounds={rounds} />
       ) : viewMode === 'kanban-progress' ? (
         <KanbanProgressView students={filtered} />
       ) : viewMode === 'milestone' ? (
