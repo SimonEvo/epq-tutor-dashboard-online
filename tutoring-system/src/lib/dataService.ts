@@ -235,6 +235,14 @@ export async function exportBackup(): Promise<{ path: string; students: number; 
   return api('/backup/export', { method: 'POST' })
 }
 
+export async function listBackups(): Promise<{ date: string; students: number; supervisors: number }[]> {
+  return api('/backup/list')
+}
+
+export async function restoreBackup(date: string): Promise<{ ok: boolean; restored: { students: number; supervisors: number; tags: number } }> {
+  return api(`/backup/restore/${date}`, { method: 'POST' })
+}
+
 // ─── Auth check ──────────────────────────────────────────────────────────────
 
 export async function verifyAuth(): Promise<boolean> {

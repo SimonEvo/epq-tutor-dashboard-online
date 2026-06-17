@@ -17,6 +17,9 @@ export default function SettingsPage() {
   const [calError, setCalError] = useState('')
   const [backupStatus, setBackupStatus] = useState<'idle' | 'loading' | 'ok' | 'err'>('idle')
   const [backupMsg, setBackupMsg] = useState('')
+  const [backups, setBackups] = useState<{ date: string; students: number; supervisors: number }[]>([])
+  const [restoreStatus, setRestoreStatus] = useState<'idle' | 'loading' | 'ok' | 'err'>('idle')
+  const [restoreMsg, setRestoreMsg] = useState('')
   const rounds = useStudentStore(s => s.rounds)
   const fetchRounds = useStudentStore(s => s.fetchRounds)
   const [defaultRound, setDefaultRound] = useState('')
@@ -36,6 +39,7 @@ export default function SettingsPage() {
     fetchRounds()
     dataService.getDefaultRound().then(setDefaultRound).catch(() => {})
     dataService.getArchivedRounds().then(setArchivedRounds).catch(() => {})
+    dataService.listBackups().then(setBackups).catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keep in sync if a background save updated the store URL.
@@ -70,9 +74,25 @@ export default function SettingsPage() {
       const result = await dataService.exportBackup()
       setBackupStatus('ok')
       setBackupMsg(`已备份 ${result.students} 名学生、${result.supervisors} 位督导、${result.tags} 个标签 → ${result.path}`)
+      dataService.listBackups().then(setBackups).catch(() => {})
     } catch (e) {
       setBackupStatus('err')
       setBackupMsg(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  const handleRestore = async (date: string) => {
+    if (!window.confirm(`确定要恢复 ${date} 的备份吗？当前数据会被覆盖。`)) return
+    setRestoreStatus('loading')
+    setRestoreMsg('')
+    try {
+      const result = await dataService.restoreBackup(date)
+      const r = result.restored
+      setRestoreStatus('ok')
+      setRestoreMsg(`已恢复 ${r.students} 名学生、${r.supervisors} 位督导、${r.tags} 个标签`)
+    } catch (e) {
+      setRestoreStatus('err')
+      setRestoreMsg(e instanceof Error ? e.message : String(e))
     }
   }
 
@@ -240,22 +260,20 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* Data Backup */}
+        {/* Data Backup & Restore */}
         <section className="bg-white rounded-2xl border border-gray-200 p-6">
-          <h2 className="text-sm font-semibold text-gray-900 mb-1">数据备份</h2>
+          <h2 className="text-sm font-semibold text-gray-900 mb-1">数据备份与恢复</h2>
           <p className="text-xs text-gray-400 mb-4">
-            将所有学生、督导、标签、周报数据以 JSON 文件导出至服务器
-            <code className="mx-1 bg-gray-100 px-1 rounded">/opt/epq-tutor-data_backup/</code>
-            目录，格式与原始数据一致，可直接用 migrate_from_local.py 还原。
+            每天自动备份一次，保留最近 3 天。也可手动立即备份。
           </p>
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-3 flex-wrap mb-4">
             <button
               type="button"
               onClick={handleBackup}
               disabled={backupStatus === 'loading'}
               className="text-sm px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-colors"
             >
-              {backupStatus === 'loading' ? '备份中…' : '立即备份到服务器'}
+              {backupStatus === 'loading' ? '备份中…' : '立即备份'}
             </button>
             {backupStatus === 'ok' && (
               <span className="text-xs text-green-600">{backupMsg}</span>
@@ -264,6 +282,36 @@ export default function SettingsPage() {
               <span className="text-xs text-red-500">备份失败：{backupMsg}</span>
             )}
           </div>
+
+          {backups.length > 0 && (
+            <div>
+              <h3 className="text-xs font-medium text-gray-500 mb-2">可恢复的备份</h3>
+              <div className="space-y-2">
+                {backups.map(b => (
+                  <div key={b.date} className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-2">
+                    <span className="text-sm text-gray-700">
+                      {b.date}
+                      <span className="text-xs text-gray-400 ml-2">{b.students} 名学生、{b.supervisors} 位督导</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleRestore(b.date)}
+                      disabled={restoreStatus === 'loading'}
+                      className="text-xs px-3 py-1 border border-orange-200 rounded-md text-orange-600 hover:bg-orange-50 disabled:opacity-40 transition-colors"
+                    >
+                      恢复
+                    </button>
+                  </div>
+                ))}
+              </div>
+              {restoreStatus === 'ok' && (
+                <p className="text-xs text-green-600 mt-2">{restoreMsg}</p>
+              )}
+              {restoreStatus === 'err' && (
+                <p className="text-xs text-red-500 mt-2">恢复失败：{restoreMsg}</p>
+              )}
+            </div>
+          )}
         </section>
 
         {/* Zoom API — link to dedicated config page */}
