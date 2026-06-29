@@ -208,24 +208,36 @@ export default function GanttView({ students }: Props) {
           {students.map(s => {
             const studentTasks = tasksForStudent(s.name)
 
+            // Group same-day session markers so they stack instead of overlap
+            const visibleSessions = (s.sessions ?? []).filter((sess: SessionRecord) =>
+              (sess.type === 'SA_MEETING' || sess.type === 'TA_MEETING') &&
+              sess.date >= toISO(startDate) && sess.date <= toISO(endDate)
+            )
+            const dayCount: Record<string, number> = {}
+            for (const sess of visibleSessions) dayCount[sess.date] = (dayCount[sess.date] ?? 0) + 1
+            const maxStack = Math.max(1, ...Object.values(dayCount))
+            const STACK_H = 22
+            const rowH = Math.max(48, maxStack * STACK_H + 14)
+            const seen: Record<string, number> = {}
+
             return (
               <div
                 key={s.id}
                 className="flex border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
-                style={{ minHeight: 48 }}
+                style={{ minHeight: rowH }}
                 onClick={() => navigate(`/students/${s.id}`)}
               >
                 {/* Sticky name column */}
                 <div
                   className="sticky left-0 w-40 shrink-0 px-3 py-2 flex flex-col justify-center bg-white border-r border-gray-100 z-30"
-                  style={{ minHeight: 48 }}
+                  style={{ minHeight: rowH }}
                 >
                   <span className="text-sm font-medium text-gray-800 truncate">{s.name}</span>
                   {s.overview && <span className="text-xs text-gray-400 truncate">{s.overview}</span>}
                 </div>
 
                 {/* Bar area */}
-                <div className="relative" style={{ width: totalDays * COL_W, minHeight: 48 }}>
+                <div className="relative" style={{ width: totalDays * COL_W, minHeight: rowH }}>
                   {/* Grid background — weekends + today */}
                   <div className="absolute inset-0 flex pointer-events-none">
                     {dates.map(d => {
@@ -245,22 +257,21 @@ export default function GanttView({ students }: Props) {
                     })}
                   </div>
 
-                  {/* SA / TA session markers */}
-                  {(s.sessions ?? [])
-                    .filter((sess: SessionRecord) =>
-                      (sess.type === 'SA_MEETING' || sess.type === 'TA_MEETING') &&
-                      sess.date >= toISO(startDate) && sess.date <= toISO(endDate)
-                    )
-                    .map((sess: SessionRecord) => {
+                  {/* SA / TA session markers — stack same-day vertically */}
+                  {visibleSessions.map((sess: SessionRecord) => {
                       const idx = colIdxFromDate(sess.date)
                       const left = idx * COL_W + COL_W / 2
                       const color = SESSION_COLOR[sess.type]
                       const fullLabel = sess.type === 'SA_MEETING' ? 'SA会议' : 'TA会议'
+                      const total = dayCount[sess.date] ?? 1
+                      const order = seen[sess.date] = (seen[sess.date] ?? 0) + 1
+                      // Center the stack vertically: offset each by STACK_H
+                      const offset = (order - 1 - (total - 1) / 2) * STACK_H
                       return (
                         <div
                           key={sess.id}
-                          className="absolute top-1/2 -translate-y-1/2 select-none cursor-pointer z-10"
-                          style={{ left }}
+                          className="absolute top-1/2 select-none cursor-pointer z-10"
+                          style={{ left, transform: `translateY(${offset}px) translateY(-50%)` }}
                           onClick={e => { e.stopPropagation(); navigate(`/students/${s.id}/session/${sess.id}/edit`) }}
                         >
                           <div
