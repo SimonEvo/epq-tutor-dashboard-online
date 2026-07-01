@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Student, GanttProject, GanttTask, SessionRecord } from '@/types'
 import { getGanttProject } from '@/lib/dataService'
+import AddSessionModal from '@/components/AddSessionModal'
 
 const SESSION_COLOR: Record<string, string> = {
   SA_MEETING: '#FA8072',
@@ -30,6 +31,7 @@ export default function GanttView({ students }: Props) {
   const [scrollLeft, setScrollLeft] = useState(0)
   const [containerWidth, setContainerWidth] = useState(0)
   const [initialScrollDone, setInitialScrollDone] = useState(false)
+  const [addSessionStudent, setAddSessionStudent] = useState<Student | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
 
@@ -154,6 +156,13 @@ export default function GanttView({ students }: Props) {
 
   return (
     <div className="relative">
+      {addSessionStudent && (
+        <AddSessionModal
+          student={addSessionStudent}
+          onClose={() => setAddSessionStudent(null)}
+          onSaved={() => setAddSessionStudent(null)}
+        />
+      )}
       <div
         ref={scrollRef}
         className="overflow-x-auto"
@@ -223,17 +232,27 @@ export default function GanttView({ students }: Props) {
             return (
               <div
                 key={s.id}
-                className="flex border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                className="group flex border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
                 style={{ minHeight: rowH }}
                 onClick={() => navigate(`/students/${s.id}`)}
               >
                 {/* Sticky name column */}
                 <div
-                  className="sticky left-0 w-40 shrink-0 px-3 py-2 flex flex-col justify-center bg-white border-r border-gray-100 z-30"
+                  className="sticky left-0 w-40 shrink-0 px-3 py-2 flex flex-col justify-center bg-white group-hover:bg-gray-50 border-r border-gray-100 z-30"
                   style={{ minHeight: rowH }}
                 >
                   <span className="text-sm font-medium text-gray-800 truncate">{s.name}</span>
                   {s.overview && <span className="text-xs text-gray-400 truncate">{s.overview}</span>}
+
+                  {/* Hover: + Session */}
+                  <div
+                    className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={e => { e.stopPropagation(); setAddSessionStudent(s) }}
+                  >
+                    <span className="text-xs font-semibold px-2 py-1 rounded-lg bg-[var(--accent)] text-white cursor-pointer whitespace-nowrap">
+                      + Session
+                    </span>
+                  </div>
                 </div>
 
                 {/* Bar area */}
