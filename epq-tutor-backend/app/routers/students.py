@@ -27,6 +27,7 @@ def _session_to_dict(s: models.Session) -> dict:
         "createdAt": s.created_at.isoformat() if s.created_at else "",
         "generatedReport": s.generated_report,
         "reportGeneratedAt": s.report_generated_at,
+        "reportExtraContext": s.report_extra_context,
         "zoomMeetingId": s.zoom_meeting_id,
         "zoomJoinUrl": s.zoom_join_url,
         "zoomPassword": s.zoom_password,
@@ -249,6 +250,7 @@ def _upsert_student(
             summary=sd.summary, homework=sd.homework, transcript=sd.transcript,
             private_notes=sd.privateNotes, generated_report=sd.generatedReport,
             report_generated_at=sd.reportGeneratedAt,
+            report_extra_context=sd.reportExtraContext,
             zoom_meeting_id=sd.zoomMeetingId, zoom_join_url=sd.zoomJoinUrl, zoom_password=sd.zoomPassword,
             created_at=datetime.fromisoformat(sd.createdAt) if sd.createdAt else datetime.now(timezone.utc),
         ))

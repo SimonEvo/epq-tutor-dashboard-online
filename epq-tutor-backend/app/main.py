@@ -59,6 +59,7 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE rounds ADD COLUMN is_archived BOOLEAN NOT NULL DEFAULT 0",
             "ALTER TABLE students ADD COLUMN schedule_entries JSON",
             "ALTER TABLE students ADD COLUMN ai_alias VARCHAR(128)",
+            "ALTER TABLE sessions ADD COLUMN report_extra_context TEXT",
         ]:
             try:
                 conn.execute(text(stmt))

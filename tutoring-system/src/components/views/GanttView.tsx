@@ -117,6 +117,12 @@ export default function GanttView({ students }: Props) {
     return tasks.filter(t => t.sectionId === secId)
   }
 
+  // ── 固定安排 section: whole-page highlight (出差 / deadlines 等) ──────────────
+  const FIXED_SECTION = '固定安排'
+  const FIXED_DEFAULT_COLOR = '#f59e0b'
+  const fixedSectionId = sectionIdByName.get(FIXED_SECTION)
+  const fixedTasks = fixedSectionId ? tasks.filter(t => t.sectionId === fixedSectionId) : []
+
   // ── Tooltip ──────────────────────────────────────────────────────────────
   function showTip(e: React.MouseEvent, text: string) { setTooltip({ text, x: e.clientX, y: e.clientY }) }
   function moveTip(e: React.MouseEvent) { setTooltip(t => t ? { ...t, x: e.clientX, y: e.clientY } : null) }
@@ -150,6 +156,32 @@ export default function GanttView({ students }: Props) {
   // ── Render helpers ───────────────────────────────────────────────────────
   function colIdxFromDate(iso: string): number {
     return daysBetween(startDate, new Date(iso + 'T12:00:00'))
+  }
+
+  // Subtle background band for a 固定安排 task (repeated per row → continuous vertical highlight)
+  function fixedBand(t: GanttTask, key: string) {
+    const color = t.color ?? FIXED_DEFAULT_COLOR
+    if (t.milestone || !t.endDate) {
+      const idx = colIdxFromDate(t.startDate)
+      if (idx < 0 || idx >= totalDays) return null
+      return (
+        <div
+          key={key}
+          className="absolute inset-y-0 pointer-events-none"
+          style={{ left: idx * COL_W + COL_W / 2 - 1, width: 2, background: color, opacity: 0.45 }}
+        />
+      )
+    }
+    const cs = Math.max(0, colIdxFromDate(t.startDate))
+    const ce = Math.min(totalDays - 1, colIdxFromDate(t.endDate))
+    if (cs > ce) return null
+    return (
+      <div
+        key={key}
+        className="absolute inset-y-0 pointer-events-none"
+        style={{ left: cs * COL_W, width: (ce - cs + 1) * COL_W, background: color, opacity: 0.1 }}
+      />
+    )
   }
 
   if (loading) return <div className="py-16 text-center text-sm text-gray-400">加载中…</div>
@@ -213,6 +245,52 @@ export default function GanttView({ students }: Props) {
             </div>
           </div>
 
+          {/* ── 固定安排 legend row ────────────────────────────────────── */}
+          {fixedTasks.length > 0 && (
+            <div className="flex border-b border-gray-200 bg-white" style={{ minHeight: 30 }}>
+              <div className="sticky left-0 w-40 shrink-0 px-3 flex items-center bg-gray-50 border-r border-gray-200 z-30 text-xs font-medium text-gray-500">
+                固定安排
+              </div>
+              <div className="relative" style={{ width: totalDays * COL_W, minHeight: 30 }}>
+                {fixedTasks.map(t => {
+                  const color = t.color ?? FIXED_DEFAULT_COLOR
+                  if (t.milestone || !t.endDate) {
+                    const idx = colIdxFromDate(t.startDate)
+                    if (idx < 0 || idx >= totalDays) return null
+                    return (
+                      <div
+                        key={t.id}
+                        className="absolute top-1/2 flex items-center gap-1 whitespace-nowrap"
+                        style={{ left: idx * COL_W + COL_W / 2, transform: 'translate(-50%,-50%)' }}
+                        onMouseEnter={e => showTip(e, `${t.name}：${t.startDate}`)}
+                        onMouseMove={moveTip}
+                        onMouseLeave={hideTip}
+                      >
+                        <span style={{ color, fontSize: 12 }}>◆</span>
+                        <span className="text-xs font-medium" style={{ color }}>{t.name}</span>
+                      </div>
+                    )
+                  }
+                  const cs = Math.max(0, colIdxFromDate(t.startDate))
+                  const ce = Math.min(totalDays - 1, colIdxFromDate(t.endDate))
+                  if (cs > ce) return null
+                  return (
+                    <div
+                      key={t.id}
+                      className="absolute top-1/2 -translate-y-1/2 rounded px-2 flex items-center overflow-hidden"
+                      style={{ left: cs * COL_W, width: (ce - cs + 1) * COL_W, height: 20, background: color, opacity: 0.9 }}
+                      onMouseEnter={e => showTip(e, `${t.name}：${t.startDate} → ${t.endDate}`)}
+                      onMouseMove={moveTip}
+                      onMouseLeave={hideTip}
+                    >
+                      <span className="text-white truncate font-medium" style={{ fontSize: 11 }}>{t.name}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           {/* ── Rows ──────────────────────────────────────────────────── */}
           {students.map(s => {
             const studentTasks = tasksForStudent(s.name)
@@ -275,6 +353,9 @@ export default function GanttView({ students }: Props) {
                       )
                     })}
                   </div>
+
+                  {/* 固定安排 highlight bands (出差 / deadlines) */}
+                  {fixedTasks.map(t => fixedBand(t, `${s.id}-${t.id}`))}
 
                   {/* SA / TA session markers — stack same-day vertically */}
                   {visibleSessions.map((sess: SessionRecord) => {

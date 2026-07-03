@@ -45,6 +45,7 @@ class SessionSchema(BaseModel):
     createdAt: str = ""
     generatedReport: Optional[str] = None
     reportGeneratedAt: Optional[str] = None
+    reportExtraContext: Optional[str] = None
     zoomMeetingId: Optional[str] = None
     zoomJoinUrl: Optional[str] = None
     zoomPassword: Optional[str] = None

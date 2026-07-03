@@ -235,7 +235,7 @@ function applyVars(template: string, vars: Record<string, string>): string {
 
 // ── Session Report ────────────────────────────────────────────────────────────
 
-export async function generateSessionReport(student: Student, session: SessionRecord): Promise<string> {
+export async function generateSessionReport(student: Student, session: SessionRecord, extraContext?: string): Promise<string> {
   const { sessionReportTemplate } = getSettings()
   const today = new Date().toISOString().slice(0, 10)
   const pastSaCount = student.sessions.filter(
@@ -269,6 +269,7 @@ export async function generateSessionReport(student: Student, session: SessionRe
   if (session.summary) dataParts.push(`\n课程记录（导师原始记录）：\n${session.summary}`)
   if (session.homework) dataParts.push(`\n课后任务（导师原始记录）：\n${session.homework}`)
   if (session.transcript) dataParts.push(`\n会议记录／逐字稿：\n${session.transcript}`)
+  if (extraContext?.trim()) dataParts.push(`\n额外补充（英方督导反馈／导师临时补充，请结合此内容生成报告）：\n${extraContext.trim()}`)
 
   return callAI(`${instructionPart}\n\n以下是本次课程信息：\n${dataParts.join('\n')}`)
 }

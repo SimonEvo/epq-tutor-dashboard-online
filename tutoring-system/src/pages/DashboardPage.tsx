@@ -49,6 +49,7 @@ export default function DashboardPage() {
   const [showStats, setShowStats] = useState(false)
   const [statsCutoff, setStatsCutoff] = useState(new Date().toISOString().slice(0, 10))
   const [statsRound, setStatsRound] = useState<string>('')
+  const [collapsedSA, setCollapsedSA] = useState<Set<string>>(new Set())
 
   // Weekly report modal
   const [showReport, setShowReport] = useState(false)
@@ -105,6 +106,30 @@ export default function DashboardPage() {
     })
     .sort((a, b) => a.s.name.localeCompare(b.s.name))
 
+  // Group stats by supervisor: how many sessions each SA taught + per-student breakdown
+  type StatRow = typeof statsRows[number]
+  const supervisorGroups = (() => {
+    const map = new Map<string, { key: string; name: string; saType: string; students: StatRow[]; totalSessions: number; totalMins: number }>()
+    for (const row of statsRows) {
+      const key = row.supervisor?.id ?? '__none__'
+      let g = map.get(key)
+      if (!g) {
+        g = { key, name: row.supervisor?.name ?? '未分配 SA', saType: row.supervisor?.saType ?? '英方SA', students: [], totalSessions: 0, totalMins: 0 }
+        map.set(key, g)
+      }
+      g.students.push(row)
+      g.totalSessions += row.sessionCount
+      g.totalMins += row.totalMins
+    }
+    return [...map.values()].sort((a, b) => b.totalSessions - a.totalSessions || a.name.localeCompare(b.name))
+  })()
+
+  const toggleSA = (key: string) => setCollapsedSA(prev => {
+    const next = new Set(prev)
+    next.has(key) ? next.delete(key) : next.add(key)
+    return next
+  })
+
   const handleGenerateReport = async () => {
     setGeneratingReport(true)
     setReportError('')
@@ -120,14 +145,14 @@ export default function DashboardPage() {
 
   const copyStatsText = () => {
     const header = `课时统计（截止 ${statsCutoff}）\n${'─'.repeat(60)}`
-    const rows = statsRows.map(({ s, supervisor, sessionCount, totalMins, pastSaHours, saRemaining }) =>
-      [
-        s.name + (s.nameEn ? ` (${s.nameEn})` : ''),
-        `${supervisor?.saType ?? '英方SA'}  SA已用 ${formatHours(pastSaHours)} / 共 ${s.saHoursTotal}h  剩余 ${formatHours(saRemaining)}`,
-        `共 ${sessionCount} 节课  总时长 ${formatHours(totalMins / 60)}`,
-      ].join('\n')
-    ).join('\n\n')
-    copyToClipboard(header + '\n\n' + rows)
+    const blocks = supervisorGroups.map(g => {
+      const title = `【${g.name}·${g.saType}】 共 ${g.totalSessions} 节课  总时长 ${formatHours(g.totalMins / 60)}`
+      const lines = g.students.map(({ s, sessionCount, totalMins }) =>
+        `  · ${s.name}${s.nameEn ? ` (${s.nameEn})` : ''}  ${sessionCount} 节  ${formatHours(totalMins / 60)}`
+      ).join('\n')
+      return title + '\n' + lines
+    }).join('\n\n')
+    copyToClipboard(header + '\n\n' + blocks)
   }
 
   return (
@@ -229,7 +254,7 @@ export default function DashboardPage() {
                 onChange={e => setStatsCutoff(e.target.value)}
                 className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
               />
-              <span className="text-xs text-gray-400">英方SA · {statsRows.length} 人</span>
+              <span className="text-xs text-gray-400">英方SA · {supervisorGroups.length} 位SA · {statsRows.length} 人</span>
               <button
                 onClick={copyStatsText}
                 className="ml-auto text-xs px-3 py-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors shrink-0"
@@ -263,55 +288,55 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Table */}
+          {/* Grouped by supervisor */}
           <div className="overflow-y-auto flex-1">
-            {statsRows.length === 0 ? (
+            {supervisorGroups.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-10">暂无英方SA学生数据</p>
             ) : (
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-gray-50 border-b border-gray-100">
-                  <tr>
-                    <th className="px-4 py-2.5 text-left text-xs text-gray-400 font-medium">学生</th>
-                    <th className="px-4 py-2.5 text-left text-xs text-gray-400 font-medium">SA信息</th>
-                    <th className="px-4 py-2.5 text-right text-xs text-gray-400 font-medium">课时数</th>
-                    <th className="px-4 py-2.5 text-right text-xs text-gray-400 font-medium">总时长</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {statsRows.map(({ s, supervisor, sessionCount, totalMins, pastSaHours, saRemaining }) => (
-                    <tr key={s.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-gray-900">{s.name}</p>
-                        {s.nameEn && <p className="text-xs text-gray-400">{s.nameEn}</p>}
-                      </td>
-                      <td className="px-4 py-3">
-                        {supervisor && (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--primary-bg)] text-[var(--primary)] mr-1.5">{supervisor.saType ?? '英方SA'}</span>
-                        )}
-                        <span className="text-xs text-gray-500">
-                          已用 {formatHours(pastSaHours)} / 共 {s.saHoursTotal}h
-                        </span>
-                        <span className={`text-xs ml-2 ${saRemaining <= 2 ? 'text-amber-600 font-medium' : 'text-gray-400'}`}>
-                          剩 {formatHours(saRemaining)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right text-gray-700 font-medium">{sessionCount} 节</td>
-                      <td className="px-4 py-3 text-right text-gray-700 font-medium">{formatHours(totalMins / 60)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot className="border-t border-gray-200 bg-gray-50">
-                  <tr>
-                    <td className="px-4 py-2.5 text-xs text-gray-400" colSpan={2}>合计</td>
-                    <td className="px-4 py-2.5 text-right text-sm font-semibold text-gray-800">
-                      {statsRows.reduce((s, r) => s + r.sessionCount, 0)} 节
-                    </td>
-                    <td className="px-4 py-2.5 text-right text-sm font-semibold text-gray-800">
-                      {formatHours(statsRows.reduce((s, r) => s + r.totalMins, 0) / 60)}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
+              <>
+                {supervisorGroups.map(g => {
+                  const collapsed = collapsedSA.has(g.key)
+                  return (
+                    <div key={g.key} className="border-b border-gray-100">
+                      {/* Supervisor header — click to collapse */}
+                      <button
+                        onClick={() => toggleSA(g.key)}
+                        className="w-full flex items-center gap-2 px-4 py-2.5 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+                      >
+                        <span className="text-gray-400 text-xs w-3 shrink-0">{collapsed ? '▸' : '▾'}</span>
+                        <span className="font-medium text-gray-900 text-sm">{g.name}</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--primary-bg)] text-[var(--primary)]">{g.saType}</span>
+                        <span className="text-xs text-gray-400">{g.students.length} 人</span>
+                        <span className="ml-auto text-sm font-semibold text-gray-800">{g.totalSessions} 节 · {formatHours(g.totalMins / 60)}</span>
+                      </button>
+
+                      {/* Collapsible student list */}
+                      {!collapsed && g.students.map(({ s, sessionCount, totalMins, pastSaHours, saRemaining }) => (
+                        <div key={s.id} className="flex items-center gap-3 pl-10 pr-4 py-2 border-t border-gray-50 hover:bg-gray-50 text-sm">
+                          <div className="flex-1 min-w-0">
+                            <span className="font-medium text-gray-900">{s.name}</span>
+                            {s.nameEn && <span className="text-xs text-gray-400 ml-1.5">{s.nameEn}</span>}
+                          </div>
+                          <span className="text-xs text-gray-400 shrink-0">
+                            已用 {formatHours(pastSaHours)}/{s.saHoursTotal}h
+                            <span className={`ml-2 ${saRemaining <= 2 ? 'text-amber-600 font-medium' : ''}`}>剩 {formatHours(saRemaining)}</span>
+                          </span>
+                          <span className="w-14 text-right text-gray-700 font-medium shrink-0">{sessionCount} 节</span>
+                          <span className="w-16 text-right text-gray-700 font-medium shrink-0">{formatHours(totalMins / 60)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })}
+
+                {/* Overall total */}
+                <div className="flex items-center px-4 py-3 bg-gray-50 border-t border-gray-200 text-sm">
+                  <span className="text-xs text-gray-400">合计</span>
+                  <span className="ml-auto font-semibold text-gray-800">
+                    {statsRows.reduce((s, r) => s + r.sessionCount, 0)} 节 · {formatHours(statsRows.reduce((s, r) => s + r.totalMins, 0) / 60)}
+                  </span>
+                </div>
+              </>
             )}
           </div>
         </div>
