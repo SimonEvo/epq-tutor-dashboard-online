@@ -21,7 +21,8 @@
       "Bash(npm install *)",
       "Bash(read -t 12)",
       "Bash(open *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(node \"C:/Users/Work/AppData/Local/Temp/claude/D------epq-tutor-dashboard-online/6325a4d1-7719-4ed8-abdb-3038c83507cc/scratchpad/test-parse.mjs\")"
     ]
   }
 }

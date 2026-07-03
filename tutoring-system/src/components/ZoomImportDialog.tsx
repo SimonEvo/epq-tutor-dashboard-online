@@ -8,13 +8,16 @@ import * as dataService from '@/lib/dataService'
 type ParsedFields = { summary: string; transcript: string; homework: string }
 
 const SECTION_MAP: Record<string, keyof ParsedFields> = {
-  // Zoom
+  // Zoom (English)
   'quick recap': 'summary',
   'summary': 'transcript',
   'next steps': 'homework',
   'action items': 'homework',
+  // Zoom (Chinese)
+  '快速回顾': 'summary',
+  '后续步骤': 'homework',
   // Tencent Meeting (腾讯会议)
-  '摘要': 'summary',
+  '摘要': 'summary', // overridden to 'transcript' when 快速回顾 present (Zoom Chinese)
   '待办': 'homework',
   '行动项': 'homework',
 }
@@ -25,9 +28,14 @@ function parseZoomRecap(text: string): ParsedFields {
   const buf: Partial<Record<keyof ParsedFields, string[]>> = {}
   let cur: keyof ParsedFields | null = null
 
+  // Zoom Chinese recap uses 快速回顾/摘要/后续步骤; there 摘要 is the full
+  // summary body (→ transcript), unlike Tencent Meeting where 摘要 → summary.
+  const isZoomChinese = lines.some(l => l.replace(/^#+\s*/, '').trim() === '快速回顾')
+
   for (const line of lines) {
     const bare = line.replace(/^#+\s*/, '').trim()
-    const mapped = SECTION_MAP[bare.toLowerCase()]
+    let mapped = SECTION_MAP[bare.toLowerCase()]
+    if (mapped && bare === '摘要' && isZoomChinese) mapped = 'transcript'
     // Numbered sections (e.g. "1. 三篇论文...") → transcript
     const isNumbered = /^\d+[\.、]/.test(bare)
     const field: keyof ParsedFields | undefined = mapped ?? (isNumbered ? 'transcript' : undefined)
@@ -194,7 +202,7 @@ export default function ZoomImportDialog({ session, onConfirm, onClose }: Props)
               {parsed.homework  && <PreviewField label="Next Steps → Homework（作业/下一步）"   value={parsed.homework} />}
               {!hasContent && (
                 <p className="text-xs text-gray-500">
-                  未识别到任何章节。请确认内容包含 <strong>Quick Recap</strong> / <strong>Summary</strong> / <strong>Next Steps</strong> 等标题。
+                  未识别到任何章节。请确认内容包含 <strong>Quick Recap / 快速回顾</strong>、<strong>Summary / 摘要</strong>、<strong>Next Steps / 后续步骤</strong> 等标题。
                 </p>
               )}
             </div>
