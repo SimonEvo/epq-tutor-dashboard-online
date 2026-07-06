@@ -24,6 +24,7 @@ export default function SessionReportPage() {
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
   const [fromCache, setFromCache] = useState(false)
+  const [extraContext, setExtraContext] = useState('')
 
   useEffect(() => {
     if (!id) return
@@ -31,6 +32,7 @@ export default function SessionReportPage() {
       setStudent(s)
       const session = s.sessions.find(x => x.id === sessionId)
       if (!session) return
+      if (session.reportExtraContext) setExtraContext(session.reportExtraContext)
       if (session.generatedReport) {
         setReport(session.generatedReport)
         setFromCache(true)
@@ -48,10 +50,10 @@ export default function SessionReportPage() {
     setFromCache(false)
     if (force) setReport('')
     try {
-      const text = await generateSessionReport(s, session)
+      const text = await generateSessionReport(s, session, extraContext)
       setReport(text)
       setSaving(true)
-      const updatedSession = { ...session, generatedReport: text, reportGeneratedAt: new Date().toISOString() }
+      const updatedSession = { ...session, generatedReport: text, reportGeneratedAt: new Date().toISOString(), reportExtraContext: extraContext.trim() || undefined }
       const updatedSessions = s.sessions.map(x => x.id === sessionId ? updatedSession : x)
       const updated: Student = { ...s, sessions: updatedSessions }
       await saveStudent(updated)
@@ -103,6 +105,21 @@ export default function SessionReportPage() {
         <span className="text-gray-400 text-sm">{session.title || sessionTypeLabel} · {session.date}</span>
         <span className="text-gray-300">/</span>
         <h1 className="text-xl font-semibold text-gray-900">课后报告</h1>
+      </div>
+
+      {/* 额外补充：英方督导发来的文字 / 导师临时补充 */}
+      <div className="mb-3">
+        <label className="text-xs font-medium text-gray-500 mb-1 block">
+          额外补充（可选）— 英方督导发来的文字、或你想补充的情况，会一并交给 AI
+        </label>
+        <textarea
+          value={extraContext}
+          onChange={e => setExtraContext(e.target.value)}
+          rows={3}
+          placeholder="例如：督导反馈学生本节课表现、需要强调的进度、家长特别关心的点…"
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] resize-y"
+        />
+        <p className="text-xs text-gray-400 mt-1">填写／修改后点「{report ? '重新生成' : '生成报告'}」生效</p>
       </div>
 
       <div className="flex items-center gap-2 mb-4 flex-wrap">

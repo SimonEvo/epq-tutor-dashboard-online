@@ -70,6 +70,7 @@ export interface SessionRecord {
   createdAt: string
   generatedReport?: string   // cached AI-generated parent report
   reportGeneratedAt?: string // ISO timestamp of when it was generated
+  reportExtraContext?: string // 生成报告时的额外补充（督导反馈／导师补充）
   zoomMeetingId?: string
   zoomJoinUrl?: string
   zoomPassword?: string

@@ -94,6 +94,7 @@ class Session(Base):
     private_notes = Column(Text, default="")
     generated_report = Column(Text)
     report_generated_at = Column(String(32))
+    report_extra_context = Column(Text)
     zoom_meeting_id = Column(String(64))
     zoom_join_url = Column(Text)
     zoom_password = Column(String(64))
