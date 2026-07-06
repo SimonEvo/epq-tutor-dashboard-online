@@ -72,6 +72,7 @@ cd /opt/epq-tutor-backend && .venv/bin/python migrate_from_local.py --data-dir /
 - （开始新任务前填这里）
 
 ### Next Up
+- **学生知识库（Student Knowledge Base）** — 单学生私有 AI 知识库，三层架构（自动结构化上下文 / 活总结 / 原料层）+ 消化流程。任务书 `docs/projects/student-knowledge-base.md`，决策 `docs/adr/0002-student-knowledge-base-architecture.md`，术语见 `CONTEXT.md`
 - Dashboard 多视图（看板 / 时间线 / 统计等）
 
 ## Agent skills

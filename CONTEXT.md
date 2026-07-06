@@ -113,8 +113,70 @@ Data sources: [[action-log]] + [[manual-log-entry]] entries within the 14-day wi
 ### Personal Entry
 Tutor's private diary/log. Not linked to any student. Not student-facing. Markdown content.
 
+### Student Knowledge Base
+A per-student, tutor-only accumulating context used by the tutor to chat with an AI and plan the next tutoring steps. **Sole user: the tutor.** Never student- or parent-facing; never exported.
+
+Distinct from [[session-report]]/[[progress-report]] (one-shot generators sent to parents) — the Knowledge Base is an ongoing, private planning surface. Replaces the tutor's current manual workflow of pasting context into a web AI chat.
+
+**Scope:** one chat is locked to a single student ("chat with 张三's KB"); it pulls only that student's data, never all 30. A cross-student **global assistant** ("who needs attention this week?") is explicitly deferred to a later phase — recorded, not built now.
+
+Architecture is **three layers**, solving three pains (ranked): (a) re-assembling context every time = worst; (b) insights lost across chats; (c) data scattered across system/WeChat/tutor's head.
+
+1. **Auto-assembled structured context** (solves a): rebuilt from DB on each chat, never cached stale. Full dump (1M-context API, room is ample). Candidate sources: session history + each session `summary`; SA session count used/total/remaining + cumulative SA duration; last SA / next SA / last TA / next TA dates; EPQ milestone statuses; [[schedule-entry]] exam/availability windows; `submissionRound`; Overview / Topic / Brief Note; [[private-notes]] content; [[homework-entry|Homework]] + done state; [[gantt-event|Gantt Events]]. **Which sources are pulled is configurable** via checkboxes in Settings — one **global toggle set per tutor** (not per-student), default all on, stored on `tutors` (alongside `default_round`). Tutor turns off sources they don't maintain (e.g. homework).
+2. **Living Summary** (solves b + compaction): a single, evolving, AI-maintained + tutor-editable text per student — the "current understanding". Loaded as the main backdrop of every chat. Mirrors the tutor's current manual habit (ask web AI to summarize → open a fresh chat). Rarely hand-edited; updated via the **digest** action.
+3. **Raw layer** (solves c + capture): an append-style inbox of undigested scraps per student — see [[knowledge-entry]]. Low-friction, one-way capture; touches no AI on write. Acts as the "latest patch" in a chat.
+
+**Digest action** (layer 3 → layer 2): after a chat (or on demand), AI proposes durable new facts from the conversation + undigested raw entries; tutor approves/edits/deletes; approved content is merged into the Living Summary (tutor sees the change before it lands); raw entries are then cleared/archived. This is the automated version of the tutor's summarize-then-restart workflow, and reuses the "propose then insert on approval" pattern.
+
+**Chat persistence:** conversation threads are NOT kept long-term (tutor manually clears when a chat gets long/messy). Only the Living Summary + Knowledge Entries persist.
+
+Existing [[private-notes]] is basically unused; its content is fed into the assembled context rather than migrated. Not deprecated formally, just superseded as an input source.
+
+**Privacy (both settled, both mandatory):**
+- **Name encoding — reused.** KB is the largest data-to-AI firehose in the system, so student real names MUST go through the existing AI Name Encoding (`aiAlias`): encode before sending, decode before display. Same mechanism as monthly-meeting AI. Real names never enter the AI provider's logs.
+- **privateNotes — second exception.** privateNotes MAY be included in the assembled KB context, because KB output is tutor-only and never reaches parents. This is the **second** explicit exception to "privateNotes never in exports" (the first is [[monthly-meeting]] AI draft), scope-limited to KB chat only. The governing test: *does the output ever reach a parent/student?* Session Report + Progress Report = yes → still filter privateNotes, unchanged by this feature. Monthly-meeting draft + KB chat = no (tutor-only) → allowed.
+
+**AI plumbing:**
+- **Model:** `deepseek-v4` (replaces the `qwen-plus` default in [`/api/ai/proxy`](epq-tutor-backend/app/routers/ai.py); baseUrl is already a request param so pointing at DeepSeek is config, not code). **Caveat to verify at build time:** confirm deepseek-v4's real context window; if it is not actually ~1M, add a fallback (truncate/summarize old sessions). Low risk here because scope is single-student; the 1M assumption only becomes load-bearing for the deferred global assistant.
+- **Multi-turn:** the current proxy is single-shot (`messages:[{role:user,...}]`). KB chat needs a multi-turn endpoint accepting a `messages` array. Since chat is not persisted server-side, the client holds the running message array and sends the whole thing each turn.
+- **Assembly + encoding move server-side (approved).** A new backend endpoint (e.g. `GET /api/students/{id}/kb-context`) pulls the enabled sources, applies AI Name Encoding, includes privateNotes, and returns the assembled structured block. This shifts prompt-building for KB off the client (a deliberate change from the existing "frontend builds prompts" pattern) so encoding + privateNotes handling live in one server-side place. Living Summary and Knowledge Entries are new server-side tables.
+
+**UI placement:** a new **「知识库」 tab** on the student detail page holds the whole feature — chat panel (main), Living Summary (viewable/editable), Raw inbox list with quick "+", and the digest button. Chosen because KB is single-student-scoped, so it belongs on the student page rather than a new top-level route.
+
+**Global quick-capture:** because raw entries are typically jotted mid-/post-class or while reading WeChat — when the tutor is not on that student's detail page — there is ALSO a global quick-capture entry (e.g. sidebar/Dashboard "速记" button): a popup that picks a student + takes one line, two steps, anywhere. Keeps capture friction low (the core of pain c).
+
+### Knowledge Entry
+One append-style record in the Raw layer of a [[student-knowledge-base]]. Timestamped, growing, individually retrievable — NOT a single blob like [[private-notes]]. Intended fields (draft): `timestamp`, `content`, optional source label (manual / WeChat excerpt / AI-derived insight). Undigested until a [[student-knowledge-base|digest]] folds it into the Living Summary, after which it is cleared/archived. Chosen over reusing `privateNotes` because the Raw layer needs timestamped, per-item entries, not one text field.
+
 ### Homework Entry
 A checklist of tasks assigned to a student after a session. Linked to its source session via `sourceLabel`. May have a deadline. Items are individually checkable (`done: boolean`).
+
+### 学生电子扫盲 (Student Digital Literacy Guide)
+Internal name. A **static, student-facing self-serve guide** covering the repetitive "book-keeping" operational questions the tutor keeps re-explaining — especially to younger students: how to fill each form/table, how to use online docs without losing data, basic computer operations.
+
+**Why static, not an AI chatbot:** a student-facing live AZ (option B) was rejected on cost structure, not merit — the tutor does not control the company's form-filling backend, and per-query tokens + server scaling are unaffordable for a solo tutor. The 90% of questions are the same FAQ, so evergreen static content suffices; the tutor still handles the 10% novel/personal cases in person.
+
+**Shape:** a standalone static HTML page served by Nginx — same pattern as `gantt-pro.html` (see ADR 0001). Text + screenshots + short GIFs/video. **No auth** (not tutor-only data; nothing sensitive), **no runtime AI, no per-query cost, no scaling.** Does NOT integrate with or touch the company form system — it only *explains how*.
+
+**AI's role shifts to authoring only:** AI helps the tutor draft the guide content once (one-time, cheap — even a web AI chat works), never answers students live.
+
+**Usage reality (design constraint):** students likely won't self-discover or bookmark it. Primary use is the tutor showing it **in-class**, students consulting later. Because many students can't reliably bookmark/re-find a URL, the access path must be dead-simple and re-shareable (open design item: short memorable URL and/or QR code shown in class). Distribution friction is a first-class problem, not an afterthought.
+
+**Content is generic/shared** (same for all students), evergreen — NOT per-student and NOT per-round. Distinct from [[student-knowledge-base]] (tutor-private, per-student).
+
+**Mobile-first (hard constraint):** students reach the page by scanning a QR with their phone, so the page must be designed mobile-first from day one — narrow-screen layout, large type/buttons, generous tap targets. Not a shrunk-down desktop page.
+
+**Access path:** primary = **QR code** shown in-class (far lower friction than expecting students to bookmark a URL; also puns on 扫盲/扫码). Backing = a short memorable path (e.g. `<domain>/help`). QR can also be printed on handout materials for repeat exposure. Distribution friction is treated as a first-class problem.
+
+**Content scope (all four kept):**
+- **A. Form filling** — one section per form: EPQ tables 1/2/4/5/6/7/11 — how to fill each, common mistakes.
+- **B. Online docs / data-loss prevention** — how to save, autosave, version history, why local-only storage loses work.
+- **C. Basic computer operations** — copy/paste, screenshots, finding files, uploading attachments, etc.
+- **D. EPQ process orientation** — what the EPQ project roughly is, its steps, and where the student currently is (light overlap with the parent-facing timeline idea; kept).
+
+Specific FAQ wording is deferred to build time (the tutor will pick the most-repeated real questions then).
+
+**Status: idea record only — NO ADR.** This is a lightweight, easily-reversible static page; the tutor chose to record it as a pure idea, not an architectural decision.
 
 ### Overview
 Short phrase categorising a student's EPQ topic — shown on the dashboard row as a compact identifier (e.g. "脑机接口", "气候变化"). Optional; if absent, nothing is shown. Distinct from Topic (the full EPQ title) and Brief Note (a freeform quick-reference).
