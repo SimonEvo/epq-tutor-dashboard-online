@@ -335,6 +335,115 @@ export async function createZoomMeeting(params: {
   return res.json() as Promise<{ meetingId: string; joinUrl: string; password: string; startUrl: string }>
 }
 
+// ── Student Knowledge Base ─────────────────────────────────────────────────────
+
+export type KbSource =
+  | 'sessions' | 'sa_hours' | 'meeting_dates' | 'milestones' | 'schedule_entries'
+  | 'submission_round' | 'profile' | 'private_notes' | 'homework' | 'gantt_events'
+
+export type KbSourceToggles = Record<KbSource, boolean>
+
+export interface KnowledgeEntry {
+  id: string
+  content: string
+  source: 'manual' | 'wechat' | 'ai'
+  createdAt: string
+  digestedAt: string | null
+}
+
+export interface ChatMessage {
+  role: 'system' | 'user' | 'assistant'
+  content: string
+}
+
+// Layer 1: assembled structured context (REAL names — encoding happens at the
+// AI boundary in kbChat/kbDigest/kbMerge, never client-side for KB).
+export async function getKbContext(studentId: string): Promise<{ context: string; charCount: number }> {
+  return api(`/students/${studentId}/kb-context`)
+}
+
+// Layer 2: Living Summary
+export async function getLivingSummary(studentId: string): Promise<{ content: string; updatedAt: string }> {
+  return api(`/students/${studentId}/living-summary`)
+}
+
+export async function putLivingSummary(
+  studentId: string, content: string, digestedEntryIds: string[] = [],
+): Promise<{ content: string; updatedAt: string }> {
+  return api(`/students/${studentId}/living-summary`, {
+    method: 'PUT',
+    body: JSON.stringify({ content, digestedEntryIds }),
+  })
+}
+
+// Layer 3: Raw entries
+export async function getKnowledgeEntries(studentId: string, all = false): Promise<KnowledgeEntry[]> {
+  return api(`/students/${studentId}/knowledge-entries${all ? '?all=true' : ''}`)
+}
+
+export async function addKnowledgeEntry(
+  studentId: string, content: string, source: KnowledgeEntry['source'] = 'manual',
+): Promise<KnowledgeEntry> {
+  return api(`/students/${studentId}/knowledge-entries`, {
+    method: 'POST',
+    body: JSON.stringify({ content, source }),
+  })
+}
+
+export async function deleteKnowledgeEntry(studentId: string, entryId: string): Promise<void> {
+  await api(`/students/${studentId}/knowledge-entries/${entryId}`, { method: 'DELETE' })
+}
+
+// Multi-turn chat — the single AI boundary (server encodes/decodes names).
+export async function kbChat(
+  studentId: string, messages: ChatMessage[],
+  ai: { apiKey: string; model: string; baseUrl: string },
+): Promise<{ content: string }> {
+  return api('/ai/chat', {
+    method: 'POST',
+    body: JSON.stringify({
+      studentId, messages,
+      apiKey: ai.apiKey, model: ai.model, baseUrl: ai.baseUrl,
+    }),
+  })
+}
+
+// Digest: propose durable facts (not persisted).
+export async function kbDigest(
+  studentId: string, messages: ChatMessage[],
+  ai: { apiKey: string; model: string; baseUrl: string },
+): Promise<{ proposals: string[]; rawReply: string | null; entryIds: string[] }> {
+  return api(`/students/${studentId}/kb-digest`, {
+    method: 'POST',
+    body: JSON.stringify({ messages, apiKey: ai.apiKey, model: ai.model, baseUrl: ai.baseUrl }),
+  })
+}
+
+// Merge approved facts into the summary — returns a preview (not persisted).
+export async function kbMerge(
+  studentId: string, approvedFacts: string[],
+  ai: { apiKey: string; model: string; baseUrl: string },
+): Promise<{ merged: string; previous: string }> {
+  return api(`/students/${studentId}/living-summary/merge`, {
+    method: 'POST',
+    body: JSON.stringify({ approvedFacts, apiKey: ai.apiKey, model: ai.model, baseUrl: ai.baseUrl }),
+  })
+}
+
+// Global source toggles (Settings)
+export async function getKbSources(): Promise<KbSourceToggles> {
+  const res = await api<{ sources: KbSourceToggles }>('/config/kb-sources')
+  return res.sources
+}
+
+export async function putKbSources(sources: KbSourceToggles): Promise<KbSourceToggles> {
+  const res = await api<{ sources: KbSourceToggles }>('/config/kb-sources', {
+    method: 'PUT',
+    body: JSON.stringify({ sources }),
+  })
+  return res.sources
+}
+
 // ── Gantt ─────────────────────────────────────────────────────────────────────
 
 export async function getGanttProjects(): Promise<GanttProjectSummary[]> {

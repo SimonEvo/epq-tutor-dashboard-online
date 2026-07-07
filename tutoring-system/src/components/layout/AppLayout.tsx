@@ -2,6 +2,7 @@ import { Outlet } from 'react-router-dom'
 import { useStudentStore } from '@/stores/studentStore'
 import { useEffect, useState } from 'react'
 import PromptTemplateEditor from '@/components/PromptTemplateEditor'
+import QuickCaptureModal from '@/components/KnowledgeBase/QuickCaptureModal'
 import AppSidebar from './AppSidebar'
 
 function BeijingClock() {
@@ -37,10 +38,11 @@ const CAL_LABEL = {
 export default function AppLayout() {
   const calendarSync = useStudentStore(s => s.calendarSync)
   const [promptEditorOpen, setPromptEditorOpen] = useState(false)
+  const [quickCaptureOpen, setQuickCaptureOpen] = useState(false)
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: '#f5f5f7' }}>
-      <AppSidebar onAiClick={() => setPromptEditorOpen(true)} />
+      <AppSidebar onAiClick={() => setPromptEditorOpen(true)} onQuickCaptureClick={() => setQuickCaptureOpen(true)} />
 
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         {/* Slim top bar: clock + calendar sync status */}
@@ -72,6 +74,7 @@ export default function AppLayout() {
       </div>
 
       <PromptTemplateEditor open={promptEditorOpen} onClose={() => setPromptEditorOpen(false)} />
+      <QuickCaptureModal open={quickCaptureOpen} onClose={() => setQuickCaptureOpen(false)} />
     </div>
   )
 }

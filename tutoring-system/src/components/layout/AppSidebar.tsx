@@ -32,6 +32,12 @@ const Icons = {
       <path d="M12 2l2 7h7l-5.5 4 2 7L12 16l-5.5 4 2-7L3 9h7z"/>
     </svg>
   ),
+  capture: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 20h9"/>
+      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+    </svg>
+  ),
   zoom: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M23 7l-7 5 7 5V7z"/>
@@ -85,9 +91,10 @@ interface NavItem {
 
 interface Props {
   onAiClick?: () => void
+  onQuickCaptureClick?: () => void
 }
 
-export default function AppSidebar({ onAiClick }: Props) {
+export default function AppSidebar({ onAiClick, onQuickCaptureClick }: Props) {
   const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     {
       label: '主要',
@@ -100,6 +107,7 @@ export default function AppSidebar({ onAiClick }: Props) {
     {
       label: '工具',
       items: [
+        { label: '速记', icon: Icons.capture, onClick: onQuickCaptureClick },
         { label: 'AI 指令', icon: Icons.ai, onClick: onAiClick },
         { to: '/zoom-config', label: 'Zoom', icon: Icons.zoom },
         { to: '/workflow-analysis', label: '工作流分析', icon: Icons.workflow },
