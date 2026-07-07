@@ -60,8 +60,16 @@ export default function KnowledgeBaseTab({ studentId }: { studentId: string; stu
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  // chat
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  // chat — cached per student in sessionStorage so it survives tab switches /
+  // navigation / reload within the browser session. Cleared only on 清空 or
+  // after a digest lands (see confirmMerge); NOT cleared by leaving the tab.
+  const chatCacheKey = `kb-chat-${studentId}`
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    try {
+      const raw = sessionStorage.getItem(`kb-chat-${studentId}`)
+      return raw ? JSON.parse(raw) as ChatMessage[] : []
+    } catch { return [] }
+  })
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const chatEndRef = useRef<HTMLDivElement>(null)
@@ -105,6 +113,14 @@ export default function KnowledgeBaseTab({ studentId }: { studentId: string; stu
   }, [studentId])
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, sending])
+
+  // Persist chat to the per-student cache on every change; empty = drop the key.
+  useEffect(() => {
+    try {
+      if (messages.length) sessionStorage.setItem(chatCacheKey, JSON.stringify(messages))
+      else sessionStorage.removeItem(chatCacheKey)
+    } catch { /* storage full / disabled — non-fatal */ }
+  }, [messages, chatCacheKey])
 
   const send = async () => {
     const text = input.trim()
@@ -186,6 +202,7 @@ export default function KnowledgeBaseTab({ studentId }: { studentId: string; stu
     const res = await dataService.putLivingSummary(studentId, mergePreview.merged, digestEntryIds)
     setSummary(res.content); setSummaryUpdatedAt(res.updatedAt)
     setMergePreview(null); setDigestEntryIds([])
+    setMessages([])  // digest has landed into the Living Summary — clear the ephemeral chat
     await reloadEntries()
   }
 
