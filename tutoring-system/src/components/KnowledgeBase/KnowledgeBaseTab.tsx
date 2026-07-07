@@ -15,17 +15,38 @@ function aiConfig() {
   return { apiKey: aiApiKey, model: aiModel, baseUrl: aiBaseUrl }
 }
 
+const KB_SYSTEM_PROMPT = `你是资深 EPQ（Extended Project Qualification）辅导专家，担任这名学生的私人辅导参谋，只对导师一人服务。
+
+## EPQ 领域知识
+- EPQ 是独立研究项目：学生在 TA（教学助理，日常辅导）与 SA（Subject Advisor，学术督导）指导下完成约5000字论文或作品。
+- 论文里程碑大致顺序：选题 → 问卷(可选) → Intro → 文综(Literature Review) → 方法论 → 结果 → 讨论 → 反思 → 结语 → 文献 → 摘要；另有官方表格 表1/2/4/5/6/7/11，以及答辩、提交。
+- SA 有两条独立红线：会面课次配额、累计时长；两者都要盯。
+- 常见卡点：选题过大/不可研究、文综堆砌无批判、方法论与研究问题不匹配、赶 deadline、学生动力不足。遇到相关信号要主动预警。
+
+## 上下文分三层，权重不同
+1. **结构化档案** — 客观事实底座（课时、里程碑、日期），最可信但只是事实。
+2. **活总结** — 导师对该生的当前理解，是你判断的主要地基。
+3. **未消化原料** — 最新、尚未整合的碎片，当作"最新补丁"，优先级最高，可能推翻旧判断。
+三层冲突时以更新的信号为准，并明确指出冲突。
+
+## 行为准则
+- 主动、有主见：别只回答问题，主动指出风险、进度异常、被忽略的里程碑、临近的 deadline。
+- 具体可执行：下一步落到"做什么 / 为什么 / 怎么做"，让导师能直接照做，不说正确的废话。
+- 诚实：信息不足时明说缺什么并向导师反问，绝不编造学生细节或 EPQ 事实。
+- 精炼：判断在前、依据居中、建议收尾。用 Markdown（标题/列表/加粗）组织，但不啰嗦。
+
+（注：文中学生姓名为化名，直接使用即可。）`
+
 /** Build the fresh system/context message sent every turn (chat isn't persisted). */
 function buildSystemMessage(context: string, summary: string, entries: KnowledgeEntry[]): string {
   const parts = [
-    '你是导师的私人EPQ辅导助手。以下是该学生的完整背景，请据此帮助导师规划下一步辅导。',
-    '（注：文中学生姓名为化名，直接使用即可。）',
-    '\n# 一、结构化档案\n' + context,
+    KB_SYSTEM_PROMPT,
+    '\n---\n# 一、结构化档案（客观事实）\n' + context,
   ]
-  if (summary.trim()) parts.push('\n# 二、当前对该学生的理解（活总结）\n' + summary)
+  if (summary.trim()) parts.push('\n# 二、活总结（导师当前理解 · 判断地基）\n' + summary)
   const undigested = entries.filter(e => !e.digestedAt)
   if (undigested.length) {
-    parts.push('\n# 三、最新未消化原料\n' + undigested.map(e => `- ${e.content}`).join('\n'))
+    parts.push('\n# 三、未消化原料（最新补丁 · 优先级最高）\n' + undigested.map(e => `- ${e.content}`).join('\n'))
   }
   return parts.join('\n')
 }
@@ -281,16 +302,20 @@ export default function KnowledgeBaseTab({ studentId }: { studentId: string; stu
             </button>
           </div>
           <div className="p-3 space-y-2">
-            <div className="flex gap-2">
-              <input value={newEntry} onChange={e => setNewEntry(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addEntry() } }}
-                placeholder="随手记一条…" className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]" />
-              <select value={newSource} onChange={e => setNewSource(e.target.value as KnowledgeEntry['source'])}
-                className="text-xs border border-gray-200 rounded-lg px-2">
-                <option value="manual">手动</option>
-                <option value="wechat">微信</option>
-              </select>
-              <button onClick={addEntry} className="text-sm px-3 rounded-lg bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)]">+</button>
+            <div className="flex gap-2 items-end">
+              <textarea value={newEntry} onChange={e => setNewEntry(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); addEntry() } }}
+                rows={2}
+                placeholder="随手记一条…（Cmd/Ctrl+Enter 保存）"
+                className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[var(--primary)] resize-none" />
+              <div className="flex flex-col gap-1.5">
+                <select value={newSource} onChange={e => setNewSource(e.target.value as KnowledgeEntry['source'])}
+                  className="text-xs border border-gray-200 rounded-lg px-2 py-1">
+                  <option value="manual">手动</option>
+                  <option value="wechat">微信</option>
+                </select>
+                <button onClick={addEntry} className="text-sm py-1 rounded-lg bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)]">+ 添加</button>
+              </div>
             </div>
             <p className="text-xs text-gray-300">{undigestedCount} 条未消化</p>
             <div className="space-y-1.5 max-h-72 overflow-y-auto">
