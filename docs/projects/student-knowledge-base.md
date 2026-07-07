@@ -79,7 +79,7 @@
 - Homework 清单 + 完成状态（导师常不维护此项，是全局开关的典型关闭候选）
 - Gantt Events（考试 / 假期 / 截止；见 gantt 相关表）
 
-**构建期需核对：** deepseek-v4 的真实上下文窗口。若非 ~1M，给层1 加退路（老 session 截断或先摘要）。单学生数据量小，风险低；1M 假设主要为延后的全局助手服务。
+**已核对（2026-07-07）：** deepseek-v4 确认有 ~1M 上下文窗口，层1 全量塞无需退路。单学生数据量小，风险本就低。
 
 ## 6. 隐私（两条都是硬性、强制）
 
@@ -147,11 +147,12 @@
 - `POST /api/students/{id}/living-summary/merge` —— 批准后合并进活总结。
 - 多轮对话：扩展 `POST /api/ai/proxy` 收 `messages`，或新增 `POST /api/ai/chat`。出站编码 / 入站解码在此处理。
 
-## 10. 构建期待定项（本文档有意留空，实现时定）
-- deepseek-v4 上下文窗口实测 + 超限退路（§5 末）。
-- 全局开关的存储形态（JSON 列 vs 多布尔列）。
-- 活总结编辑 UI 的具体形态；消化提议的展示交互。
-- 是否需要"重新生成活总结"（全量重建）而非增量合并。
+## 10. 构建期待定项（更新于 2026-07-07，多数已定）
+- ~~deepseek-v4 上下文窗口实测~~ → **已确认 ~1M**，无需退路（§5 末）。
+- ~~全局开关的存储形态~~ → **定为 JSON 列** `tutors.kb_context_sources`（TEXT 存 JSON；`NULL` = 全开）。加新源不用迁移。
+- ~~多轮端点形态~~ → **定为新增 `POST /api/ai/chat`**，不改现有 `/api/ai/proxy`（月会等旧功能零风险）。
+- 活总结编辑 UI 具体形态；消化提议的展示交互 —— 实现时定，遵守 §7.3 流程即可。
+- 是否需要"重新生成活总结"（全量重建）—— 延后，先做增量合并。
 
 ## 11. 现有代码指针速查
 | 用途 | 位置 |
@@ -165,3 +166,101 @@
 | tutor 配置（放全局开关，参照 default_round） | `epq-tutor-backend/app/routers/config.py` |
 | 模型 / schema | `epq-tutor-backend/app/models.py` / `schemas.py` |
 | privateNotes 字段 | `models.py` / `schemas.py`（`private_notes` / `privateNotes`） |
+
+## 12. 实现路线（已批准，按此执行）
+
+> 依赖顺序。P1、P2 可并行；P3 依赖两者；前端各阶段依赖对应后端端点。建议节奏：P1–P5 后端一个工作块，P6–P8 前端一个工作块，P9 收尾。每阶段完成即 commit。
+
+```
+P1 后端数据层(表+CRUD) ──┐
+P2 匿名编码 Python 移植 ──┼→ P3 层1拼装端点 → P4 多轮聊天端点 → P5 消化/合并端点
+                          │
+P6 前端 dataService 接线 ←┘ → P7 知识库 Tab → P8 全局速记 + Settings 开关 → P9 部署验证
+```
+
+### P1 · 后端数据层
+
+改动文件：`models.py` / `schemas.py` / 新建 `routers/knowledge.py` / `main.py` 注册路由。
+
+1. 两张新表（照 §4 字段）：
+   - `StudentLivingSummary`：`id` / `student_id`（unique FK）/ `content` TEXT / `updated_at`
+   - `StudentKnowledgeEntry`：`id` / `student_id` FK / `content` TEXT / `source`（`manual|wechat|ai`）/ `created_at` / `digested_at` nullable
+   - 沿用现有 `Base.metadata.create_all` 模式，SQLite 自动建缺失表，无需迁移脚本。
+2. Pydantic schema：`LivingSummarySchema` / `KnowledgeEntrySchema`（驼峰字段，照现有风格）。
+3. 端点（全部带 `get_current_tutor` + 校验 student 属于该 tutor，照 `config.py` 风格）：
+   - `GET/PUT /api/students/{id}/living-summary` — PUT 时刷 `updated_at`
+   - `GET /api/students/{id}/knowledge-entries?all=false` — 默认只返回 `digested_at IS NULL`，按 `created_at` 倒序
+   - `POST /api/students/{id}/knowledge-entries` — body：`content` + `source`
+   - `DELETE /api/students/{id}/knowledge-entries/{entry_id}`
+
+### P2 · 匿名编码 Python 移植（可与 P1 并行）
+
+新建 `epq-tutor-backend/app/name_encoding.py`。
+
+1. 从 `claudeService.ts` ~402–450 行移植四个函数：`generate_ai_alias` / `build_name_mappings` / `encode_names` / `decode_names`。
+2. 规则逐条对齐（§6.1 硬性）：先全名替换；再"名"（`realName[1:]` → `alias[1:]`，仅当长度≥2）；单字姓不编码；解码反向、长别名优先。
+3. **必须写对照 pytest**：以 TS 版真实输出为金标准，覆盖：全名 / 只出现名 / 单字姓 / 别名未设 / 同一名字多处出现。两语言双实现，行为漂移是本功能最大隐患。
+
+### P3 · 层1 拼装端点
+
+`GET /api/students/{id}/kb-context`，放 `routers/knowledge.py`。
+
+1. 全局开关：`tutors.kb_context_sources` JSON 列（§10 已定）+ `GET/PUT /api/config/kb-sources`（照 `config.py` 的 `default-round` 模式）。
+2. 按开关逐源拉数据拼 Markdown 结构化块（源清单见 §5，含 privateNotes——第二例外，§6.2）。SA 时长由 session 现算，勿缓存。
+3. 拼装后调 P2 编码，返回 `{ context: string, charCount: number }`。
+4. **mappings 不回传前端**：解码全部在服务端做（P4/P5 端点各自现拉 mappings）。前端全程只见真名，别名永不落前端——严格执行"编码集中一处"的 ADR 决策。
+
+### P4 · 多轮聊天端点
+
+`POST /api/ai/chat`，放 `ai.py`（§10 已定：新端点，不动 `/proxy`）。
+
+1. Body：`{ studentId, messages: [{role, content}], apiKey, model="deepseek-v4", baseUrl, maxTokens }`。
+2. 流程：服务端现拉该学生 mappings → 出站 encode 整个 `messages` 数组（前端发真名）→ 转发 DeepSeek → 入站 decode → 返回 `{ content }`。前端消息数组全程真名，历史重发无编码状态问题。
+3. 对话不持久化：前端握完整 `messages`，每轮整包发（ADR 0002 已定）。
+4. `maxTokens` 默认 ≥4096；HTTP timeout ≥120s（长上下文响应慢）。
+
+### P5 · 消化流程端点
+
+1. `POST /api/students/{id}/kb-digest`：
+   - Body：本轮对话 `messages` + apiKey 等。
+   - 服务端拉未消化 entries + 对话 → 编码 → 调 AI 产出"提议新增耐久事实"（prompt 要求 JSON 数组输出）→ 解码 → 返回 `{ proposals: [{content, sourceEntryIds}] }`。**不落库**。
+2. `POST /api/students/{id}/living-summary/merge`：
+   - Body：`{ approvedFacts: [...], entryIds: [...], apiKey }`。
+   - 调 AI 把批准事实合并进现活总结 → 解码 → **返回新版全文给前端预览，不直接落地**。前端确认后走已有 `PUT living-summary` 落地（满足 §7.3 "导师看到改动再落地"，后端更简单）。
+   - 落地请求中附 `entryIds`，PUT 处理时标记这些条目的 `digested_at` 并刷 `updated_at`（或单独一个确认端点，实现时按最顺手的定，但归档必须与落地同事务）。
+
+### P6 · 前端数据层
+
+`dataService.ts` 加方法（走 `apiFetch`，JWT 自动附带）：`getKbContext` / `getLivingSummary` / `putLivingSummary` / `getKnowledgeEntries` / `addKnowledgeEntry` / `deleteKnowledgeEntry` / `kbChat` / `kbDigest` / `kbMerge` / `getKbSources` / `putKbSources`。类型定义照现有习惯放置。
+
+### P7 · 知识库 Tab（前端主体）
+
+`StudentDetailPage.tsx` 加「知识库」Tab，内容拆到新目录 `components/KnowledgeBase/`：
+
+1. **ChatPanel**（主区）：开聊时并行调 `getKbContext` + `getLivingSummary` + `getKnowledgeEntries`，拼首条 system/context 消息（层1+层2+层3）；多轮 state 在组件内不持久化；「清空对话」按钮；apiKey / model 读现有 localStorage 配置（照 `claudeService.ts` `callAI` 模式）。
+2. **LivingSummaryPanel**（侧栏/折叠区）：Markdown 展示 + textarea 编辑 + 保存。
+3. **RawInbox**：倒序列表、`source` 徽标（手动/微信/AI）、「+」快速添加、删除；默认只显未消化，可切换查看已归档。
+4. **消化按钮**：弹提议列表 → 逐条勾选/编辑/删除 → 批准 → 展示新旧活总结对比 → 确认落地。
+
+### P8 · 全局速记 + Settings 开关
+
+1. **全局速记**（解 c 的关键，勿漏，§8.2）：侧边栏加「速记」按钮 → 弹窗（学生下拉 + 单行输入 + source 选 manual/wechat）→ `addKnowledgeEntry`。两步、全站可用。
+2. **Settings 页**：加「知识库上下文来源」勾选组，读写 `kb-sources`，默认全开。
+
+### P9 · 部署验证（清单逐项过）
+
+1. `./deploy.sh` → 浏览器 Cmd+Shift+R。
+2. 服务器 SQLite 确认两张新表存在。
+3. **kb-context 输出无任何真名**（拿含学生姓名的真实数据实测编码）。
+4. **privateNotes 在 kb-context 中出现**（第二例外生效）；**Session Report / Progress Report 仍过滤 privateNotes**（回归验证，这两处代码必须零改动）。
+5. 全链路走一遍：多轮对话 → 消化 → 提议 → 批准 → 活总结更新 → 原料条目归档。
+6. 全局速记从 Dashboard 加条目 → 对应学生详情页可见。
+
+### 风险点（实现时盯紧）
+
+| 风险 | 对策 |
+|---|---|
+| TS/Python 编码行为漂移 | P2 对照 pytest，以 TS 真实输出为金标准 |
+| privateNotes 经新路径漏进对外报告 | KB 内容只进 KB 端点；Session/Progress Report 代码零改动 |
+| 长上下文请求超时 | chat/digest/merge 端点 timeout ≥120s |
+| 消化提议 JSON 解析失败 | prompt 强约束输出格式 + 解析失败时原文返回给前端人工处理 |
