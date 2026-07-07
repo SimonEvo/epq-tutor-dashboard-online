@@ -213,3 +213,31 @@ class WeeklyReportSchema(BaseModel):
     generatedAt: str
     content: str
     cache: dict
+
+
+# ── Student Knowledge Base ────────────────────────────────────────────────────
+
+class LivingSummarySchema(BaseModel):
+    """Layer 2 — evolving per-student understanding."""
+    content: str = ""
+    updatedAt: str = ""
+
+
+class LivingSummaryUpdateSchema(BaseModel):
+    content: str
+    # When set, these raw entries are marked digested atomically with the save.
+    digestedEntryIds: list[str] = []
+
+
+class KnowledgeEntrySchema(BaseModel):
+    """Layer 3 — one raw inbox item."""
+    id: str
+    content: str
+    source: str = "manual"  # manual | wechat | ai
+    createdAt: str = ""
+    digestedAt: Optional[str] = None
+
+
+class KnowledgeEntryCreateSchema(BaseModel):
+    content: str
+    source: str = "manual"

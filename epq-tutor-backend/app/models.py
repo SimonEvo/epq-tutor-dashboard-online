@@ -17,6 +17,7 @@ class Tutor(Base):
     username = Column(String(64), unique=True, nullable=False)
     password_hash = Column(String(256), nullable=False)
     default_round = Column(String(64), nullable=True)
+    kb_context_sources = Column(JSON, nullable=True)  # KB layer-1 source toggles; null = all on
     created_at = Column(DateTime, default=now_utc)
     students = relationship("Student", back_populates="tutor")
 
@@ -235,6 +236,26 @@ class Trial(Base):
     linked_student_id = Column(String(64), nullable=True)
     created_at = Column(DateTime, default=now_utc)
     updated_at = Column(DateTime, default=now_utc, onupdate=now_utc)
+
+
+class StudentLivingSummary(Base):
+    """Layer 2 — one evolving AI-maintained summary per student. 0..1 per student."""
+    __tablename__ = "student_living_summaries"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    student_id = Column(String(64), ForeignKey("students.id"), nullable=False, unique=True)
+    content = Column(Text, default="")
+    updated_at = Column(DateTime, default=now_utc, onupdate=now_utc)
+
+
+class StudentKnowledgeEntry(Base):
+    """Layer 3 — append-only raw inbox of undigested scraps per student."""
+    __tablename__ = "student_knowledge_entries"
+    id = Column(String(64), primary_key=True)
+    student_id = Column(String(64), ForeignKey("students.id"), nullable=False, index=True)
+    content = Column(Text, nullable=False)
+    source = Column(String(16), nullable=False, default="manual")  # manual | wechat | ai
+    created_at = Column(DateTime, default=now_utc, index=True)
+    digested_at = Column(DateTime, nullable=True)  # non-null = archived after a digest
 
 
 class GanttProject(Base):
