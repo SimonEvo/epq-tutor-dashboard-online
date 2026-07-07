@@ -7,7 +7,7 @@ persistence CRUD plus the layer-1 assembly endpoint.
 import json
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -191,6 +191,26 @@ def _today() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
 
+def _is_session_started(sess) -> bool:
+    """Mirror of frontend isSessionStarted (formatters.ts): a session counts as
+    started only once its date (and time, if set) has passed. Not-started
+    sessions must be excluded from all history / SA-hour reasoning so the AI
+    doesn't treat an upcoming meeting as an empty-record past one.
+
+    Matches the frontend exactly: date compared in UTC, time in CST.
+    """
+    now = datetime.now(timezone.utc)
+    today = now.strftime("%Y-%m-%d")
+    if sess.date < today:
+        return True
+    if sess.date > today:
+        return False
+    if not sess.time:
+        return True
+    cst = now.astimezone(timezone(timedelta(hours=8)))
+    return cst.strftime("%H:%M") >= sess.time
+
+
 def _load_full_student(db: Session, student_id: str, tutor_id: str) -> models.Student:
     s = (
         db.query(models.Student)
@@ -209,7 +229,6 @@ def _load_full_student(db: Session, student_id: str, tutor_id: str) -> models.St
 
 def _assemble_context(db: Session, s: models.Student, sources: dict[str, bool]) -> str:
     """Build the layer-1 markdown block (real names — encoded by the caller)."""
-    today = _today()
     parts: list[str] = [f"# 学生档案：{s.name}" + (f"（{s.name_en}）" if s.name_en else "")]
 
     if sources.get("profile"):
@@ -226,8 +245,10 @@ def _assemble_context(db: Session, s: models.Student, sources: dict[str, bool]) 
     if sources.get("submission_round") and s.submission_round:
         parts.append(f"## 学期\n{s.submission_round}")
 
-    past = [x for x in s.sessions if x.date <= today]
-    future = [x for x in s.sessions if x.date > today]
+    # Not-started sessions are excluded from all history / hour reasoning below;
+    # they may still surface as "下次 SA/TA" in meeting_dates (that's their point).
+    past = [x for x in s.sessions if _is_session_started(x)]
+    future = [x for x in s.sessions if not _is_session_started(x)]
 
     if sources.get("sa_hours"):
         sa_past = [x for x in past if x.type == "SA_MEETING"]
@@ -255,8 +276,9 @@ def _assemble_context(db: Session, s: models.Student, sources: dict[str, bool]) 
         parts.append("## 会面日期\n" + "\n".join(lines))
 
     if sources.get("sessions"):
+        # Only started sessions — an upcoming meeting has no record to report.
         rows = []
-        for x in sorted(s.sessions, key=lambda x: x.date):
+        for x in sorted(past, key=lambda x: x.date):
             label = SESSION_TYPE_LABELS.get(x.type, x.type)
             title = f" {x.title}" if x.title else ""
             summary = (x.summary or "").strip() or "（无记录）"
