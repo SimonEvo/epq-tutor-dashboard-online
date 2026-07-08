@@ -28,7 +28,7 @@ export default function DashboardPage() {
   const [selectedRound, setSelectedRound] = useState<string>(
     () => localStorage.getItem('dashboard-round') ?? ''
   )
-  const [selectedSupervisor, setSelectedSupervisor] = useState<string>('')
+  const [saFilter, setSaFilter] = useState<'' | 'SA' | 'TA'>('')
   const [sortBy, setSortBy] = useState<'name' | 'lastSession'>('lastSession')
   const [viewMode, setViewMode] = useState<ViewMode>(
     () => (localStorage.getItem('dashboard-view-mode') as ViewMode) ?? 'overview'
@@ -73,7 +73,12 @@ export default function DashboardPage() {
   const filtered = students
     .filter(s => !selectedTag || s.tags.includes(selectedTag))
     .filter(s => !selectedRound || s.submissionRound === selectedRound)
-    .filter(s => !selectedSupervisor || s.supervisorId === selectedSupervisor)
+    .filter(s => {
+      if (!saFilter) return true
+      const supervisor = supervisors.find(sv => sv.id === s.supervisorId)
+      const isZhongFang = supervisor?.saType === '中方SA'
+      return saFilter === 'SA' ? isZhongFang : !isZhongFang
+    })
     .sort((a, b) => {
       if (sortBy === 'name') return a.name.localeCompare(b.name)
       const lastA = getLastSession(a)
@@ -501,22 +506,23 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Row 2: supervisor filter */}
-        {supervisors.length > 0 && (
-          <div className="flex gap-2 flex-wrap items-center">
-            <span className="text-xs text-gray-400">SA:</span>
-            <select
-              value={selectedSupervisor}
-              onChange={e => setSelectedSupervisor(e.target.value)}
-              className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white"
+        {/* Row 2: my role filter (SA / TA) */}
+        <div className="flex gap-2 flex-wrap items-center">
+          <span className="text-xs text-gray-400">我的角色:</span>
+          {([['', '全部'], ['SA', 'SA'], ['TA', 'TA']] as const).map(([value, label]) => (
+            <button
+              key={value}
+              onClick={() => setSaFilter(value)}
+              className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                saFilter === value
+                  ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
+                  : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+              }`}
             >
-              <option value="">All</option>
-              {supervisors.map(sa => (
-                <option key={sa.id} value={sa.id}>{sa.name}</option>
-              ))}
-            </select>
-          </div>
-        )}
+              {label}
+            </button>
+          ))}
+        </div>
 
         {/* Row 3: tag filter */}
         {tags.length > 0 && (
