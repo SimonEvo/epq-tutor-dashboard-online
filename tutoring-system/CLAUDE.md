@@ -32,7 +32,6 @@ npm run typecheck
 - `privateNotes` must NEVER appear in export output — filter at serialization layer in dataService.ts
 - All GitHub API calls go through `src/lib/dataService.ts` only — components never call Octokit directly
 - PAT only in localStorage — never log it, never in error messages
-- SA session records are immutable after save (require explicit confirmation to edit)
 - No server-side code in this repo — everything is static
 
 ## Completed Features

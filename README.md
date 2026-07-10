@@ -141,12 +141,8 @@ npm run deploy
 ### 日常更新
 
 ```bash
-# 根目录一键部署前后端
-./deploy.sh
-
-# 或分别部署
-cd epq-tutor-backend && ./deploy.sh     # 只更新后端
-cd tutoring-system && npm run deploy    # 只更新前端
+# 根目录一键部署前后端（跨平台，mac/Win 通用）
+python deploy.py
 ```
 
 ### 从 GitHub 数据仓库迁移历史数据

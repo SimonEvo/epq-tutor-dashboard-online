@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import type { Student, GanttProject, GanttTask, SessionRecord } from '@/types'
 import { getGanttProject } from '@/lib/dataService'
 import AddSessionModal from '@/components/AddSessionModal'
+import QuickSessionEditPopover from '@/components/QuickSessionEditPopover'
 
 const SESSION_COLOR: Record<string, string> = {
   SA_MEETING: '#FA8072',
@@ -32,6 +33,7 @@ export default function GanttView({ students }: Props) {
   const [containerWidth, setContainerWidth] = useState(0)
   const [initialScrollDone, setInitialScrollDone] = useState(false)
   const [addSessionStudent, setAddSessionStudent] = useState<Student | null>(null)
+  const [editSession, setEditSession] = useState<{ studentId: string; studentName: string; sessionId: string } | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const prevStartRef = useRef<Date | null>(null)
   const navigate = useNavigate()
@@ -211,6 +213,15 @@ export default function GanttView({ students }: Props) {
           onSaved={() => setAddSessionStudent(null)}
         />
       )}
+      {editSession && (
+        <QuickSessionEditPopover
+          studentId={editSession.studentId}
+          studentName={editSession.studentName}
+          sessionId={editSession.sessionId}
+          onClose={() => setEditSession(null)}
+          onSaved={() => setEditSession(null)}
+        />
+      )}
       <div
         ref={scrollRef}
         className="overflow-x-auto"
@@ -388,7 +399,7 @@ export default function GanttView({ students }: Props) {
                           key={sess.id}
                           className="absolute top-1/2 select-none cursor-pointer z-10"
                           style={{ left, transform: `translateY(${offset}px) translateY(-50%)` }}
-                          onClick={e => { e.stopPropagation(); navigate(`/students/${s.id}/session/${sess.id}/edit`) }}
+                          onClick={e => { e.stopPropagation(); setEditSession({ studentId: s.id, studentName: s.name, sessionId: sess.id }) }}
                         >
                           <div
                             className="rounded-md px-2 py-0.5 text-white whitespace-nowrap"

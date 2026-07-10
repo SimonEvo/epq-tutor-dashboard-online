@@ -4,8 +4,7 @@
     {
       "name": "tutoring-system",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "cwd": "/Users/simonsong/Documents/projects/epq-tutor-dashboard-online/tutoring-system",
+      "runtimeArgs": ["--prefix", "tutoring-system", "run", "dev"],
       "port": 5173
     }
   ]

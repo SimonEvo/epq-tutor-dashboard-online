@@ -11,7 +11,7 @@ EPQ 学生辅导进度管理系统，单人家教自用，最多 30 名学生。
 epq-tutor-dashboard-online/
 ├── tutoring-system/      # React 前端
 ├── epq-tutor-backend/    # FastAPI 后端
-├── deploy.sh             # 一键部署前后端
+├── deploy.py             # 一键部署前后端（跨平台，mac/Win 通用）
 └── CLAUDE.md
 ```
 
@@ -24,8 +24,8 @@ epq-tutor-dashboard-online/
 
 ## 常用命令
 ```bash
-# 一键部署前后端（在根目录运行）
-./deploy.sh
+# 一键部署前后端（在根目录运行，mac/Win 通用）
+python deploy.py
 
 # 前端单独开发
 cd tutoring-system && npm run dev   # localhost:5173（需后端在 8001 运行）
@@ -37,7 +37,7 @@ cd epq-tutor-backend && .venv/bin/uvicorn app.main:app --reload --port 8001
 cd /opt/epq-tutor-backend && .venv/bin/python migrate_from_local.py --data-dir /opt/epq-tutor-data
 ```
 
-**每次修改后运行 `./deploy.sh` 并在浏览器强刷（Cmd+Shift+R）验证。**
+**每次修改后运行 `python deploy.py` 并在浏览器强刷（Cmd+Shift+R）验证。**
 
 ## 架构要点
 - 前端所有 API 调用经过 `tutoring-system/src/lib/dataService.ts`
@@ -69,7 +69,7 @@ cd /opt/epq-tutor-backend && .venv/bin/python migrate_from_local.py --data-dir /
 
 ## 当前状态
 ### In Progress
-- **学生知识库** — P1–P8 已实现并本地验证（分支 `feature/student-knowledge-base`）。**待办：`./deploy.sh` 上线 + 线上强刷验证（P9）**。后端已加两表 + `tutors.kb_context_sources` 列，`create_all` / ALTER 自动迁移，无需手动建表。
+- **学生知识库** — P1–P8 已实现并本地验证（分支 `feature/student-knowledge-base`）。**待办：`python deploy.py` 上线 + 线上强刷验证（P9）**。后端已加两表 + `tutors.kb_context_sources` 列，`create_all` / ALTER 自动迁移，无需手动建表。
 
 ### Next Up
 - **学生知识库（Student Knowledge Base）** — 单学生私有 AI 知识库，三层架构（自动结构化上下文 / 活总结 / 原料层）+ 消化流程。任务书 `docs/projects/student-knowledge-base.md`（**§12 实现路线已批准，P1–P8 完成**），决策 `docs/adr/0002-student-knowledge-base-architecture.md`，术语见 `CONTEXT.md`
