@@ -130,6 +130,48 @@ def export_round(
     return JSONResponse(content={"round": name, "students": data})
 
 
+# ── Knowledge Base layer-1 source toggles ─────────────────────────────────────
+# Canonical source keys, all default ON. Stored per-tutor as a JSON dict on
+# tutors.kb_context_sources; null / missing key = ON.
+KB_SOURCE_KEYS = [
+    "sessions",          # session history + each summary
+    "sa_hours",          # SA session count used/total/remaining + cumulative duration
+    "meeting_dates",     # last/next SA + last/next TA dates
+    "milestones",        # EPQ milestone statuses
+    "schedule_entries",  # exam / availability windows (latest)
+    "submission_round",  # 学期
+    "profile",           # Overview / Topic / Brief Note
+    "private_notes",     # privateNotes (second exception — tutor-only KB)
+    "homework",          # homework list + done state
+    "gantt_events",      # gantt exam/holiday/deadline events
+]
+
+
+def effective_kb_sources(tutor: models.Tutor) -> dict[str, bool]:
+    stored = tutor.kb_context_sources or {}
+    return {k: bool(stored.get(k, True)) for k in KB_SOURCE_KEYS}
+
+
+@router.get("/kb-sources")
+def get_kb_sources(
+    db: Session = Depends(get_db),
+    tutor: models.Tutor = Depends(get_current_tutor),
+):
+    return {"sources": effective_kb_sources(tutor)}
+
+
+@router.put("/kb-sources")
+def set_kb_sources(
+    data: dict,
+    db: Session = Depends(get_db),
+    tutor: models.Tutor = Depends(get_current_tutor),
+):
+    incoming = data.get("sources") or {}
+    tutor.kb_context_sources = {k: bool(incoming.get(k, True)) for k in KB_SOURCE_KEYS}
+    db.commit()
+    return {"sources": effective_kb_sources(tutor)}
+
+
 @router.get("/default-round")
 def get_default_round(
     db: Session = Depends(get_db),

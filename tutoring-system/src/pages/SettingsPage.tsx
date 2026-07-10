@@ -9,6 +9,19 @@ import { getToken } from '@/lib/githubClient'
 import { THEMES } from '@/lib/themes'
 import { useThemeStore } from '@/stores/themeStore'
 
+const KB_SOURCE_LABELS: [dataService.KbSource, string][] = [
+  ['sessions', '课程历史 + 记录'],
+  ['sa_hours', 'SA 课时 / 时长'],
+  ['meeting_dates', '上次/下次 SA·TA 日期'],
+  ['milestones', 'EPQ 里程碑'],
+  ['schedule_entries', '考试 / 可用时间'],
+  ['submission_round', '提交学期'],
+  ['profile', '概览 / 课题 / 速记'],
+  ['private_notes', '导师私人备注'],
+  ['homework', '作业清单'],
+  ['gantt_events', '甘特事件'],
+]
+
 export default function SettingsPage() {
   const [settings, setSettings] = useState(getSettings)
   const [saved, setSaved] = useState(false)
@@ -26,6 +39,8 @@ export default function SettingsPage() {
   const [defaultRoundSaving, setDefaultRoundSaving] = useState(false)
   const [archivedRounds, setArchivedRounds] = useState<ArchivedRound[]>([])
   const [expandedArchive, setExpandedArchive] = useState<string | null>(null)
+  const [kbSources, setKbSources] = useState<dataService.KbSourceToggles | null>(null)
+  const [kbSaving, setKbSaving] = useState(false)
 
   const themeId = useThemeStore(s => s.themeId)
   const setTheme = useThemeStore(s => s.setTheme)
@@ -40,6 +55,7 @@ export default function SettingsPage() {
     dataService.getDefaultRound().then(setDefaultRound).catch(() => {})
     dataService.getArchivedRounds().then(setArchivedRounds).catch(() => {})
     dataService.listBackups().then(setBackups).catch(() => {})
+    dataService.getKbSources().then(setKbSources).catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keep in sync if a background save updated the store URL.
@@ -359,6 +375,43 @@ export default function SettingsPage() {
               {defaultRoundSaving ? '保存中…' : '保存'}
             </button>
           </div>
+        </section>
+
+        <section className="bg-white rounded-2xl border border-gray-200 p-6">
+          <h2 className="text-sm font-semibold text-gray-900 mb-1">知识库上下文来源</h2>
+          <p className="text-xs text-gray-400 mb-3">开聊时自动装配进上下文的数据源。关掉你不维护的项（如作业）。默认全开，对所有学生生效。</p>
+          {kbSources === null ? (
+            <p className="text-xs text-gray-300">加载中…</p>
+          ) : (
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                {KB_SOURCE_LABELS.map(([key, label]) => (
+                  <label key={key} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={kbSources[key]}
+                      onChange={() => setKbSources(s => s ? { ...s, [key]: !s[key] } : s)}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+              <button
+                type="button"
+                disabled={kbSaving}
+                onClick={async () => {
+                  if (!kbSources) return
+                  setKbSaving(true)
+                  const res = await dataService.putKbSources(kbSources).catch(() => null)
+                  if (res) setKbSources(res)
+                  setKbSaving(false)
+                }}
+                className="text-sm px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-colors mt-1"
+              >
+                {kbSaving ? '保存中…' : '保存'}
+              </button>
+            </div>
+          )}
         </section>
 
         <section className="bg-white rounded-2xl border border-gray-200 p-6">

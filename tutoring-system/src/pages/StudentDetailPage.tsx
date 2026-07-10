@@ -9,6 +9,7 @@ import MindMapEditor from '@/components/MindMapEditor'
 import HomeworkParseDialog from '@/components/HomeworkParseDialog'
 import ZoomImportDialog from '@/components/ZoomImportDialog'
 import ZoomScheduleDialog from '@/components/ZoomScheduleDialog'
+import KnowledgeBaseTab from '@/components/KnowledgeBase/KnowledgeBaseTab'
 import { isSessionStarted, formatHours } from '@/lib/formatters'
 import * as dataService from '@/lib/dataService'
 
@@ -43,6 +44,7 @@ export default function StudentDetailPage() {
   const { saveStudent, supervisors, fetchSupervisors } = useStudentStore()
 
   const [student, setStudent] = useState<Student | null>(null)
+  const [activeTab, setActiveTab] = useState<'profile' | 'kb'>('profile')
   const [fetching, setFetching] = useState(true)
   const [saving, setSaving] = useState(false)
   const [editingBriefNote, setEditingBriefNote] = useState(false)
@@ -615,6 +617,26 @@ export default function StudentDetailPage() {
         </div>
       </div>
 
+      {/* Tab bar */}
+      <div className="flex gap-1 mb-5 border-b border-gray-100">
+        <button
+          onClick={() => setActiveTab('profile')}
+          className={`text-sm px-4 py-2 -mb-px border-b-2 transition-colors ${activeTab === 'profile' ? 'border-[var(--primary)] text-[var(--primary)] font-medium' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+        >
+          档案
+        </button>
+        <button
+          onClick={() => setActiveTab('kb')}
+          className={`text-sm px-4 py-2 -mb-px border-b-2 transition-colors ${activeTab === 'kb' ? 'border-[var(--primary)] text-[var(--primary)] font-medium' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+        >
+          知识库
+        </button>
+      </div>
+
+      {activeTab === 'kb' && <KnowledgeBaseTab studentId={student.id} studentName={student.name} />}
+
+      {activeTab === 'profile' && (
+      <>
       {/* Brief Note — inline editable */}
       <div className="mb-5">
         {editingBriefNote ? (
@@ -1442,11 +1464,8 @@ export default function StudentDetailPage() {
           </div>
         )}
       </div>
-
-
-
-
-
+      </>
+      )}
     </div>
     </>
   )

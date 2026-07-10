@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
-from app.routers import auth, students, supervisors, config, reports, calendar, backup as backup_router, zoom, trials, workflow, ai, gantt
+from app.routers import auth, students, supervisors, config, reports, calendar, backup as backup_router, zoom, trials, workflow, ai, gantt, knowledge
 from app.database import engine, SessionLocal
 from app import models
 
@@ -60,6 +60,7 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE students ADD COLUMN schedule_entries JSON",
             "ALTER TABLE students ADD COLUMN ai_alias VARCHAR(128)",
             "ALTER TABLE sessions ADD COLUMN report_extra_context TEXT",
+            "ALTER TABLE tutors ADD COLUMN kb_context_sources JSON",
         ]:
             try:
                 conn.execute(text(stmt))
@@ -120,6 +121,7 @@ app.include_router(trials.router)
 app.include_router(workflow.router)
 app.include_router(ai.router)
 app.include_router(gantt.router)
+app.include_router(knowledge.router)
 
 
 @app.get("/health")

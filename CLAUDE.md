@@ -69,10 +69,10 @@ cd /opt/epq-tutor-backend && .venv/bin/python migrate_from_local.py --data-dir /
 
 ## 当前状态
 ### In Progress
-- （开始新任务前填这里）
+- **学生知识库** — P1–P8 已实现并本地验证（分支 `feature/student-knowledge-base`）。**待办：`./deploy.sh` 上线 + 线上强刷验证（P9）**。后端已加两表 + `tutors.kb_context_sources` 列，`create_all` / ALTER 自动迁移，无需手动建表。
 
 ### Next Up
-- **学生知识库（Student Knowledge Base）** — 单学生私有 AI 知识库，三层架构（自动结构化上下文 / 活总结 / 原料层）+ 消化流程。任务书 `docs/projects/student-knowledge-base.md`（**§12 实现路线已批准，按 P1–P9 执行**），决策 `docs/adr/0002-student-knowledge-base-architecture.md`，术语见 `CONTEXT.md`
+- **学生知识库（Student Knowledge Base）** — 单学生私有 AI 知识库，三层架构（自动结构化上下文 / 活总结 / 原料层）+ 消化流程。任务书 `docs/projects/student-knowledge-base.md`（**§12 实现路线已批准，P1–P8 完成**），决策 `docs/adr/0002-student-knowledge-base-architecture.md`，术语见 `CONTEXT.md`
 - Dashboard 多视图（看板 / 时间线 / 统计等）
 
 ## Agent skills
