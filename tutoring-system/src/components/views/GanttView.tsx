@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Student, Supervisor, GanttProject, GanttTask, SessionRecord } from '@/types'
 import { getGanttProject } from '@/lib/dataService'
@@ -48,6 +48,7 @@ export default function GanttView({ students, supervisors }: Props) {
   const [initialScrollDone, setInitialScrollDone] = useState(false)
   const [addSessionStudent, setAddSessionStudent] = useState<Student | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const prevStartRef = useRef<Date | null>(null)
   const navigate = useNavigate()
 
   const today = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d }, [])
@@ -112,7 +113,22 @@ export default function GanttView({ students, supervisors }: Props) {
     const target = Math.max(0, todayPx - el.clientWidth * 0.3)
     el.scrollTo({ left: target })
     setInitialScrollDone(true)
-  }, [totalDays, todayColIdx, initialScrollDone])
+    prevStartRef.current = startDate
+  }, [totalDays, todayColIdx, initialScrollDone, startDate])
+
+  // ── Keep the left-edge date fixed when the range shifts (e.g. 切学期) ─────────
+  // startDate (day-0) is derived from the visible students' earliest date, so a
+  // round switch moves it. scrollLeft is in pixels, so the same pixel would then
+  // point at a different date and the view appears to jump. Compensate by the
+  // day delta so the calendar date under the viewport stays put.
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    const prev = prevStartRef.current
+    if (!el || !prev || !initialScrollDone) { prevStartRef.current = startDate; return }
+    const dayShift = daysBetween(startDate, prev) // >0 when the range now starts earlier
+    if (dayShift !== 0) el.scrollLeft += dayShift * COL_W
+    prevStartRef.current = startDate
+  }, [startDate, initialScrollDone])
 
   // ── Fetch GanttProject ───────────────────────────────────────────────────
   useEffect(() => {
