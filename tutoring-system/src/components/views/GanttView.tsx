@@ -1,18 +1,29 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { Student, GanttProject, GanttTask, SessionRecord } from '@/types'
+import type { Student, Supervisor, GanttProject, GanttTask, SessionRecord } from '@/types'
 import { getGanttProject } from '@/lib/dataService'
 import AddSessionModal from '@/components/AddSessionModal'
 
 const SESSION_COLOR: Record<string, string> = {
   SA_MEETING: '#FA8072',
   TA_MEETING: '#3b82f6',
+  THEORY: '#22c55e',
+}
+
+// 中方SA（tutor 亲自当 SA）会议用温和 prince 紫区分；英方SA 用正常 salmon
+const SA_ZHONGFANG_COLOR = '#9575CD'
+
+const SESSION_LABEL: Record<string, string> = {
+  SA_MEETING: 'SA会议',
+  TA_MEETING: 'TA会议',
+  THEORY: '理论课',
 }
 
 const COL_W = 64
 
 interface Props {
   students: Student[]
+  supervisors: Supervisor[]
 }
 
 function pad(n: number) { return String(n).padStart(2, '0') }
@@ -24,7 +35,11 @@ interface TooltipState { text: string; x: number; y: number }
 
 const MONTHS = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月']
 
-export default function GanttView({ students }: Props) {
+export default function GanttView({ students, supervisors }: Props) {
+  const supervisorById = useMemo(
+    () => new Map(supervisors.map(sv => [sv.id, sv])),
+    [supervisors]
+  )
   const [project, setProject] = useState<GanttProject | null>(null)
   const [loading, setLoading] = useState(true)
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
@@ -297,9 +312,12 @@ export default function GanttView({ students }: Props) {
 
             // Group same-day session markers so they stack instead of overlap
             const visibleSessions = (s.sessions ?? []).filter((sess: SessionRecord) =>
-              (sess.type === 'SA_MEETING' || sess.type === 'TA_MEETING') &&
+              (sess.type === 'SA_MEETING' || sess.type === 'TA_MEETING' || sess.type === 'THEORY') &&
               sess.date >= toISO(startDate) && sess.date <= toISO(endDate)
             )
+            const isZhongFangSA = s.supervisorId
+              ? supervisorById.get(s.supervisorId)?.saType === '中方SA'
+              : false
             const dayCount: Record<string, number> = {}
             for (const sess of visibleSessions) dayCount[sess.date] = (dayCount[sess.date] ?? 0) + 1
             const maxStack = Math.max(1, ...Object.values(dayCount))
@@ -361,8 +379,10 @@ export default function GanttView({ students }: Props) {
                   {visibleSessions.map((sess: SessionRecord) => {
                       const idx = colIdxFromDate(sess.date)
                       const left = idx * COL_W + COL_W / 2
-                      const color = SESSION_COLOR[sess.type]
-                      const fullLabel = sess.type === 'SA_MEETING' ? 'SA会议' : 'TA会议'
+                      const color = sess.type === 'SA_MEETING' && isZhongFangSA
+                        ? SA_ZHONGFANG_COLOR
+                        : SESSION_COLOR[sess.type]
+                      const fullLabel = SESSION_LABEL[sess.type]
                       const total = dayCount[sess.date] ?? 1
                       const order = seen[sess.date] = (seen[sess.date] ?? 0) + 1
                       // Center the stack vertically: offset each by STACK_H

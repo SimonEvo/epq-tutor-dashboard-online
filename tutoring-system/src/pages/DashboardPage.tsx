@@ -562,7 +562,7 @@ export default function DashboardPage() {
       ) : viewMode === 'overview' ? (
         <OverviewView students={filtered} supervisors={supervisors} />
       ) : viewMode === 'gantt' ? (
-        <GanttView students={filtered} />
+        <GanttView students={filtered} supervisors={supervisors} />
       ) : viewMode === 'kanban-progress' ? (
         <KanbanProgressView students={filtered} />
       ) : viewMode === 'milestone' ? (
