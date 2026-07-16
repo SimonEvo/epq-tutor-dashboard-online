@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import type { Student } from '@/types'
 import { EPQ_MILESTONES } from '@/config'
-import { formatHours, isSessionStarted } from '@/lib/formatters'
+import { formatHours, isSessionStarted, countsAsSaHour } from '@/lib/formatters'
 
 interface Props {
   student: Student
@@ -13,7 +13,7 @@ export default function StudentCompactCard({ student }: Props) {
   const progress = applicable.length > 0 ? Math.round((completed / applicable.length) * 100) : 0
 
   const pastSaHoursUsed = student.sessions
-    .filter(s => s.type === 'SA_MEETING' && isSessionStarted(s))
+    .filter(s => countsAsSaHour(s) && isSessionStarted(s))
     .reduce((sum, s) => sum + s.durationMinutes / 60, 0)
   const saLow = student.saHoursTotal - pastSaHoursUsed <= 2
 

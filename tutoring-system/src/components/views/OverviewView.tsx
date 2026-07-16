@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Student, Supervisor } from '@/types'
-import { isSessionStarted, formatHours } from '@/lib/formatters'
+import { isSessionStarted, formatHours, countsAsSaHour } from '@/lib/formatters'
 import AddSessionModal from '@/components/AddSessionModal'
 
 interface Props {
@@ -109,10 +109,10 @@ export default function OverviewView({ students, supervisors }: Props) {
         const touchedLabel = student.updatedAt ? formatTouched(student.updatedAt) : '—'
         const touchedToday = student.updatedAt ? daysSince(student.updatedAt) === 0 : false
 
-        const saUsed = student.sessions.filter(s => s.type === 'SA_MEETING' && isSessionStarted(s)).length
+        const saUsed = student.sessions.filter(s => countsAsSaHour(s) && isSessionStarted(s)).length
         const saRemaining = student.saHoursTotal - saUsed
         const saLow = saRemaining <= 2
-        const saTotalMins = student.sessions.filter(s => s.type === 'SA_MEETING' && isSessionStarted(s)).reduce((s, x) => s + x.durationMinutes, 0)
+        const saTotalMins = student.sessions.filter(s => countsAsSaHour(s) && isSessionStarted(s)).reduce((s, x) => s + x.durationMinutes, 0)
         const saRemainingMins = student.saHoursTotal * 60 - saTotalMins
         const saColor = saLow ? '#ef4444' : '#10b981'
 

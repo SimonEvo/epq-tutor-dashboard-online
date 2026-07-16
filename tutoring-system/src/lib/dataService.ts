@@ -120,6 +120,21 @@ export function downloadRoundExport(name: string, token: string): void {
     })
 }
 
+/** 下载全部数据的完整快照到本地（单个 JSON 文件）。 */
+export async function downloadLocalBackup(token: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/backup/download`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error(`下载失败：${res.status}`)
+  const blob = await res.blob()
+  const href = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = href
+  a.download = `epq-backup-${new Date().toISOString().slice(0, 10)}.json`
+  a.click()
+  URL.revokeObjectURL(href)
+}
+
 // ─── Supervisors ─────────────────────────────────────────────────────────────
 
 export async function listSupervisors(): Promise<Supervisor[]> {
@@ -241,6 +256,21 @@ export async function listBackups(): Promise<{ date: string; students: number; s
 
 export async function restoreBackup(date: string): Promise<{ ok: boolean; restored: { students: number; supervisors: number; tags: number } }> {
   return api(`/backup/restore/${date}`, { method: 'POST' })
+}
+
+/** 从本地上传的完整 JSON 快照恢复数据。 */
+export async function restoreLocalBackup(file: File): Promise<{ ok: boolean; restored: { students: number; supervisors: number; tags: number } }> {
+  let snapshot: unknown
+  try {
+    snapshot = JSON.parse(await file.text())
+  } catch {
+    throw new Error('文件不是有效的 JSON')
+  }
+  return api('/backup/restore-upload', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(snapshot),
+  })
 }
 
 // ─── Auth check ──────────────────────────────────────────────────────────────

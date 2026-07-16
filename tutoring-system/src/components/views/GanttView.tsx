@@ -11,6 +11,10 @@ const SESSION_COLOR: Record<string, string> = {
   THEORY: '#22c55e',
 }
 
+// SA 课后反馈状态环：已发送=绿；未发送且已到第 3 个工作日（含逾期）=黄
+const FEEDBACK_DONE_RING = '#16a34a'
+const FEEDBACK_DUE_RING = '#eab308'
+
 // 中方SA（tutor 亲自当 SA）会议用温和 prince 紫区分；英方SA 用正常 salmon
 const SA_ZHONGFANG_COLOR = '#9575CD'
 
@@ -31,6 +35,18 @@ function pad(n: number) { return String(n).padStart(2, '0') }
 function toISO(d: Date) { return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}` }
 function addDays(d: Date, n: number) { const r = new Date(d); r.setDate(r.getDate() + n); return r }
 function daysBetween(a: Date, b: Date) { return Math.round((b.getTime() - a.getTime()) / 86400000) }
+// 工作日（周一~周五）计数，[fromISO, toISO] 闭区间；to 早于 from 返回 0
+function workingDaysInclusive(fromISO: string, toISO: string): number {
+  const from = new Date(fromISO + 'T12:00:00')
+  const to = new Date(toISO + 'T12:00:00')
+  if (to < from) return 0
+  let count = 0
+  for (const d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+    const wd = d.getDay()
+    if (wd !== 0 && wd !== 6) count++
+  }
+  return count
+}
 
 interface TooltipState { text: string; x: number; y: number }
 
@@ -409,7 +425,21 @@ export default function GanttView({ students, supervisors }: Props) {
                       const color = sess.type === 'SA_MEETING' && isZhongFangSA
                         ? SA_ZHONGFANG_COLOR
                         : SESSION_COLOR[sess.type]
-                      const fullLabel = SESSION_LABEL[sess.type]
+                      const isSA = sess.type === 'SA_MEETING'
+                      const isDefense = isSA && sess.isFinalDefense
+                      const fullLabel = isDefense ? '最终答辩' : SESSION_LABEL[sess.type]
+                      // SA 课后反馈状态环：已发送=绿；未发送且已到第 3 个工作日（含逾期）=黄
+                      let feedbackRing: string | undefined
+                      let feedbackTip: string | undefined
+                      if (isSA) {
+                        if (sess.feedbackSent) {
+                          feedbackRing = FEEDBACK_DONE_RING
+                          feedbackTip = '课后反馈已发送'
+                        } else if (sess.date <= todayISO && workingDaysInclusive(sess.date, todayISO) >= 3) {
+                          feedbackRing = FEEDBACK_DUE_RING
+                          feedbackTip = '课后反馈今天必须提供'
+                        }
+                      }
                       const total = dayCount[sess.date] ?? 1
                       const order = seen[sess.date] = (seen[sess.date] ?? 0) + 1
                       // Center the stack vertically: offset each by STACK_H
@@ -421,11 +451,20 @@ export default function GanttView({ students, supervisors }: Props) {
                           style={{ left, transform: `translateY(${offset}px) translateY(-50%)` }}
                           onClick={e => { e.stopPropagation(); setEditSession({ studentId: s.id, studentName: s.name, sessionId: sess.id }) }}
                         >
-                          <div
-                            className="rounded-md px-2 py-0.5 text-white whitespace-nowrap"
-                            style={{ background: color, fontSize: 11, fontWeight: 600, opacity: 0.9, transform: 'translateX(-50%)' }}
-                          >
-                            {fullLabel}
+                          {/* padded wrapper so the ring's white-gap halo is also clickable */}
+                          <div style={{ transform: 'translateX(-50%)', padding: 3 }}>
+                            <div
+                              className="rounded-md px-2 py-0.5 text-white whitespace-nowrap"
+                              style={{
+                                background: color, fontSize: 11, fontWeight: 600,
+                                opacity: feedbackRing ? 1 : 0.9,
+                                // 环与底色间加一圈白色间隔，避免黄环贴在橙色 SA 上对比过低
+                                ...(feedbackRing ? { boxShadow: `0 0 0 1.5px #fff, 0 0 0 3px ${feedbackRing}` } : {}),
+                              }}
+                              title={feedbackTip ?? (isDefense ? '最终答辩' : undefined)}
+                            >
+                              {fullLabel}
+                            </div>
                           </div>
                         </div>
                       )

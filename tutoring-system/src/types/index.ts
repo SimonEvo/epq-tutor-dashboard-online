@@ -71,6 +71,8 @@ export interface SessionRecord {
   generatedReport?: string   // cached AI-generated parent report
   reportGeneratedAt?: string // ISO timestamp of when it was generated
   reportExtraContext?: string // 生成报告时的额外补充（督导反馈／导师补充）
+  feedbackSent?: boolean       // SA 会议课后反馈是否已发送（首次生成 AI 报告时自动置 true）
+  isFinalDefense?: boolean     // 标记为最终答辩的特殊 SA 会议（不计 SA 课时；甘特图红框标识）
   zoomMeetingId?: string
   zoomJoinUrl?: string
   zoomPassword?: string

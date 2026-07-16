@@ -1,7 +1,7 @@
 import { getSettings } from './settings'
 import { EPQ_MILESTONES } from '@/config'
 import type { Student, SessionRecord } from '@/types'
-import { isSessionStarted } from './formatters'
+import { isSessionStarted, countsAsSaHour } from './formatters'
 
 async function callAI(prompt: string, options?: { maxTokens?: number }): Promise<string> {
   const { aiApiKey, aiModel, aiBaseUrl } = getSettings()
@@ -239,10 +239,10 @@ export async function generateSessionReport(student: Student, session: SessionRe
   const { sessionReportTemplate } = getSettings()
   const today = new Date().toISOString().slice(0, 10)
   const pastSaCount = student.sessions.filter(
-    s => s.type === 'SA_MEETING' && s.date <= session.date
+    s => countsAsSaHour(s) && s.date <= session.date
   ).length
   const saRemaining = student.saHoursTotal - pastSaCount
-  const typeLabel = session.type === 'SA_MEETING' ? 'SA Meeting（学术督导课）'
+  const typeLabel = session.type === 'SA_MEETING' ? (session.isFinalDefense ? 'SA Meeting · 最终答辩' : 'SA Meeting（学术督导课）')
     : session.type === 'TA_MEETING' ? 'TA Meeting（辅导课）'
     : 'Taught Element（课程讲解）'
 
@@ -281,7 +281,7 @@ export async function generateProgressReport(student: Student): Promise<string> 
   const today = new Date().toISOString().slice(0, 10)
 
   const pastSaCount = student.sessions.filter(
-    s => s.type === 'SA_MEETING' && isSessionStarted(s)
+    s => countsAsSaHour(s) && isSessionStarted(s)
   ).length
   const saRemaining = student.saHoursTotal - pastSaCount
 
@@ -300,7 +300,7 @@ export async function generateProgressReport(student: Student): Promise<string> 
   const futureSessions = sorted.filter(s => !isSessionStarted(s))
 
   const allTitles = pastSessions.map(s => {
-    const t = s.type === 'SA_MEETING' ? 'SA' : s.type === 'TA_MEETING' ? 'TA' : 'TE'
+    const t = s.type === 'SA_MEETING' ? (s.isFinalDefense ? 'SA·答辩' : 'SA') : s.type === 'TA_MEETING' ? 'TA' : 'TE'
     return `${s.date} [${t}] ${s.title ?? ''}`
   }).join('\n')
 
@@ -321,7 +321,7 @@ export async function generateProgressReport(student: Student): Promise<string> 
   ].filter(Boolean).join('\n') : '暂无'
 
   const futureLines: string[] = futureSessions.map(s => {
-    const t = s.type === 'SA_MEETING' ? 'SA' : s.type === 'TA_MEETING' ? 'TA' : 'TE'
+    const t = s.type === 'SA_MEETING' ? (s.isFinalDefense ? 'SA·答辩' : 'SA') : s.type === 'TA_MEETING' ? 'TA' : 'TE'
     return `${s.date} [${t}] ${s.title ?? ''}`
   })
   if (student.nextSaSession && !futureSessions.find(s => s.type === 'SA_MEETING'))
@@ -465,7 +465,7 @@ export async function generateMonthlyReport(
     const sessionsText = monthSessions.length === 0
       ? '本月无课。'
       : monthSessions.map(sess => {
-          const typeLabel = sess.type === 'SA_MEETING' ? 'SA' : sess.type === 'TA_MEETING' ? 'TA' : '理论课'
+          const typeLabel = sess.type === 'SA_MEETING' ? (sess.isFinalDefense ? 'SA·最终答辩' : 'SA') : sess.type === 'TA_MEETING' ? 'TA' : '理论课'
           const summary = encodeNames(sess.summary || '（无记录）', mappings)
           return `  - ${sess.date} [${typeLabel}]${sess.title ? ` ${sess.title}` : ''}：${summary}`
         }).join('\n')

@@ -15,6 +15,15 @@ export function isSessionStarted(s: { date: string; time?: string }): boolean {
   return nowHHMM >= s.time
 }
 
+/**
+ * True if a session counts toward the SA hour quota. Excludes 最终答辩 SA
+ * sessions (isFinalDefense) — those are shown on the Gantt but never consume
+ * SA hours. Use this everywhere an SA workload/quota count is computed.
+ */
+export function countsAsSaHour(s: { type: string; isFinalDefense?: boolean }): boolean {
+  return s.type === 'SA_MEETING' && !s.isFinalDefense
+}
+
 /** Copy text to clipboard with textarea fallback for non-HTTPS environments. */
 export async function copyToClipboard(text: string): Promise<void> {
   try {

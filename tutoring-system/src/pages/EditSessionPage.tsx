@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useStudentStore } from '@/stores/studentStore'
 import type { SessionRecord, SessionType, Student } from '@/types'
 import * as dataService from '@/lib/dataService'
+import { countsAsSaHour } from '@/lib/formatters'
 
 export default function EditSessionPage() {
   const { id, sessionId } = useParams<{ id: string; sessionId: string }>()
@@ -17,6 +18,7 @@ export default function EditSessionPage() {
   const session = student?.sessions.find(s => s.id === sessionId)
 
   const [type, setType] = useState<SessionType>('TA_MEETING')
+  const [isFinalDefense, setIsFinalDefense] = useState(false)
   const [date, setDate] = useState('')
   const [time, setTime] = useState('')
   const [duration, setDuration] = useState(60)
@@ -31,6 +33,7 @@ export default function EditSessionPage() {
   useEffect(() => {
     if (!session) return
     setType(session.type)
+    setIsFinalDefense(session.isFinalDefense ?? false)
     setDate(session.date)
     setTime(session.time ?? '')
     setDuration(session.durationMinutes)
@@ -65,13 +68,14 @@ export default function EditSessionPage() {
         homework: homework.trim(),
         transcript: transcript.trim(),
         privateNotes: privateNotes.trim(),
+        isFinalDefense: type === 'SA_MEETING' ? isFinalDefense : false,
         generatedReport: undefined,    // invalidate cached report on edit
         reportGeneratedAt: undefined,
       }
       const updatedSessions = student.sessions.map(s =>
         s.id === sessionId ? updatedSession : s
       )
-      const saCount = updatedSessions.filter(s => s.type === 'SA_MEETING').length
+      const saCount = updatedSessions.filter(countsAsSaHour).length
 
       const updated: Student = {
         ...student,
@@ -86,7 +90,7 @@ export default function EditSessionPage() {
     }
   }
 
-  const saUsed = student.sessions.filter(s => s.type === 'SA_MEETING').length
+  const saUsed = student.sessions.filter(countsAsSaHour).length
   const saRemaining = student.saHoursTotal - saUsed
 
   return (
@@ -115,6 +119,16 @@ export default function EditSessionPage() {
               </button>
             ))}
           </div>
+          {type === 'SA_MEETING' && (
+            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none mt-2">
+              <input
+                type="checkbox" checked={isFinalDefense}
+                onChange={e => setIsFinalDefense(e.target.checked)}
+                className="w-4 h-4 accent-[#E11D48]"
+              />
+              标记为最终答辩（不计 SA 课时）
+            </label>
+          )}
           {type === 'SA_MEETING' && (
             <p className={`text-xs mt-2 ${saRemaining <= 2 ? 'text-amber-600' : 'text-gray-400'}`}>
               SA 剩余课次: <strong>{saRemaining}</strong> / {student.saHoursTotal}

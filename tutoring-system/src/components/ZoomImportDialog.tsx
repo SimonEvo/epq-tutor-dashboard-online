@@ -5,7 +5,7 @@ import * as dataService from '@/lib/dataService'
 
 // ── Parser ────────────────────────────────────────────────────────────────────
 
-type ParsedFields = { summary: string; transcript: string; homework: string }
+export type ParsedFields = { summary: string; transcript: string; homework: string }
 
 const SECTION_MAP: Record<string, keyof ParsedFields> = {
   // Zoom (English)
@@ -22,7 +22,7 @@ const SECTION_MAP: Record<string, keyof ParsedFields> = {
   '行动项': 'homework',
 }
 
-function parseZoomRecap(text: string): ParsedFields {
+export function parseZoomRecap(text: string): ParsedFields {
   const result: ParsedFields = { summary: '', transcript: '', homework: '' }
   const lines = text.replace(/\r\n/g, '\n').split('\n')
   const buf: Partial<Record<keyof ParsedFields, string[]>> = {}
@@ -57,18 +57,22 @@ function parseZoomRecap(text: string): ParsedFields {
 
 interface Props {
   session: SessionRecord
+  /** 预填到粘贴框的原始文本（如快速编辑里已粘好的纪要），会自动解析一次 */
+  initialText?: string
   onConfirm: (updates: Partial<Pick<SessionRecord, 'summary' | 'homework' | 'transcript'>>) => void
   onClose: () => void
 }
 
-export default function ZoomImportDialog({ session, onConfirm, onClose }: Props) {
+export default function ZoomImportDialog({ session, initialText, onConfirm, onClose }: Props) {
   const configs = getZoomConfigs()
   const [selectedConfigId, setSelectedConfigId] = useState(configs[0]?.id ?? '')
-  const [rawText, setRawText] = useState('')
+  const [rawText, setRawText] = useState(initialText ?? '')
   const [meetingId, setMeetingId] = useState('')
   const [fetching, setFetching] = useState(false)
   const [fetchError, setFetchError] = useState('')
-  const [parsed, setParsed] = useState<ParsedFields | null>(null)
+  const [parsed, setParsed] = useState<ParsedFields | null>(
+    initialText?.trim() ? parseZoomRecap(initialText) : null
+  )
 
   const selectedConfig = configs.find(c => c.id === selectedConfigId)
   const sessionLabel = `${session.title || session.type.replace('_MEETING', '').replace('_', ' ')} · ${session.date}`

@@ -1,16 +1,16 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useStudentStore } from '@/stores/studentStore'
 import { getStudent } from '@/lib/dataService'
+import { countsAsSaHour } from '@/lib/formatters'
+import { parseZoomRecap, type ParsedFields } from '@/components/ZoomImportDialog'
 import type { SessionRecord, Student } from '@/types'
-import ZoomImportDialog from '@/components/ZoomImportDialog'
 
 /**
  * Simplified session editor shown from the Gantt view when a session marker is
- * clicked. Covers the day-to-day patch case: a quick-created meeting starts at
- * 0 min, and once it's over the tutor fills in the real duration + a summary
- * (optionally auto-parsed from a Zoom/Tencent recap via 一键输入). For anything
- * heavier there's a "完整编辑" link into the full EditSessionPage.
+ * clicked. Covers the day-to-day patch case: fix the real time/duration, then
+ * paste a Zoom/Tencent recap → 解析 → 确认输入并生成课后报告 (jumps to the report
+ * page). For anything heavier there's a "完整编辑" link into EditSessionPage.
  */
 
 interface Props {
@@ -27,21 +27,23 @@ const TYPE_LABEL: Record<string, string> = { SA_MEETING: 'SA', TA_MEETING: 'TA',
 
 export default function QuickSessionEditPopover({ studentId, studentName, sessionId, onClose, onSaved }: Props) {
   const { saveStudent } = useStudentStore()
+  const navigate = useNavigate()
 
   // Dashboard only holds lightweight summaries (session text may be trimmed), so
-  // pull the full student to edit against the real duration / summary.
+  // pull the full student to edit against the real record.
   const [full, setFull] = useState<Student | null>(null)
   const [session, setSession] = useState<SessionRecord | null>(null)
   const [notFound, setNotFound] = useState(false)
 
+  const [time, setTime] = useState('')
   const [duration, setDuration] = useState<number | ''>('')
-  const [summary, setSummary] = useState('')
-  // Zoom import can also yield these; kept so a 一键输入 persists them on save
-  // even though they aren't shown in this simplified view.
-  const [homework, setHomework] = useState('')
-  const [transcript, setTranscript] = useState('')
+  const [feedbackSent, setFeedbackSent] = useState(false)
+  const [isFinalDefense, setIsFinalDefense] = useState(false)
 
-  const [showZoom, setShowZoom] = useState(false)
+  // Paste-and-parse flow
+  const [rawText, setRawText] = useState('')
+  const [parsed, setParsed] = useState<ParsedFields | null>(null)
+
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -54,10 +56,10 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
         setFull(s)
         setSession(sess)
         if (sess) {
+          setTime(sess.time ?? '')
           setDuration(sess.durationMinutes || '')
-          setSummary(sess.summary ?? '')
-          setHomework(sess.homework ?? '')
-          setTranscript(sess.transcript ?? '')
+          setFeedbackSent(sess.feedbackSent ?? false)
+          setIsFinalDefense(sess.isFinalDefense ?? false)
         } else {
           setNotFound(true)
         }
@@ -66,6 +68,8 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
     return () => { alive = false }
   }, [studentId, sessionId])
 
+  // Metadata-only quick save (time / duration / SA flags). Preserves existing
+  // summary/homework/transcript and any cached report.
   const handleSave = async () => {
     if (!full || !session) return
     setSaving(true)
@@ -73,15 +77,13 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
     try {
       const updatedSession: SessionRecord = {
         ...session,
+        time: time || undefined,
         durationMinutes: duration === '' ? 0 : duration,
-        summary: summary.trim(),
-        homework: homework.trim(),
-        transcript: transcript.trim(),
-        generatedReport: undefined,   // invalidate cached report on edit
-        reportGeneratedAt: undefined,
+        feedbackSent,
+        isFinalDefense: session.type === 'SA_MEETING' ? isFinalDefense : false,
       }
       const updatedSessions = full.sessions.map(s => s.id === sessionId ? updatedSession : s)
-      const saCount = updatedSessions.filter(s => s.type === 'SA_MEETING').length
+      const saCount = updatedSessions.filter(countsAsSaHour).length
       await saveStudent({ ...full, sessions: updatedSessions, saHoursUsed: saCount })
       onSaved()
       onClose()
@@ -91,33 +93,50 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
     }
   }
 
-  const handleZoom = (updates: Partial<Pick<SessionRecord, 'summary' | 'homework' | 'transcript'>>) => {
-    if (updates.summary !== undefined) setSummary(updates.summary)
-    if (updates.homework !== undefined) setHomework(updates.homework)
-    if (updates.transcript !== undefined) setTranscript(updates.transcript)
-    setShowZoom(false)
+  const handleParse = () => {
+    if (!rawText.trim()) return
+    setParsed(parseZoomRecap(rawText))
   }
 
-  // While the Zoom dialog is open it owns the screen; render only it.
-  if (showZoom && session) {
-    return (
-      <ZoomImportDialog
-        session={{ ...session, summary, homework, transcript }}
-        onConfirm={handleZoom}
-        onClose={() => setShowZoom(false)}
-      />
-    )
+  const parsedHasContent = !!(parsed && (parsed.summary || parsed.transcript || parsed.homework))
+
+  // Save the parsed record onto the session then jump to the report page, which
+  // generates the parent report (and flips feedbackSent on success).
+  const handleGenerate = async () => {
+    if (!full || !session || !parsed) return
+    setSaving(true)
+    setError('')
+    try {
+      const updatedSession: SessionRecord = {
+        ...session,
+        time: time || undefined,
+        durationMinutes: duration === '' ? 0 : duration,
+        summary: parsed.summary || session.summary,
+        homework: parsed.homework || session.homework,
+        transcript: parsed.transcript || session.transcript,
+        isFinalDefense: session.type === 'SA_MEETING' ? isFinalDefense : false,
+        generatedReport: undefined,   // force a fresh report from the new content
+        reportGeneratedAt: undefined,
+      }
+      const updatedSessions = full.sessions.map(s => s.id === sessionId ? updatedSession : s)
+      const saCount = updatedSessions.filter(countsAsSaHour).length
+      await saveStudent({ ...full, sessions: updatedSessions, saHoursUsed: saCount })
+      navigate(`/students/${studentId}/session/${sessionId}/report`)
+    } catch (e) {
+      setError(String(e))
+      setSaving(false)
+    }
   }
 
   const label = session
-    ? `${session.title || TYPE_LABEL[session.type] || session.type} · ${session.date}`
+    ? `${session.title || TYPE_LABEL[session.type] || session.type} · ${session.date}${time ? ` ${time}` : ''}`
     : ''
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/30" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
           <div>
             <h2 className="font-semibold text-gray-900 text-sm">快速编辑</h2>
             <p className="text-xs text-gray-400 mt-0.5">{studentName}{label ? ` · ${label}` : ''}</p>
@@ -133,42 +152,94 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
 
           {full && session && (
             <>
-              {/* Duration */}
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">时长（分钟）</label>
-                <input
-                  type="number" min={1} value={duration} placeholder="—"
-                  autoFocus
-                  onChange={e => setDuration(e.target.value === '' ? '' : Number(e.target.value))}
-                  className={inputCls}
-                />
+              {/* Time + Duration */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">时间</label>
+                  <input
+                    type="time" value={time}
+                    onChange={e => setTime(e.target.value)}
+                    className={inputCls}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">时长（分钟）</label>
+                  <input
+                    type="number" min={1} value={duration} placeholder="—"
+                    onChange={e => setDuration(e.target.value === '' ? '' : Number(e.target.value))}
+                    className={inputCls}
+                  />
+                </div>
               </div>
 
-              {/* Summary + 一键输入 */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs text-gray-500">记录 Summary</label>
-                  <button
-                    type="button"
-                    onClick={() => setShowZoom(true)}
-                    className="text-xs px-2 py-0.5 rounded-md bg-[var(--primary-bg)] text-[var(--primary)] hover:bg-[var(--primary)] hover:text-white transition-colors"
-                  >
-                    一键输入（Zoom/腾讯纪要）
-                  </button>
+              {/* SA 会议：课后反馈（首次生成 AI 报告自动置已发送）+ 最终答辩标记 */}
+              {session.type === 'SA_MEETING' && (
+                <div className="flex flex-col gap-2">
+                  <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+                    <input
+                      type="checkbox" checked={feedbackSent}
+                      onChange={e => setFeedbackSent(e.target.checked)}
+                      className="w-4 h-4 accent-[var(--primary)]"
+                    />
+                    课后反馈已发送
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+                    <input
+                      type="checkbox" checked={isFinalDefense}
+                      onChange={e => setIsFinalDefense(e.target.checked)}
+                      className="w-4 h-4 accent-[#E11D48]"
+                    />
+                    标记为最终答辩（不计 SA 课时）
+                  </label>
                 </div>
+              )}
+
+              {/* 粘贴 Zoom/腾讯纪要 → 解析 → 确认生成报告 */}
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">粘贴 Zoom/腾讯会议纪要</label>
                 <textarea
-                  value={summary} onChange={e => setSummary(e.target.value)}
-                  rows={5} placeholder="课程记录，会后补即可"
-                  className={inputCls}
+                  value={rawText}
+                  onChange={e => { setRawText(e.target.value); setParsed(null) }}
+                  rows={5}
+                  placeholder={"粘贴 Zoom Quick Recap / 腾讯会议纪要，然后点「解析」"}
+                  className={`${inputCls} font-mono text-xs resize-none`}
                 />
+                <button
+                  type="button" onClick={handleParse} disabled={!rawText.trim()}
+                  className="mt-1.5 text-xs px-4 py-1.5 rounded-md bg-gray-800 text-white hover:bg-gray-900 disabled:opacity-40 transition-colors"
+                >
+                  解析
+                </button>
               </div>
+
+              {/* 解析结果 */}
+              {parsed && (
+                parsedHasContent ? (
+                  <div className="border border-[var(--border)] bg-[var(--primary-bg)] rounded-xl p-3 flex flex-col gap-2">
+                    <p className="text-xs font-semibold text-[var(--primary-hover)]">解析结果</p>
+                    {parsed.summary    && <PreviewField label="Summary（课程概要）" value={parsed.summary} />}
+                    {parsed.transcript && <PreviewField label="Transcript（完整记录）" value={parsed.transcript} clamp />}
+                    {parsed.homework   && <PreviewField label="Homework（作业/下一步）" value={parsed.homework} />}
+                    <button
+                      type="button" onClick={handleGenerate} disabled={saving}
+                      className="mt-1 w-full bg-[var(--primary)] text-white text-sm py-2 rounded-lg hover:bg-[var(--primary-hover)] disabled:opacity-50 transition-colors"
+                    >
+                      {saving ? '保存中…' : '确认输入并生成课后报告'}
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                    未识别到章节。请确认包含 <strong>Quick Recap / 快速回顾</strong>、<strong>Summary / 摘要</strong>、<strong>Next Steps / 后续步骤</strong> 等标题。
+                  </p>
+                )
+              )}
 
               <div className="flex items-center gap-3 pt-1">
                 <button
                   type="button" onClick={handleSave} disabled={saving}
-                  className="flex-1 bg-[var(--primary)] text-white text-sm py-2 rounded-lg hover:bg-[var(--primary-hover)] disabled:opacity-50 transition-colors"
+                  className="flex-1 text-sm py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
                 >
-                  {saving ? '保存中…' : '保存'}
+                  {saving ? '保存中…' : '仅保存时间/时长'}
                 </button>
                 <Link
                   to={`/students/${studentId}/session/${sessionId}/edit`}
@@ -181,6 +252,17 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+function PreviewField({ label, value, clamp }: { label: string; value: string; clamp?: boolean }) {
+  return (
+    <div>
+      <p className="text-xs text-gray-500 mb-1">{label}</p>
+      <p className={`text-xs text-gray-700 bg-white rounded-lg p-2 border border-[var(--border)] whitespace-pre-wrap leading-relaxed ${clamp ? 'line-clamp-4' : ''}`}>
+        {value}
+      </p>
     </div>
   )
 }

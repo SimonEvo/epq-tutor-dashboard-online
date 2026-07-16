@@ -53,7 +53,7 @@ export default function SessionReportPage() {
       const text = await generateSessionReport(s, session, extraContext)
       setReport(text)
       setSaving(true)
-      const updatedSession = { ...session, generatedReport: text, reportGeneratedAt: new Date().toISOString(), reportExtraContext: extraContext.trim() || undefined }
+      const updatedSession = { ...session, generatedReport: text, reportGeneratedAt: new Date().toISOString(), reportExtraContext: extraContext.trim() || undefined, feedbackSent: true }
       const updatedSessions = s.sessions.map(x => x.id === sessionId ? updatedSession : x)
       const updated: Student = { ...s, sessions: updatedSessions }
       await saveStudent(updated)

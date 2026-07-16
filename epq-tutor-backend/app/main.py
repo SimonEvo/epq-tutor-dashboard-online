@@ -60,6 +60,8 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE students ADD COLUMN schedule_entries JSON",
             "ALTER TABLE students ADD COLUMN ai_alias VARCHAR(128)",
             "ALTER TABLE sessions ADD COLUMN report_extra_context TEXT",
+            "ALTER TABLE sessions ADD COLUMN feedback_sent BOOLEAN NOT NULL DEFAULT 0",
+            "ALTER TABLE sessions ADD COLUMN is_final_defense BOOLEAN NOT NULL DEFAULT 0",
             "ALTER TABLE tutors ADD COLUMN kb_context_sources JSON",
         ]:
             try:

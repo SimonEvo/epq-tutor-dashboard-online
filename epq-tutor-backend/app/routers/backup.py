@@ -3,7 +3,7 @@ import os
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Response
 from sqlalchemy.orm import Session, selectinload
 from app.database import get_db
 from app import models
@@ -78,6 +78,8 @@ def _serialize_student(s: models.Student) -> dict:
                 "generatedReport": x.generated_report,
                 "reportGeneratedAt": x.report_generated_at,
                 "reportExtraContext": x.report_extra_context,
+                "feedbackSent": x.feedback_sent or False,
+                "isFinalDefense": x.is_final_defense or False,
                 "zoomMeetingId": x.zoom_meeting_id,
                 "zoomJoinUrl": x.zoom_join_url,
                 "zoomPassword": x.zoom_password,
@@ -156,12 +158,60 @@ def run_backup(db: Session) -> dict:
     }
 
 
+def _build_snapshot(db: Session) -> dict:
+    """把全部数据聚合成单个 JSON 快照（供本地下载用），结构与服务器备份一致。"""
+    students = (
+        db.query(models.Student)
+        .options(
+            selectinload(models.Student.sessions),
+            selectinload(models.Student.milestones),
+            selectinload(models.Student.tags),
+            selectinload(models.Student.personal_entries),
+            selectinload(models.Student.mind_maps),
+            selectinload(models.Student.homework_entries),
+        )
+        .all()
+    )
+    supervisors = db.query(models.Supervisor).all()
+    tags = [t.name for t in db.query(models.Tag).all()]
+    wr = db.query(models.WeeklyReport).order_by(models.WeeklyReport.id.desc()).first()
+
+    return {
+        "exportedAt": datetime.now(timezone.utc).isoformat(),
+        "students": [_serialize_student(s) for s in students],
+        "supervisors": [
+            {
+                "id": sv.id, "name": sv.name, "gender": sv.gender,
+                "education": sv.education, "background": sv.background,
+                "direction": sv.direction, "notes": sv.notes, "saType": sv.sa_type,
+            }
+            for sv in supervisors
+        ],
+        "tags": tags,
+        "weeklyReport": {
+            "generatedAt": wr.generated_at,
+            "content": wr.content,
+            "cache": {"lastScanAt": wr.last_scan_at, "students": wr.student_cache or {}},
+        } if wr else None,
+    }
+
+
 @router.post("/export")
 def export_backup(
     db: Session = Depends(get_db),
     _tutor: models.Tutor = Depends(get_current_tutor),
 ):
     return run_backup(db)
+
+
+@router.get("/download")
+def download_backup(
+    db: Session = Depends(get_db),
+    _tutor: models.Tutor = Depends(get_current_tutor),
+):
+    """返回完整数据快照（缩进美化的 JSON），前端触发下载到本地。"""
+    body = json.dumps(_build_snapshot(db), ensure_ascii=False, indent=2)
+    return Response(content=body, media_type="application/json")
 
 
 @router.get("/list")
@@ -292,6 +342,8 @@ def restore_backup(
                     generated_report=sx.get("generatedReport"),
                     report_generated_at=sx.get("reportGeneratedAt"),
                     report_extra_context=sx.get("reportExtraContext"),
+                    feedback_sent=sx.get("feedbackSent", False),
+                    is_final_defense=sx.get("isFinalDefense", False),
                     zoom_meeting_id=sx.get("zoomMeetingId"),
                     zoom_join_url=sx.get("zoomJoinUrl"),
                     zoom_password=sx.get("zoomPassword"),
@@ -372,3 +424,172 @@ def restore_backup(
 
     db.commit()
     return {"ok": True, "restored": restored}
+
+
+def _restore_student(db: Session, tutor_id: str, data: dict) -> None:
+    """从一个已序列化的学生 dict upsert 学生及其全部关联表（全量替换）。"""
+    sid = data["id"]
+    s = (
+        db.query(models.Student)
+        .options(
+            selectinload(models.Student.sessions),
+            selectinload(models.Student.milestones),
+            selectinload(models.Student.personal_entries),
+            selectinload(models.Student.mind_maps),
+            selectinload(models.Student.homework_entries),
+        )
+        .filter(models.Student.id == sid)
+        .first()
+    )
+    if not s:
+        s = models.Student(id=sid, tutor_id=tutor_id, name=data.get("name", ""))
+        db.add(s)
+
+    s.name = data.get("name", "")
+    s.name_en = data.get("nameEn")
+    s.gender = data.get("gender")
+    s.school = data.get("school")
+    s.submission_round = data.get("submissionRound")
+    s.taught_element_type = data.get("taughtElementType")
+    s.university_aspiration = data.get("universityAspiration")
+    s.current_grade = data.get("currentGrade")
+    s.university_enrollment = data.get("universityEnrollment")
+    s.contact = data.get("contact")
+    s.supervisor_id = data.get("supervisorId")
+    s.topic = data.get("topic", "")
+    s.topic_zh = data.get("topicZh", "")
+    s.overview = data.get("overview")
+    s.sa_hours_total = data.get("saHoursTotal", 12)
+    s.sa_hours_used = data.get("saHoursUsed", 0)
+    s.next_sa_session = data.get("nextSaSession")
+    s.next_ta_session = data.get("nextTaSession")
+    s.next_theory_session = data.get("nextTheorySession")
+    s.availability_note = data.get("availabilityNote", "")
+    s.brief_note = data.get("briefNote", "")
+    s.schedule_entries = data.get("scheduleEntries", [])
+    s.private_notes = data.get("privateNotes", "")
+    s.tencent_doc_url = data.get("tencentDocUrl")
+    s.ai_alias = data.get("aiAlias")
+    s.generated_progress_report = data.get("generatedProgressReport")
+    s.progress_report_generated_at = data.get("progressReportGeneratedAt")
+
+    for sess in list(s.sessions):
+        db.delete(sess)
+    db.flush()
+    for sx in data.get("sessions", []):
+        db.add(models.Session(
+            id=sx["id"], student_id=sid, type=sx["type"],
+            date=sx["date"], time=sx.get("time"),
+            duration_minutes=sx.get("durationMinutes", 60),
+            title=sx.get("title"), summary=sx.get("summary", ""),
+            homework=sx.get("homework", ""), transcript=sx.get("transcript", ""),
+            private_notes=sx.get("privateNotes", ""),
+            generated_report=sx.get("generatedReport"),
+            report_generated_at=sx.get("reportGeneratedAt"),
+            report_extra_context=sx.get("reportExtraContext"),
+            feedback_sent=sx.get("feedbackSent", False),
+            is_final_defense=sx.get("isFinalDefense", False),
+            zoom_meeting_id=sx.get("zoomMeetingId"),
+            zoom_join_url=sx.get("zoomJoinUrl"),
+            zoom_password=sx.get("zoomPassword"),
+        ))
+
+    for m in list(s.milestones):
+        db.delete(m)
+    db.flush()
+    for mid, status in data.get("milestones", {}).items():
+        db.add(models.StudentMilestone(student_id=sid, milestone_id=mid, status=status))
+
+    for e in list(s.personal_entries):
+        db.delete(e)
+    db.flush()
+    for ex in data.get("personalEntries", []):
+        db.add(models.PersonalEntry(
+            id=ex["id"], student_id=sid, date=ex["date"],
+            title=ex["title"], content=ex["content"], created_at=ex.get("createdAt", ""),
+        ))
+
+    for m in list(s.mind_maps):
+        db.delete(m)
+    db.flush()
+    for mx in data.get("mindMaps", []):
+        db.add(models.MindMap(
+            id=mx["id"], student_id=sid, date=mx["date"],
+            title=mx["title"], content=mx["content"], created_at=mx.get("createdAt", ""),
+        ))
+
+    for h in list(s.homework_entries):
+        db.delete(h)
+    db.flush()
+    for hx in data.get("homeworkEntries", []):
+        db.add(models.HomeworkEntry(
+            id=hx["id"], student_id=sid, session_id=hx.get("sessionId"),
+            date=hx["date"], source_label=hx.get("sourceLabel", ""),
+            deadline=hx.get("deadline"), items=hx.get("items", []),
+            comments=hx.get("comments", ""), created_at=hx.get("createdAt", ""),
+        ))
+
+    db.execute(
+        models.StudentTag.__table__.delete().where(models.StudentTag.student_id == sid)
+    )
+    for tag_name in data.get("tags", []):
+        tag = db.query(models.Tag).filter(models.Tag.name == tag_name).first()
+        if tag:
+            db.execute(
+                models.StudentTag.__table__.insert().values(student_id=sid, tag_id=tag.id)
+            )
+
+
+def _apply_snapshot(db: Session, tutor_id: str, snap: dict) -> dict:
+    """从单个 JSON 快照（download 端点导出的结构）恢复全部数据。"""
+    restored = {"students": 0, "supervisors": 0, "tags": 0}
+
+    for sv_data in snap.get("supervisors", []):
+        sv = db.get(models.Supervisor, sv_data["id"])
+        if not sv:
+            sv = models.Supervisor(id=sv_data["id"])
+            db.add(sv)
+        sv.name = sv_data.get("name", "")
+        sv.gender = sv_data.get("gender")
+        sv.education = sv_data.get("education")
+        sv.background = sv_data.get("background")
+        sv.direction = sv_data.get("direction")
+        sv.notes = sv_data.get("notes")
+        sv.sa_type = sv_data.get("saType")
+        restored["supervisors"] += 1
+
+    for name in snap.get("tags", []):
+        if not db.query(models.Tag).filter(models.Tag.name == name).first():
+            db.add(models.Tag(name=name))
+        restored["tags"] += 1
+
+    db.flush()
+
+    for stu_data in snap.get("students", []):
+        _restore_student(db, tutor_id, stu_data)
+        restored["students"] += 1
+
+    wr_data = snap.get("weeklyReport")
+    if wr_data:
+        db.query(models.WeeklyReport).delete()
+        db.add(models.WeeklyReport(
+            generated_at=wr_data.get("generatedAt", ""),
+            content=wr_data.get("content", ""),
+            last_scan_at=wr_data.get("cache", {}).get("lastScanAt", ""),
+            student_cache=wr_data.get("cache", {}).get("students", {}),
+        ))
+
+    db.commit()
+    return {"ok": True, "restored": restored}
+
+
+@router.post("/restore-upload")
+def restore_upload(
+    snapshot: dict = Body(...),
+    db: Session = Depends(get_db),
+    _tutor: models.Tutor = Depends(get_current_tutor),
+):
+    """从本地上传的完整 JSON 快照恢复数据（覆盖同名记录）。"""
+    if not isinstance(snapshot, dict) or "students" not in snapshot:
+        raise HTTPException(status_code=400, detail="不是有效的备份文件（缺少 students 字段）")
+    return _apply_snapshot(db, _tutor.id, snapshot)

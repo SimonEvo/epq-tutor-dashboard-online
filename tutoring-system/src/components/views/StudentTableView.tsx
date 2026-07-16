@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Student } from '@/types'
 import { EPQ_MILESTONES } from '@/config'
-import { formatHours, isSessionStarted } from '@/lib/formatters'
+import { formatHours, isSessionStarted, countsAsSaHour } from '@/lib/formatters'
 
 interface Props {
   students: Student[]
@@ -25,7 +25,7 @@ function getMilestoneProgress(s: Student) {
 
 function getSaHoursUsed(s: Student) {
   return s.sessions
-    .filter(x => x.type === 'SA_MEETING' && isSessionStarted(x))
+    .filter(x => countsAsSaHour(x) && isSessionStarted(x))
     .reduce((sum, x) => sum + x.durationMinutes / 60, 0)
 }
 

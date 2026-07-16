@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useStudentStore } from '@/stores/studentStore'
 import { getStudent } from '@/lib/dataService'
+import { countsAsSaHour } from '@/lib/formatters'
 import type { SessionRecord, SessionType, Student } from '@/types'
 
 function generateId() {
@@ -31,6 +32,7 @@ export default function AddSessionModal({ student, onClose, onSaved }: Props) {
   const todayStr = new Date().toISOString().slice(0, 10)
 
   const [type, setType] = useState<SessionType>('SA_MEETING')
+  const [isFinalDefense, setIsFinalDefense] = useState(false)
   const [date, setDate] = useState(todayStr)
   const [time, setTime] = useState('')
   const [duration, setDuration] = useState<number | ''>('')
@@ -59,13 +61,14 @@ export default function AddSessionModal({ student, onClose, onSaved }: Props) {
         homework: '',
         transcript: '',
         privateNotes: '',
+        isFinalDefense: type === 'SA_MEETING' ? isFinalDefense : false,
         createdAt: new Date().toISOString(),
       }
       // Fetch full student to preserve homeworkEntries, personalEntries etc.
       // (dashboard only loads summary which has empty arrays)
       const full = await getStudent(student.id)
       const allSessions = [...full.sessions, session]
-      const saCount = allSessions.filter(s => s.type === 'SA_MEETING').length
+      const saCount = allSessions.filter(countsAsSaHour).length
       await saveStudent({ ...full, sessions: allSessions, saHoursUsed: saCount })
       onSaved()
       onClose()
@@ -101,6 +104,18 @@ export default function AddSessionModal({ student, onClose, onSaved }: Props) {
               </button>
             ))}
           </div>
+
+          {/* 最终答辩：特殊 SA 会议，不计 SA 课时 */}
+          {type === 'SA_MEETING' && (
+            <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer select-none -mt-1">
+              <input
+                type="checkbox" checked={isFinalDefense}
+                onChange={e => setIsFinalDefense(e.target.checked)}
+                className="w-4 h-4 accent-[#E11D48]"
+              />
+              标记为最终答辩（不计 SA 课时）
+            </label>
+          )}
 
           {/* Date / Time / Duration */}
           <div className="grid grid-cols-3 gap-3">

@@ -10,7 +10,7 @@ import HomeworkParseDialog from '@/components/HomeworkParseDialog'
 import ZoomImportDialog from '@/components/ZoomImportDialog'
 import ZoomScheduleDialog from '@/components/ZoomScheduleDialog'
 import KnowledgeBaseTab from '@/components/KnowledgeBase/KnowledgeBaseTab'
-import { isSessionStarted, formatHours } from '@/lib/formatters'
+import { isSessionStarted, formatHours, countsAsSaHour } from '@/lib/formatters'
 import * as dataService from '@/lib/dataService'
 
 const SESSION_LABEL: Record<SessionType, string> = {
@@ -315,7 +315,7 @@ export default function StudentDetailPage() {
     const updated: Student = {
       ...student,
       sessions: updatedSessions,
-      saHoursUsed: updatedSessions.filter(s => s.type === 'SA_MEETING').length,
+      saHoursUsed: updatedSessions.filter(countsAsSaHour).length,
     }
     setStudent(updated)
     setConfirmDelete(null)
@@ -504,9 +504,9 @@ export default function StudentDetailPage() {
     : sortedSessions.filter(s => s.type === sessionFilter)
 
   // SA hours remaining: count only past sessions, no intermediate rounding (let formatHours handle precision)
-  const saUsed = student.sessions.filter(s => s.type === 'SA_MEETING' && isSessionStarted(s)).length
+  const saUsed = student.sessions.filter(s => countsAsSaHour(s) && isSessionStarted(s)).length
   const saRemaining = student.saHoursTotal - saUsed
-  const saTotalMins = student.sessions.filter(s => s.type === 'SA_MEETING' && isSessionStarted(s)).reduce((s, x) => s + x.durationMinutes, 0)
+  const saTotalMins = student.sessions.filter(s => countsAsSaHour(s) && isSessionStarted(s)).reduce((s, x) => s + x.durationMinutes, 0)
   const saRemainingMins = student.saHoursTotal * 60 - saTotalMins
   const supervisor = supervisors.find(s => s.id === student.supervisorId)
 

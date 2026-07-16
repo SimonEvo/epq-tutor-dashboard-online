@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { getSettings, saveSettings, AI_PROVIDERS } from '@/lib/settings'
 import { publishCalendar, calendarUrl as getCalendarUrl } from '@/lib/calendarService'
@@ -94,6 +94,41 @@ export default function SettingsPage() {
     } catch (e) {
       setBackupStatus('err')
       setBackupMsg(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  const [downloadStatus, setDownloadStatus] = useState<'idle' | 'loading' | 'err'>('idle')
+  const [downloadMsg, setDownloadMsg] = useState('')
+  const handleDownloadLocal = async () => {
+    setDownloadStatus('loading')
+    setDownloadMsg('')
+    try {
+      await dataService.downloadLocalBackup(getToken() || '')
+      setDownloadStatus('idle')
+    } catch (e) {
+      setDownloadStatus('err')
+      setDownloadMsg(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  const uploadInputRef = useRef<HTMLInputElement>(null)
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'loading' | 'ok' | 'err'>('idle')
+  const [uploadMsg, setUploadMsg] = useState('')
+  const handleRestoreLocal = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''  // allow re-selecting the same file
+    if (!file) return
+    if (!window.confirm(`确定要从「${file.name}」恢复吗？同名的学生、督导、标签会被覆盖。`)) return
+    setUploadStatus('loading')
+    setUploadMsg('')
+    try {
+      const result = await dataService.restoreLocalBackup(file)
+      setUploadStatus('ok')
+      setUploadMsg(`已恢复 ${result.restored.students} 名学生、${result.restored.supervisors} 位督导、${result.restored.tags} 个标签`)
+      dataService.listBackups().then(setBackups).catch(() => {})
+    } catch (err) {
+      setUploadStatus('err')
+      setUploadMsg(err instanceof Error ? err.message : String(err))
     }
   }
 
@@ -281,7 +316,7 @@ export default function SettingsPage() {
         <section className="bg-white rounded-2xl border border-gray-200 p-6">
           <h2 className="text-sm font-semibold text-gray-900 mb-1">数据备份与恢复</h2>
           <p className="text-xs text-gray-400 mb-4">
-            每天自动备份一次，保留最近 3 天。也可手动立即备份。
+            每天自动备份一次到服务器，保留最近 3 天；也可手动立即备份，或下载完整数据到本地电脑。
           </p>
           <div className="flex items-center gap-3 flex-wrap mb-4">
             <button
@@ -290,13 +325,45 @@ export default function SettingsPage() {
               disabled={backupStatus === 'loading'}
               className="text-sm px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-colors"
             >
-              {backupStatus === 'loading' ? '备份中…' : '立即备份'}
+              {backupStatus === 'loading' ? '备份中…' : '立即备份到服务器'}
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadLocal}
+              disabled={downloadStatus === 'loading'}
+              className="text-sm px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-colors"
+            >
+              {downloadStatus === 'loading' ? '打包中…' : '下载到本地'}
+            </button>
+            <input
+              ref={uploadInputRef}
+              type="file"
+              accept="application/json,.json"
+              onChange={handleRestoreLocal}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => uploadInputRef.current?.click()}
+              disabled={uploadStatus === 'loading'}
+              className="text-sm px-4 py-2 border border-orange-200 rounded-lg text-orange-600 hover:bg-orange-50 disabled:opacity-40 transition-colors"
+            >
+              {uploadStatus === 'loading' ? '恢复中…' : '从本地文件恢复'}
             </button>
             {backupStatus === 'ok' && (
               <span className="text-xs text-green-600">{backupMsg}</span>
             )}
             {backupStatus === 'err' && (
               <span className="text-xs text-red-500">备份失败：{backupMsg}</span>
+            )}
+            {downloadStatus === 'err' && (
+              <span className="text-xs text-red-500">下载失败：{downloadMsg}</span>
+            )}
+            {uploadStatus === 'ok' && (
+              <span className="text-xs text-green-600">{uploadMsg}</span>
+            )}
+            {uploadStatus === 'err' && (
+              <span className="text-xs text-red-500">恢复失败：{uploadMsg}</span>
             )}
           </div>
 

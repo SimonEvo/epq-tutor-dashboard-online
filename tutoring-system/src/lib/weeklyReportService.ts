@@ -22,7 +22,7 @@ export const DEFAULT_WEEKLY_OUTPUT_TEMPLATE = `请严格按以下格式输出，
 import { EPQ_MILESTONES } from '@/config'
 import { getWeeklyReportData, saveWeeklyReportData } from './dataService'
 import type { Student, StudentReportCacheEntry, WeeklyReportData } from '@/types'
-import { isSessionStarted } from './formatters'
+import { isSessionStarted, countsAsSaHour } from './formatters'
 
 
 // ── Student data summariser ───────────────────────────────────────────────────
@@ -32,7 +32,8 @@ function summariseStudent(s: Student, _today: string, changed: boolean): string 
     .filter(x => x.type === 'SA_MEETING' && isSessionStarted(x))
     .sort((a, b) => b.date.localeCompare(a.date))
 
-  const saUsed = pastSA.length
+  // 最终答辩不计 SA 课时
+  const saUsed = pastSA.filter(countsAsSaHour).length
   const saRemaining = s.saHoursTotal - saUsed
   const lastSA = pastSA[0]
   const daysSinceLastSA = lastSA

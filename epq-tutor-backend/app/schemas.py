@@ -46,6 +46,8 @@ class SessionSchema(BaseModel):
     generatedReport: Optional[str] = None
     reportGeneratedAt: Optional[str] = None
     reportExtraContext: Optional[str] = None
+    feedbackSent: bool = False
+    isFinalDefense: bool = False
     zoomMeetingId: Optional[str] = None
     zoomJoinUrl: Optional[str] = None
     zoomPassword: Optional[str] = None
@@ -108,6 +110,8 @@ class SessionSummarySchema(BaseModel):
     date: str
     time: Optional[str] = None
     durationMinutes: int = 60
+    feedbackSent: bool = False
+    isFinalDefense: bool = False
 
 
 class StudentSummarySchema(BaseModel):

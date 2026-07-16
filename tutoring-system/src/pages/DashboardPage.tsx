@@ -8,7 +8,7 @@ import MilestoneGridView from '@/components/views/MilestoneGridView'
 import OverviewView from '@/components/views/OverviewView'
 import GanttView from '@/components/views/GanttView'
 import type { Student, Supervisor, Trial, WeeklyReportData } from '@/types'
-import { formatHours, copyToClipboard } from '@/lib/formatters'
+import { formatHours, copyToClipboard, countsAsSaHour } from '@/lib/formatters'
 import { generateWeeklyReport, getWeeklyReportData } from '@/lib/weeklyReportService'
 import { listTrials, getDefaultRound } from '@/lib/dataService'
 
@@ -101,7 +101,7 @@ export default function DashboardPage() {
     .map(s => {
       const supervisor = supervisors.find(sv => sv.id === s.supervisorId)
       const doneSessions = s.sessions.filter(
-        sess => sess.type === 'SA_MEETING' && sess.date <= statsCutoff
+        sess => countsAsSaHour(sess) && sess.date <= statsCutoff
       )
       const sessionCount = doneSessions.length
       const totalMins = doneSessions.reduce((sum, sess) => sum + sess.durationMinutes, 0)
