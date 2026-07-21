@@ -39,7 +39,7 @@ export default function NewSessionPage() {
   const [isFinalDefense, setIsFinalDefense] = useState(false)
   const [date, setDate] = useState(todayStr)
   const [time, setTime] = useState('')
-  const [duration, setDuration] = useState<number | ''>('')
+  const [duration, setDuration] = useState<number | ''>(60)
   const [title, setTitle] = useState(() =>
     student ? computeAutoTitle(student.sessions, 'SA_MEETING', todayStr) : 'SA #1'
   )
@@ -66,14 +66,18 @@ export default function NewSessionPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setSaving(true)
     setError('')
+    if (!time) {
+      setError('请填写起始时间——没有起始时间的会议不能创建')
+      return
+    }
+    setSaving(true)
     try {
       const session: SessionRecord = {
         id: generateId(),
         type,
         date,
-        time: time || undefined,
+        time,
         durationMinutes: duration === '' ? 0 : duration,
         title: title.trim(),
         summary: summary.trim(),
@@ -160,9 +164,9 @@ export default function NewSessionPage() {
             <input type="date" value={date} onChange={e => setDate(e.target.value)}
               className={inputCls} required />
           </Field>
-          <Field label="Time">
+          <Field label="Time *">
             <input type="time" value={time} onChange={e => setTime(e.target.value)}
-              className={inputCls} />
+              className={inputCls} required />
           </Field>
           <Field label="Duration (minutes)">
             <input type="number" min={1} value={duration} placeholder="—"

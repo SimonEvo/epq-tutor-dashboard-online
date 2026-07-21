@@ -1,6 +1,6 @@
 import { apiFetch } from './githubClient'
 import { API_BASE_URL } from '@/config'
-import type { Student, Supervisor, WeeklyReportData, Trial, ActionLog, ManualLog, WorkflowAnalysis, GanttProject, GanttProjectSummary } from '@/types'
+import type { Student, Supervisor, WeeklyReportData, Trial, ActionLog, ManualLog, WorkflowAnalysis, GanttProject, GanttProjectSummary, ScheduleEvent } from '@/types'
 
 async function api<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await apiFetch(`${API_BASE_URL}${path}`, options)
@@ -166,6 +166,25 @@ export async function createTrial(trial: Trial): Promise<Trial> {
 
 export async function deleteTrial(id: string): Promise<void> {
   const res = await apiFetch(`${API_BASE_URL}/trials/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`Delete failed: ${res.status}`)
+}
+
+// ─── Schedule Events ──────────────────────────────────────────────────────────
+
+export async function listScheduleEvents(): Promise<ScheduleEvent[]> {
+  return api<ScheduleEvent[]>('/schedule-events')
+}
+
+export async function createScheduleEvent(event: ScheduleEvent): Promise<ScheduleEvent> {
+  return api<ScheduleEvent>('/schedule-events', { method: 'POST', body: JSON.stringify(event) })
+}
+
+export async function updateScheduleEvent(event: ScheduleEvent): Promise<ScheduleEvent> {
+  return api<ScheduleEvent>(`/schedule-events/${event.id}`, { method: 'PUT', body: JSON.stringify(event) })
+}
+
+export async function deleteScheduleEvent(id: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE_URL}/schedule-events/${id}`, { method: 'DELETE' })
   if (!res.ok) throw new Error(`Delete failed: ${res.status}`)
 }
 

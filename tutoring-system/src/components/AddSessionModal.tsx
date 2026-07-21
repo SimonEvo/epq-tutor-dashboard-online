@@ -35,7 +35,7 @@ export default function AddSessionModal({ student, onClose, onSaved }: Props) {
   const [isFinalDefense, setIsFinalDefense] = useState(false)
   const [date, setDate] = useState(todayStr)
   const [time, setTime] = useState('')
-  const [duration, setDuration] = useState<number | ''>('')
+  const [duration, setDuration] = useState<number | ''>(60)
   const [title, setTitle] = useState(() => computeAutoTitle(student.sessions, 'SA_MEETING', todayStr))
   const [summary, setSummary] = useState('')
   const [saving, setSaving] = useState(false)
@@ -47,14 +47,18 @@ export default function AddSessionModal({ student, onClose, onSaved }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setSaving(true)
     setError('')
+    if (!time) {
+      setError('请填写起始时间——没有起始时间的会议不能创建')
+      return
+    }
+    setSaving(true)
     try {
       const session: SessionRecord = {
         id: generateId(),
         type,
         date,
-        time: time || undefined,
+        time,
         durationMinutes: duration === '' ? 0 : duration,
         title: title.trim(),
         summary: summary.trim(),
@@ -124,8 +128,8 @@ export default function AddSessionModal({ student, onClose, onSaved }: Props) {
               <input type="date" value={date} onChange={e => setDate(e.target.value)} className={inputCls} required />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Time</label>
-              <input type="time" value={time} onChange={e => setTime(e.target.value)} className={inputCls} />
+              <label className="block text-xs text-gray-500 mb-1">Time <span className="text-red-500">*</span></label>
+              <input type="time" value={time} onChange={e => setTime(e.target.value)} className={inputCls} required />
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">Duration (min)</label>

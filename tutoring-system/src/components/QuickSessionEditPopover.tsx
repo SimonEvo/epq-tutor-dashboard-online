@@ -72,12 +72,16 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
   // summary/homework/transcript and any cached report.
   const handleSave = async () => {
     if (!full || !session) return
-    setSaving(true)
     setError('')
+    if (!time) {
+      setError('请填写起始时间——会议必须有起始时间')
+      return
+    }
+    setSaving(true)
     try {
       const updatedSession: SessionRecord = {
         ...session,
-        time: time || undefined,
+        time,
         durationMinutes: duration === '' ? 0 : duration,
         feedbackSent,
         isFinalDefense: session.type === 'SA_MEETING' ? isFinalDefense : false,
@@ -104,12 +108,16 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
   // generates the parent report (and flips feedbackSent on success).
   const handleGenerate = async () => {
     if (!full || !session || !parsed) return
-    setSaving(true)
     setError('')
+    if (!time) {
+      setError('请填写起始时间——会议必须有起始时间')
+      return
+    }
+    setSaving(true)
     try {
       const updatedSession: SessionRecord = {
         ...session,
-        time: time || undefined,
+        time,
         durationMinutes: duration === '' ? 0 : duration,
         summary: parsed.summary || session.summary,
         homework: parsed.homework || session.homework,
@@ -155,11 +163,12 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
               {/* Time + Duration */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">时间</label>
+                  <label className="block text-xs text-gray-500 mb-1">时间 <span className="text-red-500">*</span></label>
                   <input
                     type="time" value={time}
                     onChange={e => setTime(e.target.value)}
                     className={inputCls}
+                    required
                   />
                 </div>
                 <div>

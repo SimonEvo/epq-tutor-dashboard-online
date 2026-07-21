@@ -210,6 +210,18 @@ export interface Trial {
   updatedAt: string
 }
 
+export interface ScheduleEvent {
+  id: string
+  title: string
+  date: string          // YYYY-MM-DD
+  time: string          // HH:MM — required
+  durationMinutes: number
+  note: string
+  link: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface GanttTask {
   id: string
   name: string

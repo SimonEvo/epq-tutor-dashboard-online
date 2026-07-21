@@ -211,6 +211,21 @@ class TrialSchema(BaseModel):
         from_attributes = True
 
 
+class ScheduleEventSchema(BaseModel):
+    id: str
+    title: str = ""
+    date: str
+    time: str
+    durationMinutes: int = 60
+    note: str = ""
+    link: str = ""
+    createdAt: str = ""
+    updatedAt: str = ""
+
+    class Config:
+        from_attributes = True
+
+
 # ── Weekly report ─────────────────────────────────────────────────────────────
 
 class WeeklyReportSchema(BaseModel):

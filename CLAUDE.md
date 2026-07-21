@@ -70,6 +70,7 @@ cd /opt/epq-tutor-backend && .venv/bin/python migrate_from_local.py --data-dir /
 ## 当前状态
 ### In Progress
 - **学生知识库** — P1–P8 已实现并本地验证（分支 `feature/student-knowledge-base`）。**待办：`python deploy.py` 上线 + 线上强刷验证（P9）**。后端已加两表 + `tutors.kb_context_sources` 列，`create_all` / ALTER 自动迁移，无需手动建表。
+- **日程周视角（Week Schedule View）** — 已实现，本地 `tsc` / lint 通过。Dashboard 新增"日程"视图：周一~周日日历网格 + 动态时间轴 + 工作时间高亮 + 当前时间红线 + 撞车 split。新表 `schedule_events`（`create_all` 自动建）。顺带修 bug：session 起始时间全线必填。任务书 `docs/projects/week-schedule-view.md`。**待办：`python deploy.py` 上线 + 线上强刷验证。**
 
 ### Next Up
 - **学生知识库（Student Knowledge Base）** — 单学生私有 AI 知识库，三层架构（自动结构化上下文 / 活总结 / 原料层）+ 消化流程。任务书 `docs/projects/student-knowledge-base.md`（**§12 实现路线已批准，P1–P8 完成**），决策 `docs/adr/0002-student-knowledge-base-architecture.md`，术语见 `CONTEXT.md`
