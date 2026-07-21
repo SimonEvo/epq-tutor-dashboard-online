@@ -3,15 +3,17 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
-from app.routers import auth, students, supervisors, config, reports, calendar, backup as backup_router, zoom, trials, workflow, ai, gantt, knowledge, schedule_events
+from app.routers import auth, students, supervisors, config, reports, calendar, backup as backup_router, zoom, trials, workflow, ai, gantt, knowledge, schedule_events, nag as nag_router
 from app.database import engine, SessionLocal
-from app import models
+from app import models, nag
 
 
 # Check workflow scheduler this often. Inside the helper we still only create a
 # new pending row when 14 days have passed, so this just controls timeliness.
 SCHEDULER_CHECK_INTERVAL_SECONDS = 60 * 60 * 6  # every 6h
 BACKUP_INTERVAL_SECONDS = 60 * 60 * 24  # every 24h
+NAG_CHECK_INTERVAL_SECONDS = 60 * 10  # every 10min; fire once per workday 09:00 CN
+NAG_HOUR = 9  # 北京时间每工作日触发的整点
 
 
 async def _backup_loop():
@@ -40,6 +42,26 @@ async def _scheduler_loop():
         except Exception:
             pass  # never let scheduler crash the loop
         await asyncio.sleep(SCHEDULER_CHECK_INTERVAL_SECONDS)
+
+
+async def _nag_loop():
+    """每工作日 09:00(北京时间) 推送一次催促提醒。每 10min 检查，当天只发一次。"""
+    last_sent_date = None
+    while True:
+        try:
+            now = nag.datetime.now(nag.CN_TZ)
+            today = now.date()
+            # 周一~周五(weekday<5)、9 点整那个小时、且今天还没发过
+            if now.weekday() < 5 and now.hour == NAG_HOUR and last_sent_date != today:
+                db = SessionLocal()
+                try:
+                    nag.run_nag(db)
+                finally:
+                    db.close()
+                last_sent_date = today
+        except Exception:
+            pass  # 定时任务永不因异常中断
+        await asyncio.sleep(NAG_CHECK_INTERVAL_SECONDS)
 
 
 @asynccontextmanager
@@ -86,11 +108,13 @@ async def lifespan(app: FastAPI):
 
     task = asyncio.create_task(_scheduler_loop())
     backup_task = asyncio.create_task(_backup_loop())
+    nag_task = asyncio.create_task(_nag_loop())
     try:
         yield
     finally:
         task.cancel()
         backup_task.cancel()
+        nag_task.cancel()
 
 
 app = FastAPI(title="EPQ Tutor API", lifespan=lifespan)
@@ -125,6 +149,7 @@ app.include_router(ai.router)
 app.include_router(gantt.router)
 app.include_router(knowledge.router)
 app.include_router(schedule_events.router)
+app.include_router(nag_router.router)
 
 
 @app.get("/health")

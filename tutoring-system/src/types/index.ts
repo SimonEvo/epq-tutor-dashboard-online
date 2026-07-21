@@ -263,3 +263,29 @@ export interface WeeklyReportData {
     students: Record<string, StudentReportCacheEntry>  // keyed by student id
   }
 }
+
+// ── 群催促提醒（企业微信机器人） ───────────────────────────────────────────
+export interface NagScan {
+  date: string
+  weekday: string
+  stale_threshold: number
+  groups: {
+    unscheduled_sa: { name: string; topic: string }[]
+    stale: { name: string; topic: string; stale_days: number | null; next_sa: string }[]
+    upcoming_sa: { name: string; topic: string; next_sa: string; when: string; days_until: number }[]
+  }
+  events: { title: string; when: string }[]
+  total: number
+}
+
+export interface NagPreview {
+  scan: NagScan
+  messages: string[]          // 规则版 markdown 分条
+  webhookConfigured: boolean
+}
+
+export interface NagPushResult {
+  total: number
+  messages: number
+  push: { sent: number; failed: number; skipped: boolean; errors: string[] }
+}

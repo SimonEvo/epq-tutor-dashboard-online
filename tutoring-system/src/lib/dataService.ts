@@ -1,6 +1,6 @@
 import { apiFetch } from './githubClient'
 import { API_BASE_URL } from '@/config'
-import type { Student, Supervisor, WeeklyReportData, Trial, ActionLog, ManualLog, WorkflowAnalysis, GanttProject, GanttProjectSummary, ScheduleEvent } from '@/types'
+import type { Student, Supervisor, WeeklyReportData, Trial, ActionLog, ManualLog, WorkflowAnalysis, GanttProject, GanttProjectSummary, ScheduleEvent, NagPreview, NagPushResult } from '@/types'
 
 async function api<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await apiFetch(`${API_BASE_URL}${path}`, options)
@@ -511,5 +511,19 @@ export async function upsertGanttProject(ownerType: string, ownerId: string, nam
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, data }),
+  })
+}
+
+// ─── 群催促提醒 ───────────────────────────────────────────────────────────────
+export async function nagPreview(): Promise<NagPreview> {
+  return api<NagPreview>('/nag/preview', { method: 'POST' })
+}
+
+/** 手动推送。content 传入则推该 markdown（AI 排序版）；否则后端跑规则版。 */
+export async function nagSend(content?: string): Promise<NagPushResult> {
+  return api<NagPushResult>('/nag/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(content ? { content } : {}),
   })
 }

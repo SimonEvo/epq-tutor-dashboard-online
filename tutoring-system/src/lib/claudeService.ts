@@ -1,6 +1,6 @@
 import { getSettings } from './settings'
 import { EPQ_MILESTONES } from '@/config'
-import type { Student, SessionRecord } from '@/types'
+import type { Student, SessionRecord, NagScan } from '@/types'
 import { isSessionStarted, countsAsSaHour } from './formatters'
 
 async function callAI(prompt: string, options?: { maxTokens?: number }): Promise<string> {
@@ -495,4 +495,49 @@ ${studentBlocks}
 
   const encoded = await callAI(prompt, { maxTokens: 4096 })
   return decodeNames(encoded, mappings)
+}
+
+// ── 群催促：AI 排轻重缓急，输出企业微信 markdown ────────────────────────────
+/**
+ * 把扫描结果交给 AI 排序 + 结构化，产出企业微信 markdown。
+ * 姓名/课题先编码成化名发给 AI，返回结果再解码回真名（不外泄真实姓名）。
+ */
+export async function rankNagMarkdown(scan: NagScan, students: Student[]): Promise<string> {
+  const mappings = buildNameMappings(students)
+  const enc = (s: string) => encodeNames(s, mappings)
+
+  const encodedScan = {
+    date: scan.date,
+    weekday: scan.weekday,
+    stale_threshold: scan.stale_threshold,
+    groups: {
+      unscheduled_sa: scan.groups.unscheduled_sa.map(x => ({ name: enc(x.name), topic: enc(x.topic) })),
+      stale: scan.groups.stale.map(x => ({ name: enc(x.name), topic: enc(x.topic), stale_days: x.stale_days })),
+      upcoming_sa: scan.groups.upcoming_sa.map(x => ({ name: enc(x.name), topic: enc(x.topic), when: x.when, days_until: x.days_until })),
+    },
+    events: scan.events.map(x => ({ title: enc(x.title), when: x.when })),
+  }
+
+  const prompt = `你是 EPQ 家教的助理。下面是今天扫描出的需要催促的学生数据（JSON，姓名为化名请直接使用）。
+请你按【轻重缓急】重新排列，产出一条企业微信群机器人 markdown 消息，用来提醒家教本人今天要盯哪些学生。
+
+数据：
+${JSON.stringify(encodedScan, null, 2)}
+
+字段含义：
+- unscheduled_sa：还没预约下次 SA 会议（最需处理）
+- stale：已停滞未更新，stale_days 是停滞天数，null 表示从无任何记录
+- upcoming_sa：临近的 SA 会议，days_until 是剩余天数，when 是友好时间
+- events：家教自己临近的日程
+
+输出要求：
+- 只输出 markdown 正文，不要任何解释、不要代码块包裹
+- 第一行标题：\`# EPQ 每日催促 · ${scan.date} ${scan.weekday}\`
+- 你自行判断轻重缓急决定分组与顺序，最紧急的放最前
+- 每个学生一行加粗姓名 + 课题，下一行写具体状态
+- 关键数字（剩余/停滞天数、"尚未预约"等）用 \`<font color="warning">…</font>\` 高亮
+- 简洁，不要客套话`
+
+  const encodedReply = await callAI(prompt, { maxTokens: 2048 })
+  return decodeNames(encodedReply, mappings)
 }
