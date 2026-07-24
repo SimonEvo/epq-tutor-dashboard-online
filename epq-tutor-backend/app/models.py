@@ -260,6 +260,20 @@ class StudentKnowledgeEntry(Base):
     digested_at = Column(DateTime, nullable=True)  # non-null = archived after a digest
 
 
+class ScheduleEvent(Base):
+    """轻量日程事件：把各处约的非上课会议手动收敛到周视角。上课/试听各有自己的表。"""
+    __tablename__ = "schedule_events"
+    id = Column(String(64), primary_key=True)
+    title = Column(String(256), nullable=False, default="")
+    date = Column(String(16), nullable=False)
+    time = Column(String(8), nullable=False)          # HH:MM，必填——无起始时间不允许
+    duration_minutes = Column(Integer, nullable=False, default=60)
+    note = Column(Text, default="")
+    link = Column(String(512), default="")
+    created_at = Column(DateTime, default=now_utc)
+    updated_at = Column(DateTime, default=now_utc, onupdate=now_utc)
+
+
 class GanttProject(Base):
     __tablename__ = "gantt_projects"
     id = Column(String(64), primary_key=True)

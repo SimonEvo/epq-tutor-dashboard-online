@@ -7,14 +7,16 @@ import KanbanProgressView from '@/components/views/KanbanProgressView'
 import MilestoneGridView from '@/components/views/MilestoneGridView'
 import OverviewView from '@/components/views/OverviewView'
 import GanttView from '@/components/views/GanttView'
+import WeekScheduleView from '@/components/views/WeekScheduleView'
 import type { Student, Supervisor, Trial, WeeklyReportData } from '@/types'
 import { formatHours, copyToClipboard, countsAsSaHour } from '@/lib/formatters'
 import { generateWeeklyReport, getWeeklyReportData } from '@/lib/weeklyReportService'
 import { listTrials, getDefaultRound } from '@/lib/dataService'
 
-type ViewMode = 'overview' | 'grid' | 'gantt' | 'kanban-progress' | 'milestone'
+type ViewMode = 'schedule' | 'overview' | 'grid' | 'gantt' | 'kanban-progress' | 'milestone'
 
 const VIEW_BUTTONS: { mode: ViewMode; label: string }[] = [
+  { mode: 'schedule', label: '日程' },
   { mode: 'overview', label: '概览' },
   { mode: 'grid', label: '卡片' },
   { mode: 'gantt', label: '甘特图' },
@@ -448,7 +450,7 @@ export default function DashboardPage() {
       <div className="flex flex-col gap-3 mb-6">
         {/* Row 1: sort + round filter + view switcher */}
         <div className="flex gap-3 flex-wrap items-center">
-          {viewMode !== 'kanban-progress' && viewMode !== 'milestone' && (
+          {viewMode !== 'kanban-progress' && viewMode !== 'milestone' && viewMode !== 'schedule' && (
             <select
               value={sortBy}
               onChange={e => setSortBy(e.target.value as 'name' | 'lastSession')}
@@ -459,7 +461,7 @@ export default function DashboardPage() {
             </select>
           )}
 
-          {rounds.length > 0 && (
+          {rounds.length > 0 && viewMode !== 'schedule' && (
             <div className="flex gap-2 flex-wrap items-center">
               <span className="text-xs text-gray-400">Round:</span>
               <button
@@ -507,6 +509,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Row 2: my role filter (SA / TA) */}
+        {viewMode !== 'schedule' && (
         <div className="flex gap-2 flex-wrap items-center">
           <span className="text-xs text-gray-400">我的角色:</span>
           {([['', '全部'], ['SA', 'SA'], ['TA', 'TA']] as const).map(([value, label]) => (
@@ -523,9 +526,10 @@ export default function DashboardPage() {
             </button>
           ))}
         </div>
+        )}
 
         {/* Row 3: tag filter */}
-        {tags.length > 0 && (
+        {tags.length > 0 && viewMode !== 'schedule' && (
           <div className="flex gap-2 flex-wrap items-center">
             <span className="text-xs text-gray-400">Tag:</span>
             <button
@@ -555,7 +559,9 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {filtered.length === 0 ? (
+      {viewMode === 'schedule' ? (
+        <WeekScheduleView students={students} supervisors={supervisors} />
+      ) : filtered.length === 0 ? (
         <div className="text-gray-400 text-sm py-16 text-center">
           {students.length === 0 ? 'No students yet. Add your first student!' : 'No students match this filter.'}
         </div>

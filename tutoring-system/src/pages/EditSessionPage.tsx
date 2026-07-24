@@ -54,14 +54,18 @@ export default function EditSessionPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setSaving(true)
     setError('')
+    if (!time) {
+      setError('请填写起始时间——没有起始时间的会议不能保存')
+      return
+    }
+    setSaving(true)
     try {
       const updatedSession: SessionRecord = {
         ...session,
         type,
         date,
-        time: time || undefined,
+        time,
         durationMinutes: duration,
         title: title.trim(),
         summary: summary.trim(),
@@ -142,9 +146,9 @@ export default function EditSessionPage() {
             <input type="date" value={date} onChange={e => setDate(e.target.value)}
               className={inputCls} required />
           </Field>
-          <Field label="Time">
+          <Field label="Time *">
             <input type="time" value={time} onChange={e => setTime(e.target.value)}
-              className={inputCls} />
+              className={inputCls} required />
           </Field>
           <Field label="Duration (minutes)">
             <input type="number" min={0} value={duration}
