@@ -147,7 +147,7 @@ export default function EditSessionPage() {
               className={inputCls} />
           </Field>
           <Field label="Duration (minutes)">
-            <input type="number" min={1} value={duration}
+            <input type="number" min={0} value={duration}
               onChange={e => setDuration(Number(e.target.value))} className={inputCls} required />
           </Field>
         </div>

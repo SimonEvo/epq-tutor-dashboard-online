@@ -165,7 +165,7 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">时长（分钟）</label>
                   <input
-                    type="number" min={1} value={duration} placeholder="—"
+                    type="number" min={0} value={duration} placeholder="—"
                     onChange={e => setDuration(e.target.value === '' ? '' : Number(e.target.value))}
                     className={inputCls}
                   />
