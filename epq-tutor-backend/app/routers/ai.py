@@ -31,7 +31,7 @@ class ChatRequest(BaseModel):
     studentId: str
     messages: list[ChatMessage]
     apiKey: str
-    model: str = "deepseek-v4"
+    model: str = "deepseek-v4-flash"
     baseUrl: str = DEEPSEEK_BASE_URL
     maxTokens: int = 4096
 
@@ -63,14 +63,46 @@ def ai_proxy(
     except http.exceptions.RequestException as e:
         raise HTTPException(status_code=502, detail=f"AI provider error: {e}")
 
-    result = resp.json()
+    return {"content": _extract_content(resp.json())}
+
+
+def _extract_content(result: dict) -> str:
+    """Pull the assistant text out of a chat-completions payload.
+
+    Reasoning models (deepseek-v4-pro / deepseek-reasoner) fill reasoning_content
+    first and only write content once the thinking finishes, so a max_tokens
+    budget eaten by the chain of thought comes back as HTTP 200 with an empty
+    content. Fall back to reasoning_content, and 502 rather than hand the client
+    an empty string it would silently render as a blank report.
+    """
     try:
-        msg = result["choices"][0]["message"]
-        content: str = msg.get("content") or msg.get("reasoning_content") or ""
+        choice = result["choices"][0]
+        msg = choice["message"]
     except (KeyError, IndexError):
         raise HTTPException(status_code=502, detail=f"Unexpected AI response: {str(result)[:200]}")
 
-    return {"content": content}
+    content = (msg.get("content") or "").strip()
+    if content:
+        return content
+
+    # Truncated mid-thought: reasoning_content holds only a fragment of the chain
+    # of thought, never the answer, so surfacing it would render nonsense as a report.
+    if choice.get("finish_reason") == "length":
+        raise HTTPException(
+            status_code=502,
+            detail="AI 返回内容为空：max_tokens 被思维链占满，模型还没开始写正文就被截断。"
+                   "请在设置页把模型改为 deepseek-v4-flash（推理模型不适合本场景）。",
+        )
+
+    # Finished normally but wrote everything into reasoning_content — that is the answer.
+    reasoning = (msg.get("reasoning_content") or "").strip()
+    if reasoning:
+        return reasoning
+
+    raise HTTPException(
+        status_code=502,
+        detail=f"AI 返回内容为空（finish_reason: {choice.get('finish_reason', '未知')}）",
+    )
 
 
 def _call_provider(messages: list[dict], api_key: str, model: str, base_url: str, max_tokens: int) -> str:
@@ -87,12 +119,7 @@ def _call_provider(messages: list[dict], api_key: str, model: str, base_url: str
     except http.exceptions.RequestException as e:
         raise HTTPException(status_code=502, detail=f"AI provider error: {e}")
 
-    result = resp.json()
-    try:
-        msg = result["choices"][0]["message"]
-        return msg.get("content") or msg.get("reasoning_content") or ""
-    except (KeyError, IndexError):
-        raise HTTPException(status_code=502, detail=f"Unexpected AI response: {str(result)[:200]}")
+    return _extract_content(resp.json())
 
 
 @router.post("/chat")

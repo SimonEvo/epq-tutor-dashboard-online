@@ -305,7 +305,7 @@ export default function SettingsPage() {
                 type="text"
                 value={settings.aiModel}
                 onChange={e => setSettings(s => ({ ...s, aiModel: e.target.value }))}
-                placeholder="gpt-4o / qwen-plus / deepseek-chat …"
+                placeholder="gpt-4o / qwen-plus / deepseek-v4-flash …"
                 className={inputCls}
               />
             </div>

@@ -393,7 +393,7 @@ class ChatMsg(BaseModel):
 class DigestRequest(BaseModel):
     messages: list[ChatMsg] = []
     apiKey: str
-    model: str = "deepseek-v4"
+    model: str = "deepseek-v4-flash"
     baseUrl: str = "https://api.deepseek.com/v1"
     maxTokens: int = 2048
 
@@ -401,7 +401,7 @@ class DigestRequest(BaseModel):
 class MergeRequest(BaseModel):
     approvedFacts: list[str]
     apiKey: str
-    model: str = "deepseek-v4"
+    model: str = "deepseek-v4-flash"
     baseUrl: str = "https://api.deepseek.com/v1"
     maxTokens: int = 4096
 

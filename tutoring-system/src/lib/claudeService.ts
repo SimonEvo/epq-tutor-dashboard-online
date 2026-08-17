@@ -1,4 +1,5 @@
 import { getSettings } from './settings'
+import { extractContent } from './aiResponse'
 import { EPQ_MILESTONES } from '@/config'
 import type { Student, SessionRecord, NagScan } from '@/types'
 import { isSessionStarted, countsAsSaHour } from './formatters'
@@ -27,8 +28,7 @@ async function callAI(prompt: string, options?: { maxTokens?: number }): Promise
     throw new Error(msg ?? `API 错误 ${res.status}`)
   }
 
-  const data = await res.json() as { choices: { message: { content: string } }[] }
-  return data.choices[0].message.content
+  return extractContent(await res.json())
 }
 
 // ── AI Command Center ─────────────────────────────────────────────────────────
