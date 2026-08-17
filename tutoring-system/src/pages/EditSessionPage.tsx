@@ -21,7 +21,7 @@ export default function EditSessionPage() {
   const [isFinalDefense, setIsFinalDefense] = useState(false)
   const [date, setDate] = useState('')
   const [time, setTime] = useState('')
-  const [duration, setDuration] = useState(60)
+  const [duration, setDuration] = useState(0)
   const [title, setTitle] = useState('')
   const [summary, setSummary] = useState('')
   const [homework, setHomework] = useState('')
@@ -151,7 +151,7 @@ export default function EditSessionPage() {
               className={inputCls} required />
           </Field>
           <Field label="Duration (minutes)">
-            <input type="number" min={1} value={duration}
+            <input type="number" min={0} value={duration}
               onChange={e => setDuration(Number(e.target.value))} className={inputCls} required />
           </Field>
         </div>

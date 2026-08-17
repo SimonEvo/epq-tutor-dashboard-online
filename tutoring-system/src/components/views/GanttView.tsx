@@ -27,7 +27,8 @@ const SESSION_LABEL: Record<string, string> = {
 const COL_W = 64
 
 interface Props {
-  students: Student[]
+  students: Student[]      // 当前 round 过滤后的学生，只决定显示哪些行
+  allStudents: Student[]   // 全部学生，仅用于计算稳定的时间轴范围（切 round 时轴不变）
   supervisors: Supervisor[]
 }
 
@@ -52,7 +53,7 @@ interface TooltipState { text: string; x: number; y: number }
 
 const MONTHS = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月']
 
-export default function GanttView({ students, supervisors }: Props) {
+export default function GanttView({ students, allStudents, supervisors }: Props) {
   const supervisorById = useMemo(
     () => new Map(supervisors.map(sv => [sv.id, sv])),
     [supervisors]
@@ -77,7 +78,8 @@ export default function GanttView({ students, supervisors }: Props) {
     let minD: Date | null = null
     let maxD: Date | null = null
 
-    for (const s of students) {
+    // 用全部学生算范围，切 round 时时间轴/滚动位置保持不变（仅过滤显示行）
+    for (const s of allStudents) {
       for (const sess of (s.sessions ?? [])) {
         const d = new Date(sess.date + 'T12:00:00')
         if (!minD || d < minD) minD = d
@@ -119,26 +121,25 @@ export default function GanttView({ students, supervisors }: Props) {
     }
 
     return { startDate: rangeStart, endDate: rangeEnd, totalDays: days, todayColIdx: todayIdx, dates: dateArr, monthSpans: spans }
-  }, [students, project, today])
+  }, [allStudents, project, today])
 
   const totalWidth = Math.max(640, totalDays * COL_W)
 
-  // ── Scroll to today on first load ────────────────────────────────────────
+  // ── Scroll to today on first load only ───────────────────────────────────
+  // The timeline range is derived from allStudents, so switching round no longer
+  // moves day-0 — the scroll position is preserved naturally on a round switch.
   useEffect(() => {
     if (!scrollRef.current || totalDays === 0 || initialScrollDone) return
     const el = scrollRef.current
-    const todayPx = todayColIdx * COL_W
-    const target = Math.max(0, todayPx - el.clientWidth * 0.3)
+    const target = Math.max(0, todayColIdx * COL_W - el.clientWidth * 0.3)
     el.scrollTo({ left: target })
     setInitialScrollDone(true)
     prevStartRef.current = startDate
   }, [totalDays, todayColIdx, initialScrollDone, startDate])
 
-  // ── Keep the left-edge date fixed when the range shifts (e.g. 切学期) ─────────
-  // startDate (day-0) is derived from the visible students' earliest date, so a
-  // round switch moves it. scrollLeft is in pixels, so the same pixel would then
-  // point at a different date and the view appears to jump. Compensate by the
-  // day delta so the calendar date under the viewport stays put.
+  // ── Keep the calendar date under the viewport fixed if day-0 still shifts ──
+  // (e.g. the GanttProject loads asynchronously after the first paint). Round
+  // switches don't reach here since startDate is now stable across them.
   useLayoutEffect(() => {
     const el = scrollRef.current
     const prev = prevStartRef.current

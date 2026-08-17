@@ -35,7 +35,7 @@ export default function AddSessionModal({ student, onClose, onSaved }: Props) {
   const [isFinalDefense, setIsFinalDefense] = useState(false)
   const [date, setDate] = useState(todayStr)
   const [time, setTime] = useState('')
-  const [duration, setDuration] = useState<number | ''>(60)
+  const [duration, setDuration] = useState<number | ''>(0)
   const [title, setTitle] = useState(() => computeAutoTitle(student.sessions, 'SA_MEETING', todayStr))
   const [summary, setSummary] = useState('')
   const [saving, setSaving] = useState(false)
@@ -133,7 +133,7 @@ export default function AddSessionModal({ student, onClose, onSaved }: Props) {
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">Duration (min)</label>
-              <input type="number" min={1} value={duration} placeholder="—"
+              <input type="number" min={0} value={duration} placeholder="—"
                 onChange={e => setDuration(e.target.value === '' ? '' : Number(e.target.value))}
                 className={inputCls} />
             </div>

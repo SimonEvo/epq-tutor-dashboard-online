@@ -39,7 +39,7 @@ export default function NewSessionPage() {
   const [isFinalDefense, setIsFinalDefense] = useState(false)
   const [date, setDate] = useState(todayStr)
   const [time, setTime] = useState('')
-  const [duration, setDuration] = useState<number | ''>(60)
+  const [duration, setDuration] = useState<number | ''>(0)
   const [title, setTitle] = useState(() =>
     student ? computeAutoTitle(student.sessions, 'SA_MEETING', todayStr) : 'SA #1'
   )
@@ -169,7 +169,7 @@ export default function NewSessionPage() {
               className={inputCls} required />
           </Field>
           <Field label="Duration (minutes)">
-            <input type="number" min={1} value={duration} placeholder="—"
+            <input type="number" min={0} value={duration} placeholder="—"
               onChange={e => setDuration(e.target.value === '' ? '' : Number(e.target.value))} className={inputCls} />
           </Field>
         </div>
