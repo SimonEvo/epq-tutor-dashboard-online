@@ -39,7 +39,7 @@ export default function NewSessionPage() {
   const [isFinalDefense, setIsFinalDefense] = useState(false)
   const [date, setDate] = useState(todayStr)
   const [time, setTime] = useState('')
-  const [duration, setDuration] = useState<number | ''>(60)
+  const [duration, setDuration] = useState<number | ''>(0)
   const [title, setTitle] = useState(() =>
     student ? computeAutoTitle(student.sessions, 'SA_MEETING', todayStr) : 'SA #1'
   )

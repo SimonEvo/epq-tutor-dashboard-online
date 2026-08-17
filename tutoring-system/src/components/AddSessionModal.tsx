@@ -35,7 +35,7 @@ export default function AddSessionModal({ student, onClose, onSaved }: Props) {
   const [isFinalDefense, setIsFinalDefense] = useState(false)
   const [date, setDate] = useState(todayStr)
   const [time, setTime] = useState('')
-  const [duration, setDuration] = useState<number | ''>(60)
+  const [duration, setDuration] = useState<number | ''>(0)
   const [title, setTitle] = useState(() => computeAutoTitle(student.sessions, 'SA_MEETING', todayStr))
   const [summary, setSummary] = useState('')
   const [saving, setSaving] = useState(false)

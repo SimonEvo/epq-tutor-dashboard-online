@@ -21,7 +21,7 @@ export default function EditSessionPage() {
   const [isFinalDefense, setIsFinalDefense] = useState(false)
   const [date, setDate] = useState('')
   const [time, setTime] = useState('')
-  const [duration, setDuration] = useState(60)
+  const [duration, setDuration] = useState(0)
   const [title, setTitle] = useState('')
   const [summary, setSummary] = useState('')
   const [homework, setHomework] = useState('')
