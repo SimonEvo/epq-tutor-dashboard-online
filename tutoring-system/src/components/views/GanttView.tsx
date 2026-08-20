@@ -15,8 +15,11 @@ const SESSION_COLOR: Record<string, string> = {
 const FEEDBACK_DONE_RING = '#16a34a'
 const FEEDBACK_DUE_RING = '#eab308'
 
-// 中方SA（tutor 亲自当 SA）会议用温和 prince 紫区分；英方SA 用正常 salmon
+// 中方SA（tutor 亲自当 SA）会议用温和 prince 紫区分；英方SA 用正常 salmon（Gantt 里要靠这个颜色判断课后反馈状态，不弱化）
 const SA_ZHONGFANG_COLOR = '#9575CD'
+// 最终答辩：无论中英方都要出席，配色单独拉出来强调
+const SA_ZHONGFANG_DEFENSE_COLOR = '#A21CAF'  // 紫红
+const SA_YINGFANG_DEFENSE_COLOR = '#db4d4d'   // 醒目红
 
 const SESSION_LABEL: Record<string, string> = {
   SA_MEETING: 'SA会议',
@@ -423,11 +426,13 @@ export default function GanttView({ students, allStudents, supervisors }: Props)
                   {visibleSessions.map((sess: SessionRecord) => {
                       const idx = colIdxFromDate(sess.date)
                       const left = idx * COL_W + COL_W / 2
-                      const color = sess.type === 'SA_MEETING' && isZhongFangSA
-                        ? SA_ZHONGFANG_COLOR
-                        : SESSION_COLOR[sess.type]
                       const isSA = sess.type === 'SA_MEETING'
                       const isDefense = isSA && sess.isFinalDefense
+                      const color = isSA
+                        ? (isDefense
+                            ? (isZhongFangSA ? SA_ZHONGFANG_DEFENSE_COLOR : SA_YINGFANG_DEFENSE_COLOR)
+                            : (isZhongFangSA ? SA_ZHONGFANG_COLOR : SESSION_COLOR.SA_MEETING))
+                        : SESSION_COLOR[sess.type]
                       const fullLabel = isDefense ? '最终答辩' : SESSION_LABEL[sess.type]
                       // SA 课后反馈状态环：已发送=绿；未发送且已到第 3 个工作日（含逾期）=黄
                       let feedbackRing: string | undefined

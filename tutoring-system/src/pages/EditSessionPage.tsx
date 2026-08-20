@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useStudentStore } from '@/stores/studentStore'
-import type { SessionRecord, SessionType, Student } from '@/types'
+import type { SessionRecord, SessionType, Student, Supervisor } from '@/types'
 import * as dataService from '@/lib/dataService'
 import { countsAsSaHour } from '@/lib/formatters'
 
@@ -10,15 +10,19 @@ export default function EditSessionPage() {
   const navigate = useNavigate()
   const { saveStudent } = useStudentStore()
   const [student, setStudent] = useState<Student | null>(null)
+  const [supervisors, setSupervisors] = useState<Supervisor[]>([])
 
   useEffect(() => {
     if (id) dataService.getStudent(id).then(setStudent).catch(() => {})
+    dataService.listSupervisors().then(setSupervisors).catch(() => {})
   }, [id])
 
   const session = student?.sessions.find(s => s.id === sessionId)
+  const isZhongFang = supervisors.find(v => v.id === student?.supervisorId)?.saType === '中方SA'
 
   const [type, setType] = useState<SessionType>('TA_MEETING')
   const [isFinalDefense, setIsFinalDefense] = useState(false)
+  const [tutorAttending, setTutorAttending] = useState(false)
   const [date, setDate] = useState('')
   const [time, setTime] = useState('')
   const [duration, setDuration] = useState(0)
@@ -34,6 +38,7 @@ export default function EditSessionPage() {
     if (!session) return
     setType(session.type)
     setIsFinalDefense(session.isFinalDefense ?? false)
+    setTutorAttending(session.tutorAttending ?? false)
     setDate(session.date)
     setTime(session.time ?? '')
     setDuration(session.durationMinutes)
@@ -73,6 +78,7 @@ export default function EditSessionPage() {
         transcript: transcript.trim(),
         privateNotes: privateNotes.trim(),
         isFinalDefense: type === 'SA_MEETING' ? isFinalDefense : false,
+        tutorAttending: type === 'SA_MEETING' ? tutorAttending : false,
         generatedReport: undefined,    // invalidate cached report on edit
         reportGeneratedAt: undefined,
       }
@@ -131,6 +137,16 @@ export default function EditSessionPage() {
                 className="w-4 h-4 accent-[#E11D48]"
               />
               标记为最终答辩（不计 SA 课时）
+            </label>
+          )}
+          {type === 'SA_MEETING' && !isZhongFang && !isFinalDefense && (
+            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none mt-2">
+              <input
+                type="checkbox" checked={tutorAttending}
+                onChange={e => setTutorAttending(e.target.checked)}
+                className="w-4 h-4 accent-[#FA8072]"
+              />
+              导师出席本次英方SA会议
             </label>
           )}
           {type === 'SA_MEETING' && (

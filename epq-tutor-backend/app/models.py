@@ -98,6 +98,7 @@ class Session(Base):
     report_extra_context = Column(Text)
     feedback_sent = Column(Boolean, nullable=False, default=False)  # SA 会议课后反馈是否已发送
     is_final_defense = Column(Boolean, nullable=False, default=False)  # 标记为最终答辩的特殊 SA 会议（不计 SA 课时）
+    tutor_attending = Column(Boolean, nullable=False, default=False)  # 英方SA会议导师是否出席
     zoom_meeting_id = Column(String(64))
     zoom_join_url = Column(Text)
     zoom_password = Column(String(64))

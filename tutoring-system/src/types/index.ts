@@ -73,6 +73,7 @@ export interface SessionRecord {
   reportExtraContext?: string // 生成报告时的额外补充（督导反馈／导师补充）
   feedbackSent?: boolean       // SA 会议课后反馈是否已发送（首次生成 AI 报告时自动置 true）
   isFinalDefense?: boolean     // 标记为最终答辩的特殊 SA 会议（不计 SA 课时；甘特图红框标识）
+  tutorAttending?: boolean     // 英方SA会议：导师是否出席（决定日程视图颜色是否恢复正常）
   zoomMeetingId?: string
   zoomJoinUrl?: string
   zoomPassword?: string

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useStudentStore } from '@/stores/studentStore'
-import { getStudent } from '@/lib/dataService'
+import { getStudent, listSupervisors } from '@/lib/dataService'
 import { countsAsSaHour } from '@/lib/formatters'
 import { parseZoomRecap, type ParsedFields } from '@/components/ZoomImportDialog'
 import type { SessionRecord, Student } from '@/types'
@@ -39,6 +39,8 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
   const [duration, setDuration] = useState<number | ''>('')
   const [feedbackSent, setFeedbackSent] = useState(false)
   const [isFinalDefense, setIsFinalDefense] = useState(false)
+  const [tutorAttending, setTutorAttending] = useState(false)
+  const [isZhongFang, setIsZhongFang] = useState(false)
 
   // Paste-and-parse flow
   const [rawText, setRawText] = useState('')
@@ -49,17 +51,20 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
 
   useEffect(() => {
     let alive = true
-    getStudent(studentId)
-      .then(s => {
+    Promise.all([getStudent(studentId), listSupervisors().catch(() => [])])
+      .then(([s, svs]) => {
         if (!alive) return
         const sess = s.sessions.find(x => x.id === sessionId) ?? null
         setFull(s)
         setSession(sess)
+        const sv = svs.find(v => v.id === s.supervisorId)
+        setIsZhongFang(sv?.saType === '中方SA')
         if (sess) {
           setTime(sess.time ?? '')
           setDuration(sess.durationMinutes || '')
           setFeedbackSent(sess.feedbackSent ?? false)
           setIsFinalDefense(sess.isFinalDefense ?? false)
+          setTutorAttending(sess.tutorAttending ?? false)
         } else {
           setNotFound(true)
         }
@@ -85,6 +90,7 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
         durationMinutes: duration === '' ? 0 : duration,
         feedbackSent,
         isFinalDefense: session.type === 'SA_MEETING' ? isFinalDefense : false,
+        tutorAttending: session.type === 'SA_MEETING' ? tutorAttending : false,
       }
       const updatedSessions = full.sessions.map(s => s.id === sessionId ? updatedSession : s)
       const saCount = updatedSessions.filter(countsAsSaHour).length
@@ -123,6 +129,7 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
         homework: parsed.homework || session.homework,
         transcript: parsed.transcript || session.transcript,
         isFinalDefense: session.type === 'SA_MEETING' ? isFinalDefense : false,
+        tutorAttending: session.type === 'SA_MEETING' ? tutorAttending : false,
         generatedReport: undefined,   // force a fresh report from the new content
         reportGeneratedAt: undefined,
       }
@@ -200,6 +207,16 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
                     />
                     标记为最终答辩（不计 SA 课时）
                   </label>
+                  {!isZhongFang && !isFinalDefense && (
+                    <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+                      <input
+                        type="checkbox" checked={tutorAttending}
+                        onChange={e => setTutorAttending(e.target.checked)}
+                        className="w-4 h-4 accent-[#FA8072]"
+                      />
+                      导师出席本次英方SA会议
+                    </label>
+                  )}
                 </div>
               )}
 
@@ -248,7 +265,7 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
                   type="button" onClick={handleSave} disabled={saving}
                   className="flex-1 text-sm py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
                 >
-                  {saving ? '保存中…' : '仅保存时间/时长'}
+                  {saving ? '保存中…' : '保存'}
                 </button>
                 <Link
                   to={`/students/${studentId}/session/${sessionId}/edit`}

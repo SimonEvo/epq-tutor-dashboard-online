@@ -48,6 +48,7 @@ class SessionSchema(BaseModel):
     reportExtraContext: Optional[str] = None
     feedbackSent: bool = False
     isFinalDefense: bool = False
+    tutorAttending: bool = False
     zoomMeetingId: Optional[str] = None
     zoomJoinUrl: Optional[str] = None
     zoomPassword: Optional[str] = None
@@ -112,6 +113,7 @@ class SessionSummarySchema(BaseModel):
     durationMinutes: int = 60
     feedbackSent: bool = False
     isFinalDefense: bool = False
+    tutorAttending: bool = False
 
 
 class StudentSummarySchema(BaseModel):

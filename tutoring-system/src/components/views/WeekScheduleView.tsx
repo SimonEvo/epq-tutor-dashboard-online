@@ -12,13 +12,20 @@ interface Props {
 
 // 类型配色 —— 与甘特图/报告全系统一致
 const SESSION_COLOR: Record<string, string> = {
-  SA_MEETING: '#FA8072',
+  SA_MEETING: '#D1D5DB',
   TA_MEETING: '#3b82f6',
   THEORY: '#22c55e',
 }
+// 中方SA 平时会议用温和 prince 紫；英方SA 平时无需出席，弱化为浅灰
 const SA_ZHONGFANG_COLOR = '#9575CD'
+const SA_DIMMED_TEXT = '#6B7280'
+// 若勾选「导师出席」，英方SA 平时会议恢复正常 salmon
+const SA_YINGFANG_ATTENDING_COLOR = '#FA8072'
+// 最终答辩：无论中英方都要出席，配色单独拉出来强调
+const SA_ZHONGFANG_DEFENSE_COLOR = '#A21CAF'  // 紫红
+const SA_YINGFANG_DEFENSE_COLOR = '#db4d4d'   // 醒目红
 const TRIAL_COLOR = '#f59e0b'   // 琥珀
-const EVENT_COLOR = '#64748b'   // 中性石板灰 —— 非上课事件
+const EVENT_COLOR = '#eb66a8'   // 暖粉 —— 自定义事件（如私人安排）
 
 const SESSION_LABEL: Record<string, string> = { SA_MEETING: 'SA', TA_MEETING: 'TA', THEORY: '理论' }
 
@@ -51,6 +58,7 @@ interface Block {
   label: string
   time?: string
   color: string
+  textColor?: string
   studentId?: string
   studentName?: string
   sessionId?: string
@@ -104,12 +112,21 @@ export default function WeekScheduleView({ students, supervisors }: Props) {
       for (const sess of (s.sessions ?? []) as SessionRecord[]) {
         if (!weekSet.has(sess.date)) continue
         if (sess.type !== 'SA_MEETING' && sess.type !== 'TA_MEETING' && sess.type !== 'THEORY') continue
-        const color = sess.type === 'SA_MEETING' && isZhongFang ? SA_ZHONGFANG_COLOR : SESSION_COLOR[sess.type]
-        const label = sess.isFinalDefense ? '答辩' : SESSION_LABEL[sess.type]
+        const isSA = sess.type === 'SA_MEETING'
+        const isDefense = isSA && sess.isFinalDefense
+        const isYingfangAttending = isSA && !isDefense && !isZhongFang && !!sess.tutorAttending
+        const color = isSA
+          ? (isDefense
+              ? (isZhongFang ? SA_ZHONGFANG_DEFENSE_COLOR : SA_YINGFANG_DEFENSE_COLOR)
+              : (isZhongFang ? SA_ZHONGFANG_COLOR : (isYingfangAttending ? SA_YINGFANG_ATTENDING_COLOR : SESSION_COLOR.SA_MEETING)))
+          : SESSION_COLOR[sess.type]
+        // 英方平时 SA（非答辩、非出席）弱化为浅灰底，需要深色字才看得清
+        const textColor = isSA && !isDefense && !isZhongFang && !isYingfangAttending ? SA_DIMMED_TEXT : undefined
+        const label = isDefense ? '答辩' : SESSION_LABEL[sess.type]
         out.push({
           key: `sess-${sess.id}`, kind: 'session', date: sess.date,
           startMin: parseMin(sess.time), durationMin: sess.durationMinutes || 60,
-          label: `${label} · ${s.name}`, time: sess.time, color,
+          label: `${label} · ${s.name}`, time: sess.time, color, textColor,
           studentId: s.id, studentName: s.name, sessionId: sess.id,
         })
       }
@@ -232,7 +249,7 @@ export default function WeekScheduleView({ students, supervisors }: Props) {
               {untimed.filter(b => b.date === iso).map(b => (
                 <button key={b.key} onClick={() => openBlock(b)}
                   className="text-left text-[11px] text-white rounded px-1.5 py-0.5 truncate"
-                  style={{ background: b.color, opacity: 0.9 }} title={b.label}>
+                  style={{ background: b.color, opacity: 0.9, color: b.textColor ?? '#fff' }} title={b.label}>
                   {b.label}
                 </button>
               ))}
@@ -288,7 +305,7 @@ export default function WeekScheduleView({ students, supervisors }: Props) {
                     className="absolute rounded-md px-1.5 py-0.5 text-white text-left overflow-hidden shadow-sm hover:brightness-105 transition-all z-10"
                     style={{
                       top, height: h - 2, left: `calc(${lane * widthPct}% + 1px)`, width: `calc(${widthPct}% - 2px)`,
-                      background: b.color,
+                      background: b.color, color: b.textColor ?? '#fff',
                     }}
                     title={`${b.time ?? ''} ${b.label}`}
                   >
