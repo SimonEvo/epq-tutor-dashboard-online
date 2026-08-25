@@ -4,6 +4,7 @@ import type { Student, Supervisor, SessionRecord, Trial, ScheduleEvent } from '@
 import { listTrials, listScheduleEvents } from '@/lib/dataService'
 import QuickSessionEditPopover from '@/components/QuickSessionEditPopover'
 import QuickEventEditPopover from '@/components/QuickEventEditPopover'
+import ScheduleCreateDialog from '@/components/ScheduleCreateDialog'
 
 interface Props {
   students: Student[]
@@ -211,8 +212,9 @@ export default function WeekScheduleView({ students, supervisors }: Props) {
         />
       )}
       {createPrefill && (
-        <QuickEventEditPopover
-          prefill={createPrefill} onClose={() => setCreatePrefill(null)} onSaved={() => { setCreatePrefill(null); reload() }}
+        <ScheduleCreateDialog
+          students={students} supervisors={supervisors} prefill={createPrefill}
+          onClose={() => setCreatePrefill(null)} onSaved={() => { setCreatePrefill(null); reload() }}
         />
       )}
 
@@ -250,7 +252,7 @@ export default function WeekScheduleView({ students, supervisors }: Props) {
           onClick={() => setCreatePrefill({ date: weekDates.includes(todayISO) ? todayISO : weekDates[0], time: '09:00' })}
           className="text-sm px-4 py-1.5 rounded-lg bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] transition-colors"
         >
-          + 事件
+          + 新建
         </button>
       </div>
 
@@ -377,7 +379,7 @@ export default function WeekScheduleView({ students, supervisors }: Props) {
       </div>
 
       {shown.length === 0 && (
-        <p className="text-center text-sm text-gray-400 py-8">本周暂无安排。点空白格新建事件，或从学生页/甘特图排课。</p>
+        <p className="text-center text-sm text-gray-400 py-8">本周暂无安排。点空白格新建（个人事件 / 课程），或从学生页/甘特图排课。</p>
       )}
     </div>
   )

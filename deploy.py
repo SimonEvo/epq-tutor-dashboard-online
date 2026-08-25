@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import uuid
+from datetime import datetime
 from pathlib import Path
 
 SERVER = sys.argv[1] if len(sys.argv) > 1 else "121.43.194.213"
@@ -23,6 +24,29 @@ NPM = "npm.cmd" if os.name == "nt" else "npm"  # npm is a .cmd shim on Windows
 def run(cmd, **kw):
     print("+", " ".join(str(c) for c in cmd))
     subprocess.run(cmd, check=True, **kw)
+
+
+def git(*args) -> str:
+    """git 输出；仓库不可用时返回空串，不让部署失败。"""
+    try:
+        out = subprocess.run(
+            ["git", *args], cwd=ROOT, capture_output=True, text=True, check=True
+        )
+        return out.stdout.strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return ""
+
+
+def build_env() -> dict:
+    """给 vite build 注入部署时间 + 签名（部署人 · git 短 hash），侧边栏「系统」下显示。"""
+    who = git("config", "user.name") or os.environ.get("USERNAME") or "unknown"
+    commit = git("rev-parse", "--short", "HEAD")
+    dirty = " *" if git("status", "--porcelain") else ""
+    env = os.environ.copy()
+    env["VITE_BUILD_TIME"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+    env["VITE_BUILD_SIG"] = f"{who} · {commit or 'no-git'}{dirty}"
+    print(f"  build sig: {env['VITE_BUILD_SIG']}  @ {env['VITE_BUILD_TIME']}")
+    return env
 
 
 def sync_dir(local_dir: Path, remote_dir: str, exclude=(), clean=False):
@@ -63,7 +87,7 @@ def main():
     run(["ssh", f"root@{SERVER}", "systemctl restart epq-tutor; systemctl status epq-tutor --no-pager -l"])
 
     print("\n=== Deploying frontend ===")
-    run([NPM, "run", "build"], cwd=ROOT / "tutoring-system")
+    run([NPM, "run", "build"], cwd=ROOT / "tutoring-system", env=build_env())
     sync_dir(ROOT / "tutoring-system" / "dist", "/opt/epq-tutor/dist", clean=True)
 
     # gantt-pro lives in a sibling repo (../gantt-chart-tool), not in this one, so
