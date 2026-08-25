@@ -26,12 +26,18 @@ const SA_ZHONGFANG_DEFENSE_COLOR = '#A21CAF'  // 紫红
 const SA_YINGFANG_DEFENSE_COLOR = '#db4d4d'   // 醒目红
 const TRIAL_COLOR = '#f59e0b'   // 琥珀
 const EVENT_COLOR = '#eb66a8'   // 暖粉 —— 自定义事件（如私人安排）
+// 占用模式：所有安排一律统一灰块，不区分类型、不露姓名
+const BUSY_COLOR = '#9CA3AF'
+const BUSY_LABEL = '占用'
 
 const SESSION_LABEL: Record<string, string> = { SA_MEETING: 'SA', TA_MEETING: 'TA', THEORY: '理论' }
 
 // 工作时间窗（与 DashboardPage 加班规则 WEEKDAY_OT_WINDOWS 对齐）：周一~周五
 const WORK_BANDS: [number, number][] = [[9 * 60, 12 * 60 + 30], [13 * 60 + 30, 18 * 60]]
 const WORK_BG = 'rgba(100,116,139,0.09)'  // 淡中性灰蓝，不用绿（绿留给理论课）
+// 网格线：整点稍实、半点更淡的虚线，读得出时间格又不抢块
+const HOUR_LINE = 'rgba(100,116,139,0.22)'
+const HALF_HOUR_LINE = 'rgba(100,116,139,0.14)'
 
 const HOUR_H = 48          // 每小时像素
 const DEFAULT_START = 8 * 60
@@ -48,6 +54,11 @@ function parseMin(hhmm?: string): number | null {
   return h * 60 + m
 }
 function fmtMin(mins: number): string { return `${pad(Math.floor(mins / 60))}:${pad(mins % 60)}` }
+// 「09:00–10:00」；未定时的块没有起点，退回原始 time 字段
+function fmtRange(b: Block): string {
+  if (b.startMin === null) return b.time ?? ''
+  return `${fmtMin(b.startMin)}–${fmtMin(b.startMin + b.durationMin)}`
+}
 
 interface Block {
   key: string
@@ -59,6 +70,7 @@ interface Block {
   time?: string
   color: string
   textColor?: string
+  occupies: boolean          // 导师本人是否真的被占用（英方SA 未勾出席 = 不占用）
   studentId?: string
   studentName?: string
   sessionId?: string
@@ -73,6 +85,8 @@ export default function WeekScheduleView({ students, supervisors }: Props) {
   const supervisorById = useMemo(() => new Map(supervisors.map(sv => [sv.id, sv])), [supervisors])
 
   const [weekOffset, setWeekOffset] = useState(0)
+  // 占用模式：截图发学生看空闲时段用 —— 所有块统一为灰色「占用」，不露姓名/类型
+  const [busyMode, setBusyMode] = useState(false)
   const [trials, setTrials] = useState<Trial[]>([])
   const [events, setEvents] = useState<ScheduleEvent[]>([])
   const [now, setNow] = useState(new Date())
@@ -123,10 +137,12 @@ export default function WeekScheduleView({ students, supervisors }: Props) {
         // 英方平时 SA（非答辩、非出席）弱化为浅灰底，需要深色字才看得清
         const textColor = isSA && !isDefense && !isZhongFang && !isYingfangAttending ? SA_DIMMED_TEXT : undefined
         const label = isDefense ? '答辩' : SESSION_LABEL[sess.type]
+        // 英方SA 平时会议导师不出席 → 不占用导师时间
+        const occupies = !(isSA && !isDefense && !isZhongFang && !isYingfangAttending)
         out.push({
           key: `sess-${sess.id}`, kind: 'session', date: sess.date,
           startMin: parseMin(sess.time), durationMin: sess.durationMinutes || 60,
-          label: `${label} · ${s.name}`, time: sess.time, color, textColor,
+          label: `${label} · ${s.name}`, time: sess.time, color, textColor, occupies,
           studentId: s.id, studentName: s.name, sessionId: sess.id,
         })
       }
@@ -136,7 +152,7 @@ export default function WeekScheduleView({ students, supervisors }: Props) {
       out.push({
         key: `trial-${t.id}`, kind: 'trial', date: t.date,
         startMin: parseMin(t.time), durationMin: t.durationMinutes || 60,
-        label: `试听 · ${t.studentName || '—'}`, time: t.time, color: TRIAL_COLOR,
+        label: `试听 · ${t.studentName || '—'}`, time: t.time, color: TRIAL_COLOR, occupies: true,
         trialId: t.id,
       })
     }
@@ -145,15 +161,17 @@ export default function WeekScheduleView({ students, supervisors }: Props) {
       out.push({
         key: `event-${e.id}`, kind: 'event', date: e.date,
         startMin: parseMin(e.time), durationMin: e.durationMinutes || 60,
-        label: e.title || '(无标题)', time: e.time, color: EVENT_COLOR,
+        label: e.title || '(无标题)', time: e.time, color: EVENT_COLOR, occupies: true,
         event: e,
       })
     }
     return out
   }, [students, supervisorById, trials, events, weekSet])
 
-  const timed = blocks.filter(b => b.startMin !== null)
-  const untimed = blocks.filter(b => b.startMin === null)
+  // 占用模式只保留真正占用导师的安排
+  const shown = busyMode ? blocks.filter(b => b.occupies) : blocks
+  const timed = shown.filter(b => b.startMin !== null)
+  const untimed = shown.filter(b => b.startMin === null)
 
   // ── 动态时间轴范围 ──────────────────────────────────────────────────────────
   const { axisStart, axisEnd } = useMemo(() => {
@@ -169,6 +187,7 @@ export default function WeekScheduleView({ students, supervisors }: Props) {
 
   const gridHeight = ((axisEnd - axisStart) / 60) * HOUR_H
   const hours = Array.from({ length: Math.ceil((axisEnd - axisStart) / 60) + 1 }, (_, i) => axisStart + i * 60)
+  const halfHours = hours.slice(0, -1).map(h => h + 30)
 
   const clickEmpty = (date: string, e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect()
@@ -207,6 +226,7 @@ export default function WeekScheduleView({ students, supervisors }: Props) {
           <button onClick={() => setWeekOffset(o => o + 1)} className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50">›</button>
         </div>
         <span className="text-sm text-gray-500">{weekDates[0].slice(5)} – {weekDates[6].slice(5)}</span>
+        {!busyMode && (
         <div className="flex items-center gap-3 ml-2 text-xs text-gray-400">
           <span className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm" style={{ background: SESSION_COLOR.SA_MEETING }} />SA</span>
           <span className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm" style={{ background: SESSION_COLOR.TA_MEETING }} />TA</span>
@@ -214,9 +234,21 @@ export default function WeekScheduleView({ students, supervisors }: Props) {
           <span className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm" style={{ background: TRIAL_COLOR }} />试听</span>
           <span className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm" style={{ background: EVENT_COLOR }} />事件</span>
         </div>
+        )}
+        <button
+          onClick={() => setBusyMode(v => !v)}
+          title="所有安排统一显示为灰色「占用」，隐去姓名与类型，方便截图发给学生看空闲时段"
+          className={`ml-auto text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+            busyMode
+              ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
+              : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+          }`}
+        >
+          {busyMode ? '🙈 占用模式' : '只看占用'}
+        </button>
         <button
           onClick={() => setCreatePrefill({ date: weekDates.includes(todayISO) ? todayISO : weekDates[0], time: '09:00' })}
-          className="ml-auto text-sm px-4 py-1.5 rounded-lg bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] transition-colors"
+          className="text-sm px-4 py-1.5 rounded-lg bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] transition-colors"
         >
           + 事件
         </button>
@@ -246,13 +278,16 @@ export default function WeekScheduleView({ students, supervisors }: Props) {
           <div className="w-12 shrink-0 flex items-center justify-center text-[10px] text-gray-400">未定时</div>
           {weekDates.map(iso => (
             <div key={iso} className="flex-1 border-l border-gray-100 p-1 flex flex-col gap-1 min-h-[28px]">
-              {untimed.filter(b => b.date === iso).map(b => (
-                <button key={b.key} onClick={() => openBlock(b)}
-                  className="text-left text-[11px] text-white rounded px-1.5 py-0.5 truncate"
-                  style={{ background: b.color, opacity: 0.9, color: b.textColor ?? '#fff' }} title={b.label}>
-                  {b.label}
-                </button>
-              ))}
+              {untimed.filter(b => b.date === iso).map(b => {
+                const text = busyMode ? BUSY_LABEL : b.label
+                return (
+                  <button key={b.key} onClick={() => openBlock(b)}
+                    className="text-left text-[11px] text-white rounded px-1.5 py-0.5 truncate"
+                    style={{ background: busyMode ? BUSY_COLOR : b.color, opacity: 0.9, color: busyMode ? '#fff' : (b.textColor ?? '#fff') }} title={text}>
+                    {text}
+                  </button>
+                )
+              })}
             </div>
           ))}
         </div>
@@ -266,6 +301,12 @@ export default function WeekScheduleView({ students, supervisors }: Props) {
             <div key={h} className="absolute right-1 text-[10px] text-gray-400 -translate-y-1/2"
               style={{ top: ((h - axisStart) / 60) * HOUR_H }}>
               {fmtMin(h)}
+            </div>
+          ))}
+          {halfHours.map(h => (
+            <div key={`half-${h}`} className="absolute right-1 text-[9px] text-gray-300 -translate-y-1/2"
+              style={{ top: ((h - axisStart) / 60) * HOUR_H }}>
+              :30
             </div>
           ))}
         </div>
@@ -291,26 +332,35 @@ export default function WeekScheduleView({ students, supervisors }: Props) {
               })}
               {/* 小时横线 */}
               {hours.map(h => (
-                <div key={h} className="absolute inset-x-0 border-t border-gray-100 pointer-events-none"
-                  style={{ top: ((h - axisStart) / 60) * HOUR_H }} />
+                <div key={h} className="absolute inset-x-0 pointer-events-none"
+                  style={{ top: ((h - axisStart) / 60) * HOUR_H, borderTop: `1px solid ${HOUR_LINE}` }} />
+              ))}
+              {/* 半小时淡线 —— 方便读出具体时间格 */}
+              {halfHours.map(h => (
+                <div key={`half-${h}`} className="absolute inset-x-0 pointer-events-none"
+                  style={{ top: ((h - axisStart) / 60) * HOUR_H, borderTop: `1px dashed ${HALF_HOUR_LINE}` }} />
               ))}
               {/* 块 */}
               {laid.map(({ b, lane, cols }) => {
                 const top = (((b.startMin as number) - axisStart) / 60) * HOUR_H
                 const h = Math.max(MIN_BLOCK_H, (b.durationMin / 60) * HOUR_H)
                 const widthPct = 100 / cols
+                const text = busyMode ? BUSY_LABEL : b.label
                 return (
                   <button key={b.key}
                     onClick={ev => { ev.stopPropagation(); openBlock(b) }}
                     className="absolute rounded-md px-1.5 py-0.5 text-white text-left overflow-hidden shadow-sm hover:brightness-105 transition-all z-10"
                     style={{
                       top, height: h - 2, left: `calc(${lane * widthPct}% + 1px)`, width: `calc(${widthPct}% - 2px)`,
-                      background: b.color, color: b.textColor ?? '#fff',
+                      background: busyMode ? BUSY_COLOR : b.color,
+                      color: busyMode ? '#fff' : (b.textColor ?? '#fff'),
                     }}
-                    title={`${b.time ?? ''} ${b.label}`}
+                    title={`${fmtRange(b)} ${text}`}
                   >
-                    <div className="text-[11px] font-semibold leading-tight truncate">{b.label}</div>
-                    {h > 30 && b.time && <div className="text-[10px] opacity-90 leading-tight">{b.time}</div>}
+                    <div className="text-[11px] font-semibold leading-tight truncate">{text}</div>
+                    {h > 30 && b.startMin !== null && (
+                      <div className="text-[10px] opacity-90 leading-tight truncate">{fmtRange(b)}</div>
+                    )}
                   </button>
                 )
               })}
@@ -326,7 +376,7 @@ export default function WeekScheduleView({ students, supervisors }: Props) {
         })}
       </div>
 
-      {blocks.length === 0 && (
+      {shown.length === 0 && (
         <p className="text-center text-sm text-gray-400 py-8">本周暂无安排。点空白格新建事件，或从学生页/甘特图排课。</p>
       )}
     </div>
