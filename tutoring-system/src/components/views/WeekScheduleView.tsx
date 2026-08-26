@@ -319,7 +319,9 @@ export default function WeekScheduleView({ students, supervisors }: Props) {
           const isWeekday = dow >= 1 && dow <= 5
           const isToday = iso === todayISO
           const dayTimed = timed.filter(b => b.date === iso)
-          const laid = layoutDay(dayTimed)
+          const laid = busyMode
+            ? mergeBusyIntervals(dayTimed).map(b => ({ b, lane: 0, cols: 1 }))
+            : layoutDay(dayTimed)
           const nowMin = now.getHours() * 60 + now.getMinutes()
           const showNow = isToday && nowMin >= axisStart && nowMin <= axisEnd
           return (
@@ -350,8 +352,8 @@ export default function WeekScheduleView({ students, supervisors }: Props) {
                 const text = busyMode ? BUSY_LABEL : b.label
                 return (
                   <button key={b.key}
-                    onClick={ev => { ev.stopPropagation(); openBlock(b) }}
-                    className="absolute rounded-md px-1.5 py-0.5 text-white text-left overflow-hidden shadow-sm hover:brightness-105 transition-all z-10"
+                    onClick={busyMode ? undefined : ev => { ev.stopPropagation(); openBlock(b) }}
+                    className={`absolute rounded-md px-1.5 py-0.5 text-white text-left overflow-hidden shadow-sm transition-all z-10 ${busyMode ? 'cursor-default' : 'hover:brightness-105'}`}
                     style={{
                       top, height: h - 2, left: `calc(${lane * widthPct}% + 1px)`, width: `calc(${widthPct}% - 2px)`,
                       background: busyMode ? BUSY_COLOR : b.color,
@@ -366,13 +368,19 @@ export default function WeekScheduleView({ students, supervisors }: Props) {
                   </button>
                 )
               })}
-              {/* 当前时间红线 */}
-              {showNow && (
-                <div className="absolute inset-x-0 z-20 pointer-events-none" style={{ top: ((nowMin - axisStart) / 60) * HOUR_H }}>
-                  <div className="h-0.5 bg-red-500" />
-                  <div className="absolute -left-0 -top-1 w-2 h-2 rounded-full bg-red-500" />
-                </div>
-              )}
+              {/* 当前时间线：压在色块上时红色对比度不够，改白色 */}
+              {showNow && (() => {
+                const onColorBlock = laid.some(({ b }) =>
+                  nowMin >= (b.startMin as number) && nowMin < (b.startMin as number) + b.durationMin
+                )
+                const lineColor = onColorBlock ? '#fff' : '#ef4444'
+                return (
+                  <div className="absolute inset-x-0 z-20 pointer-events-none" style={{ top: ((nowMin - axisStart) / 60) * HOUR_H }}>
+                    <div className="h-0.5" style={{ background: lineColor }} />
+                    <div className="absolute -left-0 -top-1 w-2 h-2 rounded-full" style={{ background: lineColor }} />
+                  </div>
+                )
+              })()}
             </div>
           )
         })}
@@ -393,6 +401,24 @@ export default function WeekScheduleView({ students, supervisors }: Props) {
       setEditEvent(b.event)
     }
   }
+}
+
+// ── 占用模式：相邻/重叠的块合并成一整条灰块，不再逐个露边界 ──────────────────────
+function mergeBusyIntervals(dayBlocks: Block[]): Block[] {
+  const sorted = [...dayBlocks].sort((a, b) => (a.startMin as number) - (b.startMin as number))
+  const merged: Block[] = []
+  for (const b of sorted) {
+    const start = b.startMin as number
+    const end = start + b.durationMin
+    const last = merged[merged.length - 1]
+    const lastEnd = last ? (last.startMin as number) + last.durationMin : -1
+    if (last && start <= lastEnd) {
+      last.durationMin = Math.max(lastEnd, end) - (last.startMin as number)
+    } else {
+      merged.push({ ...b, key: `busy-${b.date}-${start}` })
+    }
+  }
+  return merged
 }
 
 // ── 撞车并排：给同一天的定时块分车道 ──────────────────────────────────────────

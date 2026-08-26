@@ -17,9 +17,9 @@ type ViewMode = 'schedule' | 'overview' | 'grid' | 'gantt' | 'kanban-progress' |
 
 const VIEW_BUTTONS: { mode: ViewMode; label: string }[] = [
   { mode: 'schedule', label: '日程' },
+  { mode: 'gantt', label: '甘特图' },
   { mode: 'overview', label: '概览' },
   { mode: 'grid', label: '卡片' },
-  { mode: 'gantt', label: '甘特图' },
   { mode: 'kanban-progress', label: '进度' },
   { mode: 'milestone', label: '里程碑' },
 ]
@@ -590,8 +590,10 @@ function buildOvertimeEntries(
     for (const s of student.sessions) {
       if (!s.time || !s.durationMinutes) continue
       if (s.date < from || s.date > to) continue
-      // SA_MEETING only counts for 中方SA students (tutor is the SA)
-      if (s.type === 'SA_MEETING' && !isZhongFangSA) continue
+      // SA_MEETING 只在导师本人真的被占用时算加班：中方SA 全程出席；
+      // 英方SA 平时会议默认不占用导师，但最终答辩（isFinalDefense）双方都要到场，
+      // 或勾了「导师出席」，同样要占用时间 —— 与 WeekScheduleView 的 occupies 判定保持一致
+      if (s.type === 'SA_MEETING' && !isZhongFangSA && !s.isFinalDefense && !s.tutorAttending) continue
       const ot = computeOvertimeMins(s.date, s.time, s.durationMinutes)
       if (ot === 0) continue
       entries.push({
@@ -599,7 +601,7 @@ function buildOvertimeEntries(
         timeStart: s.time,
         timeEnd: addMins(s.time, s.durationMinutes),
         overtimeMins: ot,
-        label: SESSION_LABEL[s.type] ?? s.type,
+        label: s.isFinalDefense ? '答辩' : (SESSION_LABEL[s.type] ?? s.type),
         personName: student.name,
       })
     }
