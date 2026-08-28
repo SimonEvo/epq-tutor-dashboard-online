@@ -83,7 +83,61 @@ export interface MilestoneProgress {
   [key: string]: MilestoneStatus // MilestoneId -> status
 }
 
-export interface Student {
+
+// ─── 提交前检查清单 / 提交截止时间 / 结项 ──────────────────────────────────────
+
+/** 模板项。模板是活定义：学生只存打钩状态，模板一改所有学生跟着变。 */
+export interface ChecklistTemplateItem {
+  id: string
+  label: string
+  order: number
+  archived: boolean
+}
+
+/** 表13证据的一条。前两条（论文/报告、PPT的PDF）是所有学生共有的固定项，不可删。 */
+export interface ChecklistCustomItem {
+  id: string
+  label: string
+  done: boolean
+  doneAt?: string
+  fixed?: boolean   // 服务端标记：固定项，前端不给删除按钮
+}
+
+export interface SubmissionChecklist {
+  ticked: Record<string, string>   // itemId -> 打钩时间 ISO
+  customItems: ChecklistCustomItem[]
+}
+
+/** 一次论文检测记录。AI 率 / 相似度允许留空。 */
+export interface TiiCheck {
+  id?: string
+  date: string
+  aiPercent?: number | null
+  similarityPercent?: number | null
+  note?: string
+}
+
+export type DeadlineTier = 'normal' | 'extended'
+
+export interface RoundDeadlines {
+  normal?: string | null
+  extended?: string | null
+}
+
+/** 提交相关字段，Student 与 StudentSummary 共用 */
+export interface SubmissionFields {
+  submissionChecklist?: SubmissionChecklist
+  tiiChecks?: TiiCheck[]
+  deadlineTier?: DeadlineTier
+  deadlineOverride?: string | null
+  deadlineChangeConfirmed?: boolean
+  effectiveDeadline?: string | null   // 服务端算好：override ?? round[tier]；null = 待定
+  deadlineNeedsConfirm?: boolean      // 需要运营确认但尚未确认 → ⚠
+  wrappedUpAt?: string | null         // 结项时间戳；仅影响呈现
+  defenseConfirmed?: boolean          // 最终答辩时间已跟学生确认（日期取自 isFinalDefense 的 session）
+}
+
+export interface Student extends SubmissionFields {
   latestHomeworkEntry?: HomeworkEntry
   id: string
   name: string
@@ -124,7 +178,7 @@ export interface Student {
   updatedAt: string
 }
 
-export interface StudentSummary {
+export interface StudentSummary extends SubmissionFields {
   id: string
   name: string
   topic: string

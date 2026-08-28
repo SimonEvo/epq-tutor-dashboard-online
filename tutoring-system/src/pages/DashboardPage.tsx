@@ -9,15 +9,17 @@ import MilestoneGridView from '@/components/views/MilestoneGridView'
 import OverviewView from '@/components/views/OverviewView'
 import GanttView from '@/components/views/GanttView'
 import WeekScheduleView from '@/components/views/WeekScheduleView'
+import SubmissionSprintView from '@/components/views/SubmissionSprintView'
 import type { Student, Supervisor, Trial } from '@/types'
 import { formatHours, copyToClipboard, countsAsSaHour } from '@/lib/formatters'
 import { listTrials, getDefaultRound } from '@/lib/dataService'
 
-type ViewMode = 'schedule' | 'overview' | 'grid' | 'gantt' | 'kanban-progress' | 'milestone'
+type ViewMode = 'schedule' | 'overview' | 'grid' | 'gantt' | 'kanban-progress' | 'milestone' | 'submission'
 
 const VIEW_BUTTONS: { mode: ViewMode; label: string }[] = [
   { mode: 'schedule', label: '日程' },
   { mode: 'gantt', label: '甘特图' },
+  { mode: 'submission', label: '提交' },
   { mode: 'overview', label: '概览' },
   { mode: 'grid', label: '卡片' },
   { mode: 'kanban-progress', label: '进度' },
@@ -26,12 +28,18 @@ const VIEW_BUTTONS: { mode: ViewMode; label: string }[] = [
 
 export default function DashboardPage() {
   const { students, tags, rounds, supervisors, isLoading, error, fetchAll, fetchTags, fetchRounds, fetchSupervisors } = useStudentStore()
-  const [selectedTag, setSelectedTag] = useState<string>('')
+  const [selectedTag, setSelectedTag] = useState<string>(
+    () => localStorage.getItem('dashboard-tag') ?? ''
+  )
   const [selectedRound, setSelectedRound] = useState<string>(
     () => localStorage.getItem('dashboard-round') ?? ''
   )
-  const [saFilter, setSaFilter] = useState<'' | 'SA' | 'TA'>('')
-  const [sortBy, setSortBy] = useState<'name' | 'lastSession'>('lastSession')
+  const [saFilter, setSaFilter] = useState<'' | 'SA' | 'TA'>(
+    () => (localStorage.getItem('dashboard-sa-filter') as '' | 'SA' | 'TA') ?? ''
+  )
+  const [sortBy, setSortBy] = useState<'name' | 'lastSession'>(
+    () => (localStorage.getItem('dashboard-sort') as 'name' | 'lastSession') ?? 'lastSession'
+  )
   const [viewMode, setViewMode] = useState<ViewMode>(
     () => (localStorage.getItem('dashboard-view-mode') as ViewMode) ?? 'overview'
   )
@@ -39,6 +47,21 @@ export default function DashboardPage() {
   const handleViewMode = (mode: ViewMode) => {
     setViewMode(mode)
     localStorage.setItem('dashboard-view-mode', mode)
+  }
+
+  const handleTag = (tag: string) => {
+    setSelectedTag(tag)
+    localStorage.setItem('dashboard-tag', tag)
+  }
+
+  const handleSaFilter = (value: '' | 'SA' | 'TA') => {
+    setSaFilter(value)
+    localStorage.setItem('dashboard-sa-filter', value)
+  }
+
+  const handleSortBy = (value: 'name' | 'lastSession') => {
+    setSortBy(value)
+    localStorage.setItem('dashboard-sort', value)
   }
 
   // Overtime modal
@@ -366,7 +389,7 @@ export default function DashboardPage() {
           {viewMode !== 'kanban-progress' && viewMode !== 'milestone' && viewMode !== 'schedule' && (
             <select
               value={sortBy}
-              onChange={e => setSortBy(e.target.value as 'name' | 'lastSession')}
+              onChange={e => handleSortBy(e.target.value as 'name' | 'lastSession')}
               className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white"
             >
               <option value="lastSession">Sort: Needs attention first</option>
@@ -428,7 +451,7 @@ export default function DashboardPage() {
           {([['', '全部'], ['SA', 'SA'], ['TA', 'TA']] as const).map(([value, label]) => (
             <button
               key={value}
-              onClick={() => setSaFilter(value)}
+              onClick={() => handleSaFilter(value)}
               className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
                 saFilter === value
                   ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
@@ -446,7 +469,7 @@ export default function DashboardPage() {
           <div className="flex gap-2 flex-wrap items-center">
             <span className="text-xs text-gray-400">Tag:</span>
             <button
-              onClick={() => setSelectedTag('')}
+              onClick={() => handleTag('')}
               className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
                 !selectedTag
                   ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
@@ -458,7 +481,7 @@ export default function DashboardPage() {
             {tags.map(tag => (
               <button
                 key={tag}
-                onClick={() => setSelectedTag(tag === selectedTag ? '' : tag)}
+                onClick={() => handleTag(tag === selectedTag ? '' : tag)}
                 className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
                   selectedTag === tag
                     ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
@@ -486,6 +509,8 @@ export default function DashboardPage() {
         <KanbanProgressView students={filtered} />
       ) : viewMode === 'milestone' ? (
         <MilestoneGridView students={filtered} />
+      ) : viewMode === 'submission' ? (
+        <SubmissionSprintView students={filtered} />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map(student => (

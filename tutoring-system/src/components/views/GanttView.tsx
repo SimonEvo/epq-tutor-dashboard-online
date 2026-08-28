@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useMemo, useCallback } fr
 import { useNavigate } from 'react-router-dom'
 import type { Student, Supervisor, GanttProject, GanttTask, SessionRecord } from '@/types'
 import { getGanttProject } from '@/lib/dataService'
+import { getWrappedOpen, setWrappedOpen } from '@/lib/submission'
 import AddSessionModal from '@/components/AddSessionModal'
 import QuickSessionEditPopover from '@/components/QuickSessionEditPopover'
 
@@ -69,6 +70,14 @@ export default function GanttView({ students, allStudents, supervisors }: Props)
   const [initialScrollDone, setInitialScrollDone] = useState(false)
   const [addSessionStudent, setAddSessionStudent] = useState<Student | null>(null)
   const [editSession, setEditSession] = useState<{ studentId: string; studentName: string; sessionId: string } | null>(null)
+  // 已结项分组的展开状态跨视图联动（与提交视图 / 甘特图共用）
+  const [showWrapped, setShowWrapped] = useState(getWrappedOpen)
+  const toggleWrapped = () => {
+    setShowWrapped(v => {
+      setWrappedOpen(!v)
+      return !v
+    })
+  }
   const scrollRef = useRef<HTMLDivElement>(null)
   const prevStartRef = useRef<Date | null>(null)
   const navigate = useNavigate()
@@ -161,7 +170,191 @@ export default function GanttView({ students, allStudents, supervisors }: Props)
 
   // ── Section name → task lookup ───────────────────────────────────────────
   const sections = project?.data?.sections ?? []
+  const activeStudents = students.filter(s => !s.wrappedUpAt)
+  const wrappedStudents = students.filter(s => !!s.wrappedUpAt)
+
   const sectionIdByName = new Map(sections.map(s => [s.name, s.id]))
+
+  // 结项学生抽出到底部分组渲染（收起不是隐藏，否则找不到人取消结项）
+  const renderStudentRow = (s: Student) => {
+            const studentTasks = tasksForStudent(s.name)
+
+            // Group same-day session markers so they stack instead of overlap
+            const visibleSessions = (s.sessions ?? []).filter((sess: SessionRecord) =>
+              (sess.type === 'SA_MEETING' || sess.type === 'TA_MEETING' || sess.type === 'THEORY') &&
+              sess.date >= toISO(startDate) && sess.date <= toISO(endDate)
+            )
+            const isZhongFangSA = s.supervisorId
+              ? supervisorById.get(s.supervisorId)?.saType === '中方SA'
+              : false
+            const dayCount: Record<string, number> = {}
+            for (const sess of visibleSessions) dayCount[sess.date] = (dayCount[sess.date] ?? 0) + 1
+            const maxStack = Math.max(1, ...Object.values(dayCount))
+            const STACK_H = 22
+            const rowH = Math.max(48, maxStack * STACK_H + 14)
+            const seen: Record<string, number> = {}
+
+            return (
+              <div
+                key={s.id}
+                className="group flex border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                style={{ minHeight: rowH }}
+                onClick={() => navigate(`/students/${s.id}`)}
+              >
+                {/* Sticky name column */}
+                <div
+                  className="sticky left-0 w-40 shrink-0 px-3 py-2 flex flex-col justify-center bg-white group-hover:bg-gray-50 border-r border-gray-100 z-30"
+                  style={{ minHeight: rowH }}
+                >
+                  <span className="text-sm font-medium text-gray-800 truncate">{s.name}</span>
+                  {s.overview && <span className="text-xs text-gray-400 truncate">{s.overview}</span>}
+
+                  {/* Hover: + Session */}
+                  <div
+                    className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={e => { e.stopPropagation(); setAddSessionStudent(s) }}
+                  >
+                    <span className="text-xs font-semibold px-2 py-1 rounded-lg bg-[var(--accent)] text-white cursor-pointer whitespace-nowrap">
+                      + Session
+                    </span>
+                  </div>
+                </div>
+
+                {/* Bar area */}
+                <div className="relative" style={{ width: totalDays * COL_W, minHeight: rowH }}>
+                  {/* Grid background — weekends + today */}
+                  <div className="absolute inset-0 flex pointer-events-none">
+                    {dates.map(d => {
+                      const iso = toISO(d)
+                      const isWknd = d.getDay() === 0 || d.getDay() === 6
+                      const isToday = iso === todayISO
+                      return (
+                        <div
+                          key={iso}
+                          className={`shrink-0 border-l border-gray-100 ${
+                            isToday ? 'bg-[var(--primary)]/10'
+                            : isWknd ? 'bg-gray-50/60' : ''
+                          }`}
+                          style={{ width: COL_W }}
+                        />
+                      )
+                    })}
+                  </div>
+
+                  {/* 固定安排 highlight bands (出差 / deadlines) */}
+                  {fixedTasks.map(t => fixedBand(t, `${s.id}-${t.id}`))}
+
+                  {/* SA / TA session markers — stack same-day vertically */}
+                  {visibleSessions.map((sess: SessionRecord) => {
+                      const idx = colIdxFromDate(sess.date)
+                      const left = idx * COL_W + COL_W / 2
+                      const isSA = sess.type === 'SA_MEETING'
+                      const isDefense = isSA && sess.isFinalDefense
+                      const color = isSA
+                        ? (isDefense
+                            ? (isZhongFangSA ? SA_ZHONGFANG_DEFENSE_COLOR : SA_YINGFANG_DEFENSE_COLOR)
+                            : (isZhongFangSA ? SA_ZHONGFANG_COLOR : SESSION_COLOR.SA_MEETING))
+                        : SESSION_COLOR[sess.type]
+                      const fullLabel = isDefense ? '最终答辩' : SESSION_LABEL[sess.type]
+                      // SA 课后反馈状态环：已发送=绿；未发送且已到第 3 个工作日（含逾期）=黄
+                      let feedbackRing: string | undefined
+                      let feedbackTip: string | undefined
+                      if (isSA) {
+                        if (sess.feedbackSent) {
+                          feedbackRing = FEEDBACK_DONE_RING
+                          feedbackTip = '课后反馈已发送'
+                        } else if (sess.date <= todayISO && workingDaysInclusive(sess.date, todayISO) >= 3) {
+                          feedbackRing = FEEDBACK_DUE_RING
+                          feedbackTip = '课后反馈今天必须提供'
+                        }
+                      }
+                      const total = dayCount[sess.date] ?? 1
+                      const order = seen[sess.date] = (seen[sess.date] ?? 0) + 1
+                      // Center the stack vertically: offset each by STACK_H
+                      const offset = (order - 1 - (total - 1) / 2) * STACK_H
+                      return (
+                        <div
+                          key={sess.id}
+                          className="absolute top-1/2 select-none cursor-pointer z-10"
+                          style={{ left, transform: `translateY(${offset}px) translateY(-50%)` }}
+                          onClick={e => { e.stopPropagation(); setEditSession({ studentId: s.id, studentName: s.name, sessionId: sess.id }) }}
+                        >
+                          {/* padded wrapper so the ring's white-gap halo is also clickable */}
+                          <div style={{ transform: 'translateX(-50%)', padding: 3 }}>
+                            <div
+                              className="rounded-md px-2 py-0.5 text-white whitespace-nowrap"
+                              style={{
+                                background: color, fontSize: 11, fontWeight: 600,
+                                opacity: feedbackRing ? 1 : 0.9,
+                                // 环与底色间加一圈白色间隔，避免黄环贴在橙色 SA 上对比过低
+                                ...(feedbackRing ? { boxShadow: `0 0 0 1.5px #fff, 0 0 0 3px ${feedbackRing}` } : {}),
+                              }}
+                              title={feedbackTip ?? (isDefense ? '最终答辩' : undefined)}
+                            >
+                              {fullLabel}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+
+                  {/* GanttProject task bars */}
+                  {studentTasks.map(t => {
+                    if (t.milestone) {
+                      const idx = colIdxFromDate(t.startDate)
+                      if (idx < 0 || idx >= totalDays) return null
+                      const left = idx * COL_W + COL_W / 2
+                      return (
+                        <div
+                          key={t.id}
+                          className="absolute top-1/2 -translate-y-1/2 text-[var(--primary)] select-none cursor-default"
+                          style={{ left, fontSize: 22, lineHeight: 1, transform: 'translate(-50%, -50%)' }}
+                          onMouseEnter={e => showTip(e, `${t.name}：${t.startDate}`)}
+                          onMouseMove={moveTip}
+                          onMouseLeave={hideTip}
+                        >
+                          ◆
+                        </div>
+                      )
+                    }
+
+                    if (!t.startDate || !t.endDate) return null
+
+                    const startIdx = colIdxFromDate(t.startDate)
+                    const endIdx = colIdxFromDate(t.endDate)
+                    const clampedStart = Math.max(0, startIdx)
+                    const clampedEnd = Math.min(totalDays - 1, endIdx)
+                    if (clampedStart > clampedEnd || clampedEnd < 0 || clampedStart >= totalDays) return null
+
+                    const barLeftPx = clampedStart * COL_W
+                    const barWidthPx = (clampedEnd - clampedStart + 1) * COL_W
+                    const color = t.color ?? 'var(--primary)'
+                    const lblStyle = stickyLabelStyle(barLeftPx, barWidthPx)
+
+                    return (
+                      <div key={t.id} className="contents">
+                        <div
+                          className="absolute top-1/2 -translate-y-1/2 h-[22px] rounded overflow-hidden pointer-events-none"
+                          style={{ left: barLeftPx, width: barWidthPx }}
+                        >
+                          <div className="absolute inset-0 opacity-80" style={{ background: color }} />
+                        </div>
+                        <div
+                          className="absolute top-1/2 -translate-y-1/2 h-[22px] flex items-center overflow-hidden pointer-events-none"
+                          style={{ left: lblStyle.left, width: Math.max(1, lblStyle.width), paddingLeft: 6 }}
+                        >
+                          <span className="text-white text-xs font-semibold truncate drop-shadow-sm" style={{ fontSize: 11 }}>
+                            {t.name}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+  }
+
   const tasks = project?.data?.tasks ?? []
 
   function tasksForStudent(studentName: string): GanttTask[] {
@@ -354,184 +547,23 @@ export default function GanttView({ students, allStudents, supervisors }: Props)
           )}
 
           {/* ── Rows ──────────────────────────────────────────────────── */}
-          {students.map(s => {
-            const studentTasks = tasksForStudent(s.name)
+          {activeStudents.map(renderStudentRow)}
 
-            // Group same-day session markers so they stack instead of overlap
-            const visibleSessions = (s.sessions ?? []).filter((sess: SessionRecord) =>
-              (sess.type === 'SA_MEETING' || sess.type === 'TA_MEETING' || sess.type === 'THEORY') &&
-              sess.date >= toISO(startDate) && sess.date <= toISO(endDate)
-            )
-            const isZhongFangSA = s.supervisorId
-              ? supervisorById.get(s.supervisorId)?.saType === '中方SA'
-              : false
-            const dayCount: Record<string, number> = {}
-            for (const sess of visibleSessions) dayCount[sess.date] = (dayCount[sess.date] ?? 0) + 1
-            const maxStack = Math.max(1, ...Object.values(dayCount))
-            const STACK_H = 22
-            const rowH = Math.max(48, maxStack * STACK_H + 14)
-            const seen: Record<string, number> = {}
-
-            return (
+          {wrappedStudents.length > 0 && (
+            <>
               <div
-                key={s.id}
-                className="group flex border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
-                style={{ minHeight: rowH }}
-                onClick={() => navigate(`/students/${s.id}`)}
+                className="flex border-b border-gray-100 bg-gray-50 cursor-pointer select-none"
+                onClick={toggleWrapped}
               >
-                {/* Sticky name column */}
-                <div
-                  className="sticky left-0 w-40 shrink-0 px-3 py-2 flex flex-col justify-center bg-white group-hover:bg-gray-50 border-r border-gray-100 z-30"
-                  style={{ minHeight: rowH }}
-                >
-                  <span className="text-sm font-medium text-gray-800 truncate">{s.name}</span>
-                  {s.overview && <span className="text-xs text-gray-400 truncate">{s.overview}</span>}
-
-                  {/* Hover: + Session */}
-                  <div
-                    className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={e => { e.stopPropagation(); setAddSessionStudent(s) }}
-                  >
-                    <span className="text-xs font-semibold px-2 py-1 rounded-lg bg-[var(--accent)] text-white cursor-pointer whitespace-nowrap">
-                      + Session
-                    </span>
-                  </div>
-                </div>
-
-                {/* Bar area */}
-                <div className="relative" style={{ width: totalDays * COL_W, minHeight: rowH }}>
-                  {/* Grid background — weekends + today */}
-                  <div className="absolute inset-0 flex pointer-events-none">
-                    {dates.map(d => {
-                      const iso = toISO(d)
-                      const isWknd = d.getDay() === 0 || d.getDay() === 6
-                      const isToday = iso === todayISO
-                      return (
-                        <div
-                          key={iso}
-                          className={`shrink-0 border-l border-gray-100 ${
-                            isToday ? 'bg-[var(--primary)]/10'
-                            : isWknd ? 'bg-gray-50/60' : ''
-                          }`}
-                          style={{ width: COL_W }}
-                        />
-                      )
-                    })}
-                  </div>
-
-                  {/* 固定安排 highlight bands (出差 / deadlines) */}
-                  {fixedTasks.map(t => fixedBand(t, `${s.id}-${t.id}`))}
-
-                  {/* SA / TA session markers — stack same-day vertically */}
-                  {visibleSessions.map((sess: SessionRecord) => {
-                      const idx = colIdxFromDate(sess.date)
-                      const left = idx * COL_W + COL_W / 2
-                      const isSA = sess.type === 'SA_MEETING'
-                      const isDefense = isSA && sess.isFinalDefense
-                      const color = isSA
-                        ? (isDefense
-                            ? (isZhongFangSA ? SA_ZHONGFANG_DEFENSE_COLOR : SA_YINGFANG_DEFENSE_COLOR)
-                            : (isZhongFangSA ? SA_ZHONGFANG_COLOR : SESSION_COLOR.SA_MEETING))
-                        : SESSION_COLOR[sess.type]
-                      const fullLabel = isDefense ? '最终答辩' : SESSION_LABEL[sess.type]
-                      // SA 课后反馈状态环：已发送=绿；未发送且已到第 3 个工作日（含逾期）=黄
-                      let feedbackRing: string | undefined
-                      let feedbackTip: string | undefined
-                      if (isSA) {
-                        if (sess.feedbackSent) {
-                          feedbackRing = FEEDBACK_DONE_RING
-                          feedbackTip = '课后反馈已发送'
-                        } else if (sess.date <= todayISO && workingDaysInclusive(sess.date, todayISO) >= 3) {
-                          feedbackRing = FEEDBACK_DUE_RING
-                          feedbackTip = '课后反馈今天必须提供'
-                        }
-                      }
-                      const total = dayCount[sess.date] ?? 1
-                      const order = seen[sess.date] = (seen[sess.date] ?? 0) + 1
-                      // Center the stack vertically: offset each by STACK_H
-                      const offset = (order - 1 - (total - 1) / 2) * STACK_H
-                      return (
-                        <div
-                          key={sess.id}
-                          className="absolute top-1/2 select-none cursor-pointer z-10"
-                          style={{ left, transform: `translateY(${offset}px) translateY(-50%)` }}
-                          onClick={e => { e.stopPropagation(); setEditSession({ studentId: s.id, studentName: s.name, sessionId: sess.id }) }}
-                        >
-                          {/* padded wrapper so the ring's white-gap halo is also clickable */}
-                          <div style={{ transform: 'translateX(-50%)', padding: 3 }}>
-                            <div
-                              className="rounded-md px-2 py-0.5 text-white whitespace-nowrap"
-                              style={{
-                                background: color, fontSize: 11, fontWeight: 600,
-                                opacity: feedbackRing ? 1 : 0.9,
-                                // 环与底色间加一圈白色间隔，避免黄环贴在橙色 SA 上对比过低
-                                ...(feedbackRing ? { boxShadow: `0 0 0 1.5px #fff, 0 0 0 3px ${feedbackRing}` } : {}),
-                              }}
-                              title={feedbackTip ?? (isDefense ? '最终答辩' : undefined)}
-                            >
-                              {fullLabel}
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })}
-
-                  {/* GanttProject task bars */}
-                  {studentTasks.map(t => {
-                    if (t.milestone) {
-                      const idx = colIdxFromDate(t.startDate)
-                      if (idx < 0 || idx >= totalDays) return null
-                      const left = idx * COL_W + COL_W / 2
-                      return (
-                        <div
-                          key={t.id}
-                          className="absolute top-1/2 -translate-y-1/2 text-[var(--primary)] select-none cursor-default"
-                          style={{ left, fontSize: 22, lineHeight: 1, transform: 'translate(-50%, -50%)' }}
-                          onMouseEnter={e => showTip(e, `${t.name}：${t.startDate}`)}
-                          onMouseMove={moveTip}
-                          onMouseLeave={hideTip}
-                        >
-                          ◆
-                        </div>
-                      )
-                    }
-
-                    if (!t.startDate || !t.endDate) return null
-
-                    const startIdx = colIdxFromDate(t.startDate)
-                    const endIdx = colIdxFromDate(t.endDate)
-                    const clampedStart = Math.max(0, startIdx)
-                    const clampedEnd = Math.min(totalDays - 1, endIdx)
-                    if (clampedStart > clampedEnd || clampedEnd < 0 || clampedStart >= totalDays) return null
-
-                    const barLeftPx = clampedStart * COL_W
-                    const barWidthPx = (clampedEnd - clampedStart + 1) * COL_W
-                    const color = t.color ?? 'var(--primary)'
-                    const lblStyle = stickyLabelStyle(barLeftPx, barWidthPx)
-
-                    return (
-                      <div key={t.id} className="contents">
-                        <div
-                          className="absolute top-1/2 -translate-y-1/2 h-[22px] rounded overflow-hidden pointer-events-none"
-                          style={{ left: barLeftPx, width: barWidthPx }}
-                        >
-                          <div className="absolute inset-0 opacity-80" style={{ background: color }} />
-                        </div>
-                        <div
-                          className="absolute top-1/2 -translate-y-1/2 h-[22px] flex items-center overflow-hidden pointer-events-none"
-                          style={{ left: lblStyle.left, width: Math.max(1, lblStyle.width), paddingLeft: 6 }}
-                        >
-                          <span className="text-white text-xs font-semibold truncate drop-shadow-sm" style={{ fontSize: 11 }}>
-                            {t.name}
-                          </span>
-                        </div>
-                      </div>
-                    )
-                  })}
+                {/* 标签自己 sticky —— 整条 sticky 的话横向滚走就看不见了 */}
+                <div className="sticky left-0 z-30 flex items-center gap-2 px-3 py-2 bg-gray-50">
+                  <span className="text-xs text-gray-500">{showWrapped ? '▾' : '▸'}</span>
+                  <span className="text-xs text-gray-500">已结项 ({wrappedStudents.length})</span>
                 </div>
               </div>
-            )
-          })}
+              {showWrapped && wrappedStudents.map(renderStudentRow)}
+            </>
+          )}
 
           {students.length === 0 && (
             <div className="py-12 text-center text-gray-400 text-sm">没有学生</div>

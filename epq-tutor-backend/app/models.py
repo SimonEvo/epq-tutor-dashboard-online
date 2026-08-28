@@ -18,6 +18,7 @@ class Tutor(Base):
     password_hash = Column(String(256), nullable=False)
     default_round = Column(String(64), nullable=True)
     kb_context_sources = Column(JSON, nullable=True)  # KB layer-1 source toggles; null = all on
+    submission_checklist_template = Column(JSON, nullable=True)  # [{id,label,order,archived}]; null = seed on first read
     created_at = Column(DateTime, default=now_utc)
     students = relationship("Student", back_populates="tutor")
 
@@ -65,6 +66,13 @@ class Student(Base):
     private_notes = Column(Text, default="")
     tencent_doc_url = Column(String(512))
     ai_alias = Column(String(128))
+    submission_checklist = Column(JSON, nullable=True)   # {"ticked": {itemId: iso}, "customItems": [{id,label,done,doneAt}]}
+    tii_checks = Column(JSON, nullable=True)             # [{date, aiPercent, similarityPercent, note}]
+    deadline_tier = Column(String(16), default="normal")  # normal | extended
+    deadline_override = Column(String(20), nullable=True)
+    deadline_change_confirmed = Column(Boolean, default=False, nullable=False)
+    wrapped_up_at = Column(DateTime, nullable=True)
+    defense_confirmed = Column(Boolean, default=False, nullable=False)  # 最终答辩时间已跟学生确认
     generated_progress_report = Column(Text)
     progress_report_generated_at = Column(String(32))
     created_at = Column(DateTime, default=now_utc)
@@ -182,6 +190,8 @@ class Round(Base):
     __tablename__ = "rounds"
     name = Column(String(128), primary_key=True)
     is_archived = Column(Boolean, default=False, nullable=False)
+    deadline_normal = Column(String(20), nullable=True)    # "2026-08-14T17:00"
+    deadline_extended = Column(String(20), nullable=True)  # "2026-08-21T17:00"
 
 
 class ActionLog(Base):

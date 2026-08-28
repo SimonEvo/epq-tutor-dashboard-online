@@ -99,6 +99,16 @@ class StudentSchema(BaseModel):
     generatedProgressReport: Optional[str] = None
     progressReportGeneratedAt: Optional[str] = None
     aiAlias: Optional[str] = None
+    # ── 提交（read-only here; written via narrow PATCH endpoints）────────────
+    submissionChecklist: dict = {}
+    tiiChecks: list[dict] = []
+    deadlineTier: str = "normal"
+    deadlineOverride: Optional[str] = None
+    deadlineChangeConfirmed: bool = False
+    effectiveDeadline: Optional[str] = None
+    deadlineNeedsConfirm: bool = False
+    wrappedUpAt: Optional[str] = None
+    defenseConfirmed: bool = False
     createdAt: str = ""
     updatedAt: str = ""
 
@@ -141,6 +151,16 @@ class StudentSummarySchema(BaseModel):
     updatedAt: str = ""
     latestHomeworkEntry: Optional[dict] = None
     aiAlias: Optional[str] = None
+    # ── 提交（read-only here; written via narrow PATCH endpoints）────────────
+    submissionChecklist: dict = {}
+    tiiChecks: list[dict] = []
+    deadlineTier: str = "normal"
+    deadlineOverride: Optional[str] = None
+    deadlineChangeConfirmed: bool = False
+    effectiveDeadline: Optional[str] = None
+    deadlineNeedsConfirm: bool = False
+    wrappedUpAt: Optional[str] = None
+    defenseConfirmed: bool = False
 
 
 # ── Tags ──────────────────────────────────────────────────────────────────────
@@ -262,3 +282,21 @@ class KnowledgeEntrySchema(BaseModel):
 class KnowledgeEntryCreateSchema(BaseModel):
     content: str
     source: str = "manual"
+
+
+# ── 提交前检查清单模板 ─────────────────────────────────────────────────────────
+
+class ChecklistItemSchema(BaseModel):
+    id: str
+    label: str
+    order: int = 0
+    archived: bool = False
+
+
+class ChecklistTemplateSchema(BaseModel):
+    items: list[ChecklistItemSchema] = []
+
+
+class RoundDeadlinesSchema(BaseModel):
+    normal: Optional[str] = None
+    extended: Optional[str] = None

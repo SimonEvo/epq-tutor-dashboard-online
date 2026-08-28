@@ -4,10 +4,21 @@ import { getSettings, saveSettings, AI_PROVIDERS } from '@/lib/settings'
 import { publishCalendar, calendarUrl as getCalendarUrl } from '@/lib/calendarService'
 import { useStudentStore } from '@/stores/studentStore'
 import * as dataService from '@/lib/dataService'
-import type { ArchivedRound } from '@/lib/dataService'
 import { getToken } from '@/lib/githubClient'
 import { THEMES } from '@/lib/themes'
 import { useThemeStore } from '@/stores/themeStore'
+import SubmissionTemplateSettings from '@/components/SubmissionTemplateSettings'
+import RoundManagementSection from '@/components/settings/RoundManagementSection'
+
+type SettingsCategory = 'appearance' | 'teaching' | 'integrations' | 'ai' | 'data'
+
+const CATEGORIES: { id: SettingsCategory; label: string; hint: string }[] = [
+  { id: 'appearance', label: '外观', hint: '界面主题' },
+  { id: 'teaching', label: '教学', hint: '学期 / 提交清单 / 知识库' },
+  { id: 'integrations', label: '集成', hint: '日历 / Zoom / 腾讯文档' },
+  { id: 'ai', label: 'AI', hint: 'AI 模型配置' },
+  { id: 'data', label: '数据', hint: '备份与恢复' },
+]
 
 const KB_SOURCE_LABELS: [dataService.KbSource, string][] = [
   ['sessions', '课程历史 + 记录'],
@@ -23,6 +34,15 @@ const KB_SOURCE_LABELS: [dataService.KbSource, string][] = [
 ]
 
 export default function SettingsPage() {
+  const [cat, setCat] = useState<SettingsCategory>(
+    () => (localStorage.getItem('settings-category') as SettingsCategory) ?? 'appearance'
+  )
+
+  const handleCat = (next: SettingsCategory) => {
+    setCat(next)
+    localStorage.setItem('settings-category', next)
+  }
+
   const [settings, setSettings] = useState(getSettings)
   const [saved, setSaved] = useState(false)
   const [calSyncing, setCalSyncing] = useState(false)
@@ -37,8 +57,6 @@ export default function SettingsPage() {
   const fetchRounds = useStudentStore(s => s.fetchRounds)
   const [defaultRound, setDefaultRound] = useState('')
   const [defaultRoundSaving, setDefaultRoundSaving] = useState(false)
-  const [archivedRounds, setArchivedRounds] = useState<ArchivedRound[]>([])
-  const [expandedArchive, setExpandedArchive] = useState<string | null>(null)
   const [kbSources, setKbSources] = useState<dataService.KbSourceToggles | null>(null)
   const [kbSaving, setKbSaving] = useState(false)
 
@@ -53,7 +71,6 @@ export default function SettingsPage() {
     if (!calendarUrl) setCalendarUrl(getCalendarUrl())
     fetchRounds()
     dataService.getDefaultRound().then(setDefaultRound).catch(() => {})
-    dataService.getArchivedRounds().then(setArchivedRounds).catch(() => {})
     dataService.listBackups().then(setBackups).catch(() => {})
     dataService.getKbSources().then(setKbSources).catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -156,16 +173,35 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
+    <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
         <Link to="/" className="text-gray-400 hover:text-gray-600 text-sm">← Dashboard</Link>
         <span className="text-gray-300">/</span>
         <h1 className="text-xl font-semibold text-gray-900">Settings</h1>
       </div>
 
-      <form onSubmit={handleSave} className="flex flex-col gap-5">
+      <div className="flex gap-6 items-start">
+        {/* 左侧分类目录 —— 右侧只渲染当前分类（真 tab，不是锚点滚动） */}
+        <nav className="w-40 shrink-0 flex flex-col gap-1 sticky top-6">
+          {CATEGORIES.map(c => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => handleCat(c.id)}
+              className={`text-left px-3 py-2 rounded-xl transition-colors ${
+                cat === c.id ? 'bg-white border border-gray-200 shadow-sm' : 'hover:bg-white/60 border border-transparent'
+              }`}
+            >
+              <span className={`block text-sm ${cat === c.id ? 'font-medium text-gray-900' : 'text-gray-600'}`}>{c.label}</span>
+              <span className="block text-[11px] text-gray-400 truncate">{c.hint}</span>
+            </button>
+          ))}
+        </nav>
+
+      <form onSubmit={handleSave} className="flex-1 min-w-0 flex flex-col gap-5">
 
         {/* Theme */}
+        {cat === 'appearance' && (
         <section className="bg-white rounded-2xl border border-gray-200 p-6">
           <h2 className="text-sm font-semibold text-gray-900 mb-1">界面主题</h2>
           <p className="text-xs text-gray-400 mb-4">即时切换，无需刷新页面。</p>
@@ -192,8 +228,10 @@ export default function SettingsPage() {
             ))}
           </div>
         </section>
+        )}
 
         {/* iCloud Calendar */}
+        {cat === 'integrations' && (
         <section className="bg-white rounded-2xl border border-gray-200 p-6">
           <h2 className="text-sm font-semibold text-gray-900 mb-1">iCloud 日历同步</h2>
           <p className="text-xs text-gray-400 mb-4">
@@ -252,8 +290,10 @@ export default function SettingsPage() {
             )}
           </div>
         </section>
+        )}
 
         {/* AI Model */}
+        {cat === 'ai' && (
         <section className="bg-white rounded-2xl border border-gray-200 p-6">
           <h2 className="text-sm font-semibold text-gray-900 mb-1">AI 模型配置</h2>
           <p className="text-xs text-gray-400 mb-4">
@@ -311,8 +351,10 @@ export default function SettingsPage() {
             </div>
           </div>
         </section>
+        )}
 
         {/* Data Backup & Restore */}
+        {cat === 'data' && (
         <section className="bg-white rounded-2xl border border-gray-200 p-6">
           <h2 className="text-sm font-semibold text-gray-900 mb-1">数据备份与恢复</h2>
           <p className="text-xs text-gray-400 mb-4">
@@ -397,8 +439,10 @@ export default function SettingsPage() {
             </div>
           )}
         </section>
+        )}
 
         {/* Zoom API — link to dedicated config page */}
+        {cat === 'integrations' && (
         <section className="bg-white rounded-2xl border border-gray-200 p-6">
           <div className="flex items-center justify-between">
             <div>
@@ -415,8 +459,10 @@ export default function SettingsPage() {
             </Link>
           </div>
         </section>
+        )}
 
         {/* Tencent Docs (future) */}
+        {cat === 'teaching' && (
         <section className="bg-white rounded-2xl border border-gray-200 p-6">
           <h2 className="text-sm font-semibold text-gray-900 mb-1">默认学期</h2>
           <p className="text-xs text-gray-400 mb-3">Dashboard 打开时若无记忆则自动筛选此学期。两个学期 overlap 时可在此切换。</p>
@@ -443,7 +489,15 @@ export default function SettingsPage() {
             </button>
           </div>
         </section>
+        )}
 
+        {cat === 'teaching' && (
+          <RoundManagementSection onArchived={name => { if (defaultRound === name) setDefaultRound('') }} />
+        )}
+
+        {cat === 'teaching' && <SubmissionTemplateSettings />}
+
+        {cat === 'teaching' && (
         <section className="bg-white rounded-2xl border border-gray-200 p-6">
           <h2 className="text-sm font-semibold text-gray-900 mb-1">知识库上下文来源</h2>
           <p className="text-xs text-gray-400 mb-3">开聊时自动装配进上下文的数据源。关掉你不维护的项（如作业）。默认全开，对所有学生生效。</p>
@@ -480,96 +534,10 @@ export default function SettingsPage() {
             </div>
           )}
         </section>
+        )}
 
-        <section className="bg-white rounded-2xl border border-gray-200 p-6">
-          <h2 className="text-sm font-semibold text-gray-900 mb-1">归档管理</h2>
-          <p className="text-xs text-gray-400 mb-4">归档后的学期不在 Dashboard 显示。可查看学生、下载数据或取消归档。</p>
 
-          {/* Active rounds — archive button */}
-          {rounds.length > 0 && (
-            <div className="mb-4">
-              <p className="text-xs font-medium text-gray-500 mb-2">当前学期</p>
-              <div className="flex flex-col gap-1.5">
-                {rounds.map(r => (
-                  <div key={r} className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg">
-                    <span className="text-sm text-gray-800">{r}</span>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        if (!confirm(`归档「${r}」？该学期学生将从 Dashboard 隐藏。`)) return
-                        await dataService.archiveRound(r)
-                        await fetchRounds()
-                        setArchivedRounds(await dataService.getArchivedRounds())
-                        if (defaultRound === r) setDefaultRound('')
-                      }}
-                      className="text-xs text-gray-400 hover:text-red-500 transition-colors"
-                    >
-                      归档
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Archived rounds */}
-          {archivedRounds.length > 0 && (
-            <div>
-              <p className="text-xs font-medium text-gray-500 mb-2">已归档</p>
-              <div className="flex flex-col gap-2">
-                {archivedRounds.map(ar => (
-                  <div key={ar.name} className="border border-gray-100 rounded-xl overflow-hidden">
-                    <div className="flex items-center justify-between px-3 py-2.5 bg-gray-50">
-                      <button
-                        type="button"
-                        onClick={() => setExpandedArchive(expandedArchive === ar.name ? null : ar.name)}
-                        className="flex items-center gap-2 text-sm text-gray-700 hover:text-gray-900"
-                      >
-                        <span>{expandedArchive === ar.name ? '▾' : '▸'}</span>
-                        <span>{ar.name}</span>
-                        <span className="text-xs text-gray-400">{ar.studentCount} 名学生</span>
-                      </button>
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => dataService.downloadRoundExport(ar.name, getToken() || '')}
-                          className="text-xs px-2.5 py-1 border border-gray-200 rounded-lg text-gray-600 hover:bg-white transition-colors"
-                        >
-                          下载 JSON
-                        </button>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            await dataService.unarchiveRound(ar.name)
-                            await fetchRounds()
-                            setArchivedRounds(await dataService.getArchivedRounds())
-                          }}
-                          className="text-xs px-2.5 py-1 border border-gray-200 rounded-lg text-gray-600 hover:bg-white transition-colors"
-                        >
-                          取消归档
-                        </button>
-                      </div>
-                    </div>
-                    {expandedArchive === ar.name && (
-                      <div className="px-3 py-2 divide-y divide-gray-50">
-                        {ar.students.map(s => (
-                          <div key={s.id} className="py-1.5 text-sm text-gray-600">
-                            {s.name}{s.nameEn ? ` · ${s.nameEn}` : ''}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {rounds.length === 0 && archivedRounds.length === 0 && (
-            <p className="text-xs text-gray-400">暂无学期数据</p>
-          )}
-        </section>
-
+        {cat === 'integrations' && (
         <section className="bg-white rounded-2xl border border-gray-200 p-6 opacity-60">
           <div className="flex items-center gap-2 mb-1">
             <h2 className="text-sm font-semibold text-gray-900">腾讯文档 API</h2>
@@ -580,19 +548,24 @@ export default function SettingsPage() {
             需要在腾讯文档开放平台注册应用（企业账号），详见文档。
           </p>
         </section>
+        )}
 
-        <div className="flex gap-3">
-          <button
-            type="submit"
-            className="bg-[var(--primary)] text-white text-sm px-5 py-2 rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
-          >
-            {saved ? '已保存 ✓' : 'Save Settings'}
-          </button>
-          <Link to="/" className="text-sm px-5 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
-            Cancel
-          </Link>
-        </div>
+        {/* 只有 AI 那节的字段挂在 settings 上，其余分类都是各自即时保存 */}
+        {cat === 'ai' && (
+          <div className="flex gap-3">
+            <button
+              type="submit"
+              className="bg-[var(--primary)] text-white text-sm px-5 py-2 rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+            >
+              {saved ? '已保存 ✓' : 'Save Settings'}
+            </button>
+            <Link to="/" className="text-sm px-5 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
+              Cancel
+            </Link>
+          </div>
+        )}
       </form>
+      </div>
     </div>
   )
 }
