@@ -8,6 +8,7 @@ import type { ArchivedRound } from '@/lib/dataService'
 import { getToken } from '@/lib/githubClient'
 import { THEMES } from '@/lib/themes'
 import { useThemeStore } from '@/stores/themeStore'
+import SubmissionTemplateSettings from '@/components/SubmissionTemplateSettings'
 
 const KB_SOURCE_LABELS: [dataService.KbSource, string][] = [
   ['sessions', '课程历史 + 记录'],
@@ -443,6 +444,8 @@ export default function SettingsPage() {
             </button>
           </div>
         </section>
+
+        <SubmissionTemplateSettings rounds={rounds} />
 
         <section className="bg-white rounded-2xl border border-gray-200 p-6">
           <h2 className="text-sm font-semibold text-gray-900 mb-1">知识库上下文来源</h2>

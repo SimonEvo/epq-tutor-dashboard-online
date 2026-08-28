@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
-from app.routers import auth, students, supervisors, config, reports, calendar, backup as backup_router, zoom, trials, workflow, ai, gantt, knowledge, schedule_events, nag as nag_router
+from app.routers import auth, students, supervisors, config, reports, calendar, backup as backup_router, zoom, trials, workflow, ai, gantt, knowledge, schedule_events, nag as nag_router, checklist
 from app.database import engine, SessionLocal
 from app import models, nag
 
@@ -86,6 +86,16 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE sessions ADD COLUMN is_final_defense BOOLEAN NOT NULL DEFAULT 0",
             "ALTER TABLE tutors ADD COLUMN kb_context_sources JSON",
             "ALTER TABLE sessions ADD COLUMN tutor_attending BOOLEAN NOT NULL DEFAULT 0",
+            "ALTER TABLE tutors ADD COLUMN submission_checklist_template JSON",
+            "ALTER TABLE rounds ADD COLUMN deadline_normal VARCHAR(20)",
+            "ALTER TABLE rounds ADD COLUMN deadline_extended VARCHAR(20)",
+            "ALTER TABLE students ADD COLUMN submission_checklist JSON",
+            "ALTER TABLE students ADD COLUMN tii_checks JSON",
+            "ALTER TABLE students ADD COLUMN deadline_tier VARCHAR(16) DEFAULT 'normal'",
+            "ALTER TABLE students ADD COLUMN deadline_override VARCHAR(20)",
+            "ALTER TABLE students ADD COLUMN deadline_change_confirmed BOOLEAN NOT NULL DEFAULT 0",
+            "ALTER TABLE students ADD COLUMN wrapped_up_at DATETIME",
+            "ALTER TABLE students ADD COLUMN defense_confirmed BOOLEAN NOT NULL DEFAULT 0",
         ]:
             try:
                 conn.execute(text(stmt))
@@ -151,6 +161,7 @@ app.include_router(gantt.router)
 app.include_router(knowledge.router)
 app.include_router(schedule_events.router)
 app.include_router(nag_router.router)
+app.include_router(checklist.router)
 
 
 @app.get("/health")

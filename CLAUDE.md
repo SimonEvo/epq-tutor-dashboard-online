@@ -72,6 +72,8 @@ cd /opt/epq-tutor-backend && .venv/bin/python migrate_from_local.py --data-dir /
 - **学生知识库** — P1–P8 已实现并本地验证（分支 `feature/student-knowledge-base`）。**待办：`python deploy.py` 上线 + 线上强刷验证（P9）**。后端已加两表 + `tutors.kb_context_sources` 列，`create_all` / ALTER 自动迁移，无需手动建表。
 - **日程周视角（Week Schedule View）** — 已实现，本地 `tsc` / lint 通过。Dashboard 新增"日程"视图：周一~周日日历网格 + 动态时间轴 + 工作时间高亮 + 当前时间红线 + 撞车 split。新表 `schedule_events`（`create_all` 自动建）。顺带修 bug：session 起始时间全线必填。任务书 `docs/projects/week-schedule-view.md`。**待办：`python deploy.py` 上线 + 线上强刷验证。**
 
+- **提交前检查清单 + 提交截止时间 + 结项（改动一）** — 已实现，本地 `tsc` / lint 通过。后端加 tutors/students/rounds 列（`create_all` + ALTER 自动迁移）+ 窄端点 `PATCH /api/students/{id}/checklist|deadline|wrap-up|tii-checks`、`/api/checklist-template`、`PUT /api/rounds/{name}/deadlines`；前端新增 Dashboard「提交」视图、详情页「提交」卡片、设置页「提交清单模板 / 提交截止时间」两节、甘特图已结项折叠。任务书 `docs/projects/submission-checklist.md`，ADR 0003。**待办：`python deploy.py` 上线 + 线上强刷验证（走任务书 §7 验收清单）。**
+
 ### Next Up
 - **学生知识库（Student Knowledge Base）** — 单学生私有 AI 知识库，三层架构（自动结构化上下文 / 活总结 / 原料层）+ 消化流程。任务书 `docs/projects/student-knowledge-base.md`（**§12 实现路线已批准，P1–P8 完成**），决策 `docs/adr/0002-student-knowledge-base-architecture.md`，术语见 `CONTEXT.md`
 - Dashboard 多视图（看板 / 时间线 / 统计等）

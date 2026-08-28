@@ -1,6 +1,6 @@
 import { apiFetch } from './githubClient'
 import { API_BASE_URL } from '@/config'
-import type { Student, Supervisor, WeeklyReportData, Trial, ActionLog, ManualLog, WorkflowAnalysis, GanttProject, GanttProjectSummary, ScheduleEvent, NagPreview, NagPushResult } from '@/types'
+import type { Student, Supervisor, ChecklistTemplateItem, ChecklistCustomItem, SubmissionChecklist, TiiCheck, DeadlineTier, RoundDeadlines, WeeklyReportData, Trial, ActionLog, ManualLog, WorkflowAnalysis, GanttProject, GanttProjectSummary, ScheduleEvent, NagPreview, NagPushResult } from '@/types'
 
 async function api<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await apiFetch(`${API_BASE_URL}${path}`, options)
@@ -44,6 +44,106 @@ export async function toggleHomeworkItem(
   await api(`/students/${studentId}/homework/${entryId}/item/${itemIdx}`, {
     method: 'PATCH',
     body: JSON.stringify({ done }),
+  })
+}
+
+// ─── 提交前检查清单 / 提交截止时间 / 结项 ──────────────────────────────────────
+
+export async function getChecklistTemplate(): Promise<ChecklistTemplateItem[]> {
+  const data = await api<{ items: ChecklistTemplateItem[] }>('/checklist-template')
+  return data.items
+}
+
+export async function saveChecklistTemplate(items: ChecklistTemplateItem[]): Promise<ChecklistTemplateItem[]> {
+  const data = await api<{ items: ChecklistTemplateItem[] }>('/checklist-template', {
+    method: 'PUT',
+    body: JSON.stringify({ items }),
+  })
+  return data.items
+}
+
+/** 永久删除：连带清掉所有学生身上该项的打钩数据 */
+export async function deleteChecklistItem(itemId: string): Promise<ChecklistTemplateItem[]> {
+  const data = await api<{ items: ChecklistTemplateItem[] }>(`/checklist-template/${encodeURIComponent(itemId)}`, {
+    method: 'DELETE',
+  })
+  return data.items
+}
+
+export async function patchChecklistTick(
+  studentId: string,
+  itemId: string,
+  checked: boolean,
+): Promise<SubmissionChecklist> {
+  const data = await api<{ submissionChecklist: SubmissionChecklist }>(`/students/${studentId}/checklist`, {
+    method: 'PATCH',
+    body: JSON.stringify({ itemId, checked }),
+  })
+  return data.submissionChecklist
+}
+
+export async function patchChecklistCustomItems(
+  studentId: string,
+  customItems: ChecklistCustomItem[],
+): Promise<SubmissionChecklist> {
+  const data = await api<{ submissionChecklist: SubmissionChecklist }>(`/students/${studentId}/checklist`, {
+    method: 'PATCH',
+    body: JSON.stringify({ customItems }),
+  })
+  return data.submissionChecklist
+}
+
+export interface DeadlinePatchResult {
+  deadlineTier: DeadlineTier
+  deadlineOverride: string | null
+  deadlineChangeConfirmed: boolean
+  effectiveDeadline: string | null
+  deadlineNeedsConfirm: boolean
+}
+
+/** 改 tier / override 时服务端强制把运营确认重置为 false */
+export async function patchStudentDeadline(
+  studentId: string,
+  body: { tier?: DeadlineTier; override?: string | null; confirmed?: boolean },
+): Promise<DeadlinePatchResult> {
+  return api<DeadlinePatchResult>(`/students/${studentId}/deadline`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function patchStudentWrapUp(studentId: string, wrappedUp: boolean): Promise<string | null> {
+  const data = await api<{ wrappedUpAt: string | null }>(`/students/${studentId}/wrap-up`, {
+    method: 'PATCH',
+    body: JSON.stringify({ wrappedUp }),
+  })
+  return data.wrappedUpAt
+}
+
+export async function patchTiiChecks(studentId: string, tiiChecks: TiiCheck[]): Promise<TiiCheck[]> {
+  const data = await api<{ tiiChecks: TiiCheck[] }>(`/students/${studentId}/tii-checks`, {
+    method: 'PATCH',
+    body: JSON.stringify({ tiiChecks }),
+  })
+  return data.tiiChecks
+}
+
+export async function patchDefenseConfirmed(studentId: string, confirmed: boolean): Promise<boolean> {
+  const data = await api<{ defenseConfirmed: boolean }>(`/students/${studentId}/defense-confirmed`, {
+    method: 'PATCH',
+    body: JSON.stringify({ confirmed }),
+  })
+  return data.defenseConfirmed
+}
+
+export async function getRoundDeadlines(name: string): Promise<RoundDeadlines> {
+  return api<RoundDeadlines>(`/rounds/${encodeURIComponent(name)}/deadlines`)
+}
+
+export async function saveRoundDeadlines(name: string, deadlines: RoundDeadlines): Promise<RoundDeadlines> {
+  return api<RoundDeadlines>(`/rounds/${encodeURIComponent(name)}/deadlines`, {
+    method: 'PUT',
+    body: JSON.stringify({ normal: deadlines.normal ?? null, extended: deadlines.extended ?? null }),
   })
 }
 

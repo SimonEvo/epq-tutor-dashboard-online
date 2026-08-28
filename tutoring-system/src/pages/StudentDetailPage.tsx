@@ -10,6 +10,7 @@ import HomeworkParseDialog from '@/components/HomeworkParseDialog'
 import ZoomImportDialog from '@/components/ZoomImportDialog'
 import ZoomScheduleDialog from '@/components/ZoomScheduleDialog'
 import KnowledgeBaseTab from '@/components/KnowledgeBase/KnowledgeBaseTab'
+import SubmissionCard from '@/components/SubmissionCard'
 import { isSessionStarted, formatHours, countsAsSaHour } from '@/lib/formatters'
 import * as dataService from '@/lib/dataService'
 
@@ -578,8 +579,8 @@ export default function StudentDetailPage() {
 
     <div className="p-6 max-w-4xl mx-auto">
 
-      {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      {/* Header —— 冻结在顶部，滚到页面深处也能直接返回 */}
+      <div className="sticky top-0 z-20 -mx-6 -mt-6 px-6 pt-6 pb-4 mb-6 bg-[#f5f5f7] border-b border-gray-200 flex items-start justify-between">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Link to="/" className="text-gray-400 hover:text-gray-600 text-sm">← Dashboard</Link>
@@ -1127,6 +1128,12 @@ export default function StudentDetailPage() {
         </p>
       </div>
       
+      {/* 提交（清单 / ddl / Tii / 结项）—— 全部走窄端点 */}
+      <SubmissionCard
+        student={student}
+        onChange={patch => setStudent(prev => (prev ? { ...prev, ...patch } : prev))}
+      />
+
       {/* Student info table */}
       <div className="bg-white rounded-xl border border-gray-200 mb-5 overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">

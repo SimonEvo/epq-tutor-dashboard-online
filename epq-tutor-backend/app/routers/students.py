@@ -6,6 +6,7 @@ from app import models
 from app.auth import get_current_tutor
 from app.schemas import StudentSchema, StudentSummarySchema, SessionSummarySchema
 from app.action_logger import log_action
+from app import submission
 
 router = APIRouter(prefix="/api/students", tags=["students"])
 
@@ -54,7 +55,21 @@ def _homework_to_dict(h: models.HomeworkEntry) -> dict:
     }
 
 
-def _to_full_schema(s: models.Student) -> StudentSchema:
+def _submission_fields(s: models.Student, deadlines: dict) -> dict:
+    return dict(
+        submissionChecklist=submission.normalize_checklist(s.submission_checklist),
+        tiiChecks=list(s.tii_checks or []),
+        deadlineTier=s.deadline_tier or "normal",
+        deadlineOverride=s.deadline_override,
+        deadlineChangeConfirmed=bool(s.deadline_change_confirmed),
+        effectiveDeadline=submission.effective_deadline(s, deadlines),
+        deadlineNeedsConfirm=submission.deadline_needs_confirm_warning(s),
+        wrappedUpAt=s.wrapped_up_at.isoformat() if s.wrapped_up_at else None,
+        defenseConfirmed=bool(s.defense_confirmed),
+    )
+
+
+def _to_full_schema(s: models.Student, deadlines: dict | None = None) -> StudentSchema:
     sorted_sessions = sorted(s.sessions, key=lambda x: x.date)
     return StudentSchema(
         id=s.id, name=s.name, nameEn=s.name_en, gender=s.gender,
@@ -79,10 +94,11 @@ def _to_full_schema(s: models.Student) -> StudentSchema:
         progressReportGeneratedAt=s.progress_report_generated_at,
         createdAt=s.created_at.isoformat() if s.created_at else "",
         updatedAt=s.updated_at.isoformat() if s.updated_at else "",
+        **_submission_fields(s, deadlines or {}),
     )
 
 
-def _to_summary(s: models.Student) -> StudentSummarySchema:
+def _to_summary(s: models.Student, deadlines: dict | None = None) -> StudentSummarySchema:
     past = [x for x in s.sessions if x.date <= datetime.now(timezone.utc).strftime("%Y-%m-%d")]
     last = max(past, key=lambda x: x.date, default=None) if past else None
     latest_hw = max(s.homework_entries, key=lambda h: h.date, default=None) if s.homework_entries else None
@@ -103,6 +119,7 @@ def _to_summary(s: models.Student) -> StudentSummarySchema:
         updatedAt=s.updated_at.isoformat() if s.updated_at else "",
         latestHomeworkEntry=_homework_to_dict(latest_hw) if latest_hw else None,
         aiAlias=s.ai_alias,
+        **_submission_fields(s, deadlines or {}),
     )
 
 
@@ -144,7 +161,8 @@ def list_students(
         .all()
     )
     archived_rounds = {r.name for r in db.query(models.Round).filter(models.Round.is_archived == True).all()}
-    return [_to_summary(s) for s in students if s.submission_round not in archived_rounds]
+    deadlines = submission.round_deadlines(db)
+    return [_to_summary(s, deadlines) for s in students if s.submission_round not in archived_rounds]
 
 
 @router.get("/{student_id}", response_model=StudentSchema)
@@ -153,7 +171,7 @@ def get_student(
     db: Session = Depends(get_db),
     tutor: models.Tutor = Depends(get_current_tutor),
 ):
-    return _to_full_schema(_load_student(db, student_id, tutor.id))
+    return _to_full_schema(_load_student(db, student_id, tutor.id), submission.round_deadlines(db))
 
 
 @router.post("", response_model=StudentSchema)
@@ -218,7 +236,13 @@ def _upsert_student(
         log_action(db, "update", "student", data.id)
 
     s.name = data.name; s.name_en = data.nameEn; s.gender = data.gender
-    s.school = data.school; s.submission_round = data.submissionRound
+    s.school = data.school
+    # 换届 = 上一届的 ddl 安排作废（任务书 D11 / §5）
+    if s.submission_round != data.submissionRound:
+        s.deadline_tier = "normal"
+        s.deadline_override = None
+        s.deadline_change_confirmed = False
+    s.submission_round = data.submissionRound
     s.taught_element_type = data.taughtElementType
     s.university_aspiration = data.universityAspiration
     s.current_grade = data.currentGrade; s.university_enrollment = data.universityEnrollment
@@ -327,7 +351,7 @@ def _upsert_student(
         ))
 
     db.commit()
-    return _to_full_schema(_load_student(db, s.id, tutor.id))
+    return _to_full_schema(_load_student(db, s.id, tutor.id), submission.round_deadlines(db))
 
 
 @router.patch("/{student_id}/homework/{entry_id}/item/{item_idx}")
@@ -381,3 +405,126 @@ def patch_ai_alias(
     student.ai_alias = body.get("aiAlias")
     db.commit()
     return {"ok": True}
+
+
+# ── 提交（窄端点：只写自己那一列，绝不触碰 sessions 等关联表）─────────────────
+
+def _own_student(db: Session, student_id: str, tutor_id: str) -> models.Student:
+    student = db.query(models.Student).filter(
+        models.Student.id == student_id,
+        models.Student.tutor_id == tutor_id,
+    ).first()
+    if student is None:
+        raise HTTPException(status_code=404, detail="Student not found")
+    return student
+
+
+@router.patch("/{student_id}/checklist")
+def patch_checklist(
+    student_id: str,
+    body: dict,
+    db: Session = Depends(get_db),
+    tutor: models.Tutor = Depends(get_current_tutor),
+):
+    """{itemId, checked} 切模板项打钩，或 {customItems:[...]} 全量替换额外项。"""
+    student = _own_student(db, student_id, tutor.id)
+    data = submission.normalize_checklist(student.submission_checklist)
+
+    if "itemId" in body:
+        item_id = str(body["itemId"])
+        if body.get("checked"):
+            data["ticked"][item_id] = datetime.now(timezone.utc).isoformat()
+        else:
+            data["ticked"].pop(item_id, None)
+
+    if "customItems" in body:
+        # 固定项不可删：服务端补回来
+        data["customItems"] = submission.ensure_fixed_items(list(body.get("customItems") or []))
+
+    student.submission_checklist = data
+    db.commit()
+    return {"ok": True, "submissionChecklist": data}
+
+
+@router.patch("/{student_id}/deadline")
+def patch_deadline(
+    student_id: str,
+    body: dict,
+    db: Session = Depends(get_db),
+    tutor: models.Tutor = Depends(get_current_tutor),
+):
+    """{tier?, override?, confirmed?}。改 tier/override 一律把运营确认重置为 false（D4）。"""
+    student = _own_student(db, student_id, tutor.id)
+    changed_deadline = False
+
+    if "tier" in body:
+        tier = body.get("tier") or "normal"
+        if tier not in ("normal", "extended"):
+            raise HTTPException(status_code=400, detail="Invalid deadline tier")
+        if tier != (student.deadline_tier or "normal"):
+            student.deadline_tier = tier
+            changed_deadline = True
+
+    if "override" in body:
+        override = body.get("override") or None
+        if override != student.deadline_override:
+            student.deadline_override = override
+            changed_deadline = True
+
+    if changed_deadline:
+        student.deadline_change_confirmed = False
+    elif "confirmed" in body:
+        student.deadline_change_confirmed = bool(body.get("confirmed"))
+
+    db.commit()
+    deadlines = submission.round_deadlines(db)
+    return {
+        "ok": True,
+        "deadlineTier": student.deadline_tier or "normal",
+        "deadlineOverride": student.deadline_override,
+        "deadlineChangeConfirmed": bool(student.deadline_change_confirmed),
+        "effectiveDeadline": submission.effective_deadline(student, deadlines),
+        "deadlineNeedsConfirm": submission.deadline_needs_confirm_warning(student),
+    }
+
+
+@router.patch("/{student_id}/wrap-up")
+def patch_wrap_up(
+    student_id: str,
+    body: dict,
+    db: Session = Depends(get_db),
+    tutor: models.Tutor = Depends(get_current_tutor),
+):
+    """{wrappedUp: bool}。仅影响呈现，不参与任何计算（D8）。"""
+    student = _own_student(db, student_id, tutor.id)
+    student.wrapped_up_at = datetime.now(timezone.utc) if body.get("wrappedUp") else None
+    db.commit()
+    return {"ok": True, "wrappedUpAt": student.wrapped_up_at.isoformat() if student.wrapped_up_at else None}
+
+
+@router.patch("/{student_id}/tii-checks")
+def patch_tii_checks(
+    student_id: str,
+    body: dict,
+    db: Session = Depends(get_db),
+    tutor: models.Tutor = Depends(get_current_tutor),
+):
+    """{tiiChecks: [{date, aiPercent, similarityPercent, note}]}；百分比允许为空（D7）。"""
+    student = _own_student(db, student_id, tutor.id)
+    student.tii_checks = list(body.get("tiiChecks") or [])
+    db.commit()
+    return {"ok": True, "tiiChecks": student.tii_checks}
+
+
+@router.patch("/{student_id}/defense-confirmed")
+def patch_defense_confirmed(
+    student_id: str,
+    body: dict,
+    db: Session = Depends(get_db),
+    tutor: models.Tutor = Depends(get_current_tutor),
+):
+    """{confirmed: bool} —— 最终答辩时间是否已跟学生确认。日期本身取自 isFinalDefense 的 session。"""
+    student = _own_student(db, student_id, tutor.id)
+    student.defense_confirmed = bool(body.get("confirmed"))
+    db.commit()
+    return {"ok": True, "defenseConfirmed": student.defense_confirmed}

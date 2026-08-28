@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import * as dataService from '@/lib/dataService'
 import { publishCalendar } from '@/lib/calendarService'
-import type { Student, Supervisor } from '@/types'
+import type { Student, Supervisor, ChecklistCustomItem, DeadlineTier, TiiCheck } from '@/types'
 
 export type CalendarSyncStatus = 'idle' | 'syncing' | 'ok' | 'err'
 
@@ -25,6 +25,14 @@ interface StudentState {
   saveRounds: (rounds: string[]) => Promise<void>
   saveSupervisor: (supervisor: Supervisor) => Promise<void>
   deleteSupervisor: (id: string) => Promise<void>
+  // ── 提交（窄端点 + 乐观更新）──────────────────────────────────────────────
+  patchLocalStudent: (id: string, patch: Partial<Student>) => void
+  toggleChecklistItem: (studentId: string, itemId: string, checked: boolean) => Promise<void>
+  saveChecklistCustomItems: (studentId: string, items: ChecklistCustomItem[]) => Promise<void>
+  patchDeadline: (studentId: string, body: { tier?: DeadlineTier; override?: string | null; confirmed?: boolean }) => Promise<void>
+  setWrappedUp: (studentId: string, wrappedUp: boolean) => Promise<void>
+  saveTiiChecks: (studentId: string, checks: TiiCheck[]) => Promise<void>
+  setDefenseConfirmed: (studentId: string, confirmed: boolean) => Promise<void>
 }
 
 export const useStudentStore = create<StudentState>((set, get) => ({
@@ -124,5 +132,67 @@ export const useStudentStore = create<StudentState>((set, get) => ({
   deleteSupervisor: async (id: string) => {
     await dataService.deleteSupervisor(id)
     set({ supervisors: get().supervisors.filter(s => s.id !== id) })
+  },
+
+  // ── 提交（窄端点，绝不触发全量学生保存）────────────────────────────────────
+
+  patchLocalStudent: (id, patch) => {
+    set({ students: get().students.map(s => (s.id === id ? { ...s, ...patch } : s)) })
+  },
+
+  toggleChecklistItem: async (studentId, itemId, checked) => {
+    const before = get().students.find(s => s.id === studentId)?.submissionChecklist
+    const current = before ?? { ticked: {}, customItems: [] }
+    const ticked = { ...current.ticked }
+    if (checked) ticked[itemId] = new Date().toISOString()
+    else delete ticked[itemId]
+    // 乐观更新
+    get().patchLocalStudent(studentId, { submissionChecklist: { ...current, ticked } })
+    try {
+      const saved = await dataService.patchChecklistTick(studentId, itemId, checked)
+      get().patchLocalStudent(studentId, { submissionChecklist: saved })
+    } catch (e) {
+      get().patchLocalStudent(studentId, { submissionChecklist: before })  // 失败回滚
+      throw e
+    }
+  },
+
+  saveChecklistCustomItems: async (studentId, items) => {
+    const before = get().students.find(s => s.id === studentId)?.submissionChecklist
+    const current = before ?? { ticked: {}, customItems: [] }
+    get().patchLocalStudent(studentId, { submissionChecklist: { ...current, customItems: items } })
+    try {
+      const saved = await dataService.patchChecklistCustomItems(studentId, items)
+      get().patchLocalStudent(studentId, { submissionChecklist: saved })
+    } catch (e) {
+      get().patchLocalStudent(studentId, { submissionChecklist: before })
+      throw e
+    }
+  },
+
+  patchDeadline: async (studentId, body) => {
+    const saved = await dataService.patchStudentDeadline(studentId, body)
+    get().patchLocalStudent(studentId, saved)
+  },
+
+  setWrappedUp: async (studentId, wrappedUp) => {
+    const wrappedUpAt = await dataService.patchStudentWrapUp(studentId, wrappedUp)
+    get().patchLocalStudent(studentId, { wrappedUpAt })
+  },
+
+  saveTiiChecks: async (studentId, checks) => {
+    const saved = await dataService.patchTiiChecks(studentId, checks)
+    get().patchLocalStudent(studentId, { tiiChecks: saved })
+  },
+
+  setDefenseConfirmed: async (studentId, confirmed) => {
+    get().patchLocalStudent(studentId, { defenseConfirmed: confirmed })   // 乐观更新
+    try {
+      const saved = await dataService.patchDefenseConfirmed(studentId, confirmed)
+      get().patchLocalStudent(studentId, { defenseConfirmed: saved })
+    } catch (e) {
+      get().patchLocalStudent(studentId, { defenseConfirmed: !confirmed })
+      throw e
+    }
   },
 }))
