@@ -74,6 +74,8 @@ cd /opt/epq-tutor-backend && .venv/bin/python migrate_from_local.py --data-dir /
 
 - **提交前检查清单 + 提交截止时间 + 结项（改动一）** — 已实现，本地 `tsc` / lint 通过。后端加 tutors/students/rounds 列（`create_all` + ALTER 自动迁移）+ 窄端点 `PATCH /api/students/{id}/checklist|deadline|wrap-up|tii-checks`、`/api/checklist-template`、`PUT /api/rounds/{name}/deadlines`；前端新增 Dashboard「提交」视图、详情页「提交」卡片、设置页「提交清单模板 / 提交截止时间」两节、甘特图已结项折叠。任务书 `docs/projects/submission-checklist.md`，ADR 0003。**待办：`python deploy.py` 上线 + 线上强刷验证（走任务书 §7 验收清单）。**
 
+- **设置页重构 + 学期管理（改动二）** — 已实现，`npm run typecheck` / lint 通过。设置页改成左侧 5 个分类目录（外观 / 教学 / 集成 / AI / 数据）+ 右侧只渲染当前分类，分类记 `localStorage['settings-category']`；新增「学期管理」节吃掉原「归档管理」（一行一届：两个 ddl + 学生数 + 归档开关 + 展开看学生/下载 JSON），改动一里的「提交截止时间」节并入其中。任务书 `docs/projects/settings-page-restructure.md`。**待办：与改动一一起 `python deploy.py` 上线 + 线上强刷验证。**
+
 ### Next Up
 - **学生知识库（Student Knowledge Base）** — 单学生私有 AI 知识库，三层架构（自动结构化上下文 / 活总结 / 原料层）+ 消化流程。任务书 `docs/projects/student-knowledge-base.md`（**§12 实现路线已批准，P1–P8 完成**），决策 `docs/adr/0002-student-knowledge-base-architecture.md`，术语见 `CONTEXT.md`
 - Dashboard 多视图（看板 / 时间线 / 统计等）

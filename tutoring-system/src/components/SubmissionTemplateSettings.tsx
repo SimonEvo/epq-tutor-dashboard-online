@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import * as dataService from '@/lib/dataService'
-import type { ChecklistTemplateItem, RoundDeadlines } from '@/types'
+import type { ChecklistTemplateItem } from '@/types'
 
 const inputCls = 'text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white'
 
@@ -9,32 +9,21 @@ function newId() {
 }
 
 /**
- * 设置页两节：提交清单模板 + 每届提交截止时间。
+ * 设置页「提交清单模板」。每届的提交截止时间在「学期管理」里改。
  *
  * 模板是活定义 —— 改一下所有学生的「提交」视图立刻跟着变。
  * 删项默认只是归档（打钩数据留着，恢复即回来）；「永久删除」才真清学生的钩。
  */
-export default function SubmissionTemplateSettings({ rounds }: { rounds: string[] }) {
+export default function SubmissionTemplateSettings() {
   const [items, setItems] = useState<ChecklistTemplateItem[]>([])
   const [newLabel, setNewLabel] = useState('')
   const [showArchived, setShowArchived] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  const [deadlines, setDeadlines] = useState<Record<string, RoundDeadlines>>({})
-  const [savingRound, setSavingRound] = useState<string | null>(null)
-
   useEffect(() => {
     dataService.getChecklistTemplate().then(setItems).catch(() => {})
   }, [])
-
-  useEffect(() => {
-    rounds.forEach(r => {
-      dataService.getRoundDeadlines(r)
-        .then(d => setDeadlines(prev => ({ ...prev, [r]: d })))
-        .catch(() => {})
-    })
-  }, [rounds])
 
   const persist = async (next: ChecklistTemplateItem[]) => {
     setItems(next)   // 乐观更新
@@ -93,18 +82,6 @@ export default function SubmissionTemplateSettings({ rounds }: { rounds: string[
       setError(String(e))
     } finally {
       setSaving(false)
-    }
-  }
-
-  const saveDeadlines = async (round: string) => {
-    setSavingRound(round)
-    try {
-      const saved = await dataService.saveRoundDeadlines(round, deadlines[round] ?? {})
-      setDeadlines(prev => ({ ...prev, [round]: saved }))
-    } catch (e) {
-      setError(String(e))
-    } finally {
-      setSavingRound(null)
     }
   }
 
@@ -201,53 +178,6 @@ export default function SubmissionTemplateSettings({ rounds }: { rounds: string[
                 ))}
               </ul>
             )}
-          </div>
-        )}
-      </section>
-
-      <section className="bg-white rounded-2xl border border-gray-200 p-6">
-        <h2 className="text-sm font-semibold text-gray-900 mb-1">提交截止时间</h2>
-        <p className="text-xs text-gray-400 mb-3">
-          每届两个固定 ddl（都是周五 17:00，相隔一周）。学生按是否延期落在其中一档；留空则该届学生的有效 ddl 显示「待定」。
-        </p>
-
-        {rounds.length === 0 ? (
-          <p className="text-xs text-gray-400">还没有学期</p>
-        ) : (
-          <div className="space-y-3">
-            {rounds.map(r => {
-              const d = deadlines[r] ?? {}
-              return (
-                <div key={r} className="flex flex-wrap items-center gap-3">
-                  <span className="w-16 text-sm text-gray-700 shrink-0">{r}</span>
-                  <label className="text-xs text-gray-400 flex items-center gap-1.5">
-                    普通
-                    <input
-                      type="datetime-local"
-                      value={d.normal ?? ''}
-                      onChange={e => setDeadlines(prev => ({ ...prev, [r]: { ...d, normal: e.target.value || null } }))}
-                      className={inputCls}
-                    />
-                  </label>
-                  <label className="text-xs text-gray-400 flex items-center gap-1.5">
-                    延期
-                    <input
-                      type="datetime-local"
-                      value={d.extended ?? ''}
-                      onChange={e => setDeadlines(prev => ({ ...prev, [r]: { ...d, extended: e.target.value || null } }))}
-                      className={inputCls}
-                    />
-                  </label>
-                  <button
-                    onClick={() => saveDeadlines(r)}
-                    disabled={savingRound === r}
-                    className="text-sm px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 shrink-0"
-                  >
-                    {savingRound === r ? '保存中…' : '保存'}
-                  </button>
-                </div>
-              )
-            })}
           </div>
         )}
       </section>
