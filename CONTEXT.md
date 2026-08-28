@@ -245,6 +245,64 @@ Overtime duration for a session = exact overlap between the session's time range
 Time range always shows the **full session** (start to end). The `min` value shows only the **overtime portion** (overlap with overtime windows). Total is sum of overtime portions only.
 Modal has two tabs: 上周 / 本周 (Mon–Sun).
 
+### 结项 (Wrapped Up)
+Tutor's manual confirmation that a student is done for the current [[submission-round|Round]] — everything handed in, nothing left to chase. Stored as `students.wrappedUpAt` (nullable timestamp; the timestamp doubles as the "when" record, so no separate boolean). Un-wrapping = set back to null.
+
+**Always manual.** A fully ticked [[submission-checklist]] does not auto-wrap a student: the tutor may have every artefact in hand while the student still hasn't pressed submit. Wrapping up with unticked checklist items raises a confirm prompt ("还有 3 项未完成，确认结项？") but is never blocked.
+
+**Presentation only — never a computation input.** 结项 affects visual placement and nothing else: wrapped-up students collapse into an expandable "已结项 (n)" group at the bottom of the [[gantt-view|Gantt View]] and sink to the bottom of the [[submission-sprint-view]]. SA hour totals, weekly reports, and monthly-meeting AI all ignore it. Letting it feed calculations would force every future statistic to answer "do wrapped-up students count?".
+
+Collapsed, not hidden — the group can always be expanded, otherwise there is no way to find a student to un-wrap them.
+
+Distinct from an [[submission-round|Archived Round]]: archiving retires a whole cohort; 结项 is per-student and only re-orders views.
+
+### Submission Checklist（提交前检查清单）
+The tutor's own pre-submission gate check for one student — tutor-side delivery actions, not student deliverables. Examples: 学生是否已上传全部材料、AI 率与相似度报告是否备齐、答辩录屏转写是否整理好.
+
+Deliberately **not** part of [[epq-milestones]], which are fixed by the EPQ specification, track student output, carry four states, and run all term. Checklist items are the tutor's operational routine, binary (ticked / not), only meaningful near the deadline, and expected to change as the tutor learns what is actually required.
+
+**Template is a live definition, not a snapshot.** The tutor edits one template in Settings; every student's checklist is rendered against the current template, storing only which item ids are ticked. Adding a template item makes it appear (unticked) for all students at once; renaming propagates; removing an item **archives** it (`archived: true`) rather than deleting it: it disappears from every student, and Settings shows a collapsed 「已删除的项 (n) ▸ 恢复」 group. Restoring brings the item back under its original id, so the ticks come back with it; a second, explicit 「永久删除」 inside that group is what actually discards the tick data. Recovery is a visible button, not a side effect of happening to reuse the same id. Snapshotting per student was rejected: it would fork the template per cohort, and the whole point of the editable template is that late discoveries must reach students already in flight.
+
+**Per-student ad-hoc items（额外项）.** Besides the template items, each student can carry their own free-form items (add/remove freely). This is where per-student submission materials live — every student hands in a different set, so they cannot be template columns. A single free bucket, not two: separate "额外材料" and "其他" buckets would leave the tutor guessing which one a given item belongs in.
+
+Flat list — no grouping. Under ~10 items, grouping is overhead.
+
+**Seed template:**
+1. 表格检查完成 — one tick meaning "the tutor has been through all the forms". Deliberately NOT split into the seven EPQ tables: [[epq-milestones]] already tracks those per table, and that tracks *whether the student filled them in*, which is a different question from *whether the tutor has checked them*.
+2. 论文检测报告 — see [[tii-check]].
+3. 答辩录屏+转录
+（额外项 covers the rest.）
+
+### Tii Check（论文检测记录）
+One Turnitin run for a student, recorded as `{date, aiPercent, similarityPercent, note}` in `students.tiiChecks` (JSON list). Check count = list length; **in principle a student should not be checked more than 3 times**, and the third check onward is flagged red — a warning, never a block, because reality may force a fourth run and the system must not push the tutor into under-reporting.
+
+Stored as a list rather than a bare counter because the useful signal is the trend of the numbers (35% → 11% is what shows the problem was actually fixed), not the count. `aiPercent` and `similarityPercent` are **optional** — a check can be logged with the numbers left blank.
+
+The 论文检测报告 checklist tick stays manual and is NOT derived from the presence of Tii Checks: having run the check is not the same as having the report tidied up and handed in.
+
+### Submission Deadline（提交截止时间）
+The moment a student must submit their EPQ work. Precise to the hour (not just the date).
+
+Each [[submission-round|Round]] defines **two fixed deadlines**, both Friday 17:00, one week apart:
+- `deadline_normal` — the standard deadline for the cohort
+- `deadline_extended` — the one-week-later deadline granted to students who applied for an extension
+
+Every student sits in one of two tiers (`deadlineTier`: `normal` | `extended`, default `normal`). Switching to `extended` is the "延期一周" action; it is reversible (switch back to `normal`). Because the tier is an enum over two fixed round-level dates, a student structurally cannot be extended twice.
+
+On top of the tier, a student may carry an arbitrary **override** (`deadlineOverride`, nullable datetime) for one-off arrangements.
+
+```
+有效 ddl = student.deadlineOverride ?? round[student.deadlineTier]
+```
+
+**运营组确认 (`deadlineChangeConfirmed`)** — a boolean flag on the student. Any deviation from the round's `normal` deadline (switching to `extended`, or setting an override) requires confirmation from the 运营组 (operations team). The flag is a **marker, not a gate**: the deadline change takes effect immediately and the flag merely raises an "运营未确认" warning in the [[submission-sprint-view]]. Gating would force the data to lie while waiting for ops to reply. **Every deadline change resets the flag to `false`** — a stale tick is worse than no tick.
+
+**Deferral to the next round** — a student who defers submission to the following cohort is handled by changing their `submissionRound`, not by any deadline field. The tutor keeps teaching them; they simply leave the current round's views and appear in the next round's. Changing the round **clears** `deadlineTier` / `deadlineOverride` / `deadlineChangeConfirmed` (the previous round's arrangement no longer applies), with a confirmation prompt since it discards data.
+
+If the target round has no deadlines set yet, the student's effective deadline is **待定** — shown as such rather than hidden, with a prompt to go set the round's deadlines.
+
+Deadlines are **not** drawn in the [[gantt-view|Gantt View]] (its grid is one column per day, so hour precision is invisible there); important global dates are maintained by hand in the gantt editor. Hour precision surfaces in the [[submission-sprint-view]] countdown and tooltips.
+
 ## Dashboard Design Decisions
 
 ### Primary Tasks
