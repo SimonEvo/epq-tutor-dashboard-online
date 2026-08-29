@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Student, Supervisor, GanttProject, GanttTask, SessionRecord } from '@/types'
-import { getGanttProject } from '@/lib/dataService'
+import { getGanttProject, peekGanttProject } from '@/lib/dataService'
 import { getWrappedOpen, setWrappedOpen } from '@/lib/submission'
 import AddSessionModal from '@/components/AddSessionModal'
 import QuickSessionEditPopover from '@/components/QuickSessionEditPopover'
@@ -62,8 +62,9 @@ export default function GanttView({ students, allStudents, supervisors }: Props)
     () => new Map(supervisors.map(sv => [sv.id, sv])),
     [supervisors]
   )
-  const [project, setProject] = useState<GanttProject | null>(null)
-  const [loading, setLoading] = useState(true)
+  // 命中内存缓存就直接渲染，后台再刷新——避免每次切回甘特视图都卡「加载中…」
+  const [project, setProject] = useState<GanttProject | null>(() => peekGanttProject('tutor', 'me') ?? null)
+  const [loading, setLoading] = useState(() => peekGanttProject('tutor', 'me') === undefined)
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
   const [scrollLeft, setScrollLeft] = useState(0)
   const [containerWidth, setContainerWidth] = useState(0)
@@ -86,7 +87,7 @@ export default function GanttView({ students, allStudents, supervisors }: Props)
   const todayISO = toISO(today)
 
   // ── Date range from data ──────────────────────────────────────────────────
-  const { startDate, endDate, totalDays, todayColIdx, dates, monthSpans } = useMemo(() => {
+  const { startDate, endDate, totalDays, todayColIdx, dates, monthSpans, startWeekday } = useMemo(() => {
     let minD: Date | null = null
     let maxD: Date | null = null
 
@@ -132,10 +133,27 @@ export default function GanttView({ students, allStudents, supervisors }: Props)
       }
     }
 
-    return { startDate: rangeStart, endDate: rangeEnd, totalDays: days, todayColIdx: todayIdx, dates: dateArr, monthSpans: spans }
+    return { startDate: rangeStart, endDate: rangeEnd, totalDays: days, todayColIdx: todayIdx, dates: dateArr, monthSpans: spans, startWeekday: rangeStart.getDay() }
   }, [allStudents, project, today])
 
   const totalWidth = Math.max(640, totalDays * COL_W)
+
+  // 行背景：1px 竖线 + 周末底色，全部用 background 图案画（周期 = 7 * COL_W）。
+  // 图案按周日起画，再用 background-position 平移到时间轴起始那天的星期。
+  const gridBgStyle = useMemo(() => {
+    const week = 7 * COL_W
+    const wknd = 'rgba(249,250,251,0.6)'   // = bg-gray-50/60
+    const line = '#f3f4f6'                 // = border-gray-100
+    return {
+      backgroundImage: [
+        `repeating-linear-gradient(to right, ${line} 0 1px, transparent 1px ${COL_W}px)`,
+        `linear-gradient(to right, ${wknd} 0 ${COL_W}px, transparent ${COL_W}px ${6 * COL_W}px, ${wknd} ${6 * COL_W}px ${week}px)`,
+      ].join(', '),
+      backgroundSize: `${COL_W}px 100%, ${week}px 100%`,
+      backgroundPosition: `0 0, ${-startWeekday * COL_W}px 0`,
+      backgroundRepeat: 'repeat',
+    } as React.CSSProperties
+  }, [startWeekday])
 
   // ── Scroll to today on first load only ───────────────────────────────────
   // The timeline range is derived from allStudents, so switching round no longer
@@ -169,11 +187,25 @@ export default function GanttView({ students, allStudents, supervisors }: Props)
   }, [])
 
   // ── Section name → task lookup ───────────────────────────────────────────
-  const sections = project?.data?.sections ?? []
   const activeStudents = students.filter(s => !s.wrappedUpAt)
   const wrappedStudents = students.filter(s => !!s.wrappedUpAt)
 
-  const sectionIdByName = new Map(sections.map(s => [s.name, s.id]))
+  const sectionIdByName = useMemo(
+    () => new Map((project?.data?.sections ?? []).map(s => [s.name, s.id])),
+    [project]
+  )
+
+  // sectionId -> tasks，避免每个学生行都 filter 一遍全量 tasks
+  const tasksBySection = useMemo(() => {
+    const m = new Map<string, GanttTask[]>()
+    for (const t of project?.data?.tasks ?? []) {
+      if (!t.sectionId) continue
+      const arr = m.get(t.sectionId)
+      if (arr) arr.push(t)
+      else m.set(t.sectionId, [t])
+    }
+    return m
+  }, [project])
 
   // 结项学生抽出到底部分组渲染（收起不是隐藏，否则找不到人取消结项）
   const renderStudentRow = (s: Student) => {
@@ -222,24 +254,16 @@ export default function GanttView({ students, allStudents, supervisors }: Props)
 
                 {/* Bar area */}
                 <div className="relative" style={{ width: totalDays * COL_W, minHeight: rowH }}>
-                  {/* Grid background — weekends + today */}
-                  <div className="absolute inset-0 flex pointer-events-none">
-                    {dates.map(d => {
-                      const iso = toISO(d)
-                      const isWknd = d.getDay() === 0 || d.getDay() === 6
-                      const isToday = iso === todayISO
-                      return (
-                        <div
-                          key={iso}
-                          className={`shrink-0 border-l border-gray-100 ${
-                            isToday ? 'bg-[var(--primary)]/10'
-                            : isWknd ? 'bg-gray-50/60' : ''
-                          }`}
-                          style={{ width: COL_W }}
-                        />
-                      )
-                    })}
-                  </div>
+                  {/* Grid background — 周末底色 + 竖线用 CSS 渐变画，
+                      原来每行每天一个 div（天数 x 学生数，几千个节点）是切视图卡顿主因 */}
+                  <div className="absolute inset-0 pointer-events-none" style={gridBgStyle} />
+                  {/* 今天：整列高亮，一行只要一个 div */}
+                  {todayColIdx >= 0 && todayColIdx < totalDays && (
+                    <div
+                      className="absolute inset-y-0 pointer-events-none bg-[var(--primary)]/10"
+                      style={{ left: todayColIdx * COL_W, width: COL_W }}
+                    />
+                  )}
 
                   {/* 固定安排 highlight bands (出差 / deadlines) */}
                   {fixedTasks.map(t => fixedBand(t, `${s.id}-${t.id}`))}
@@ -355,19 +379,17 @@ export default function GanttView({ students, allStudents, supervisors }: Props)
             )
   }
 
-  const tasks = project?.data?.tasks ?? []
-
   function tasksForStudent(studentName: string): GanttTask[] {
     const secId = sectionIdByName.get(studentName)
     if (!secId) return []
-    return tasks.filter(t => t.sectionId === secId)
+    return tasksBySection.get(secId) ?? []
   }
 
   // ── 固定安排 section: whole-page highlight (出差 / deadlines 等) ──────────────
   const FIXED_SECTION = '固定安排'
   const FIXED_DEFAULT_COLOR = '#f59e0b'
   const fixedSectionId = sectionIdByName.get(FIXED_SECTION)
-  const fixedTasks = fixedSectionId ? tasks.filter(t => t.sectionId === fixedSectionId) : []
+  const fixedTasks = (fixedSectionId ? tasksBySection.get(fixedSectionId) : undefined) ?? []
 
   // ── Tooltip ──────────────────────────────────────────────────────────────
   function showTip(e: React.MouseEvent, text: string) { setTooltip({ text, x: e.clientX, y: e.clientY }) }

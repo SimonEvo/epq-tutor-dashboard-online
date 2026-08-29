@@ -599,19 +599,35 @@ export async function getGanttProjects(): Promise<GanttProjectSummary[]> {
   return api<GanttProjectSummary[]>('/gantt/projects')
 }
 
+// 甘特图项目内存缓存：Dashboard 切视图会卸载/重挂 GanttView，没缓存的话每次都重新拉一遍
+// 并卡在「加载中…」。命中缓存先渲染旧数据，后台再刷新（stale-while-revalidate）。
+const ganttProjectCache = new Map<string, GanttProject | null>()
+
+/** 同步读缓存；undefined = 从未拉过 */
+export function peekGanttProject(ownerType: string, ownerId: string): GanttProject | null | undefined {
+  return ganttProjectCache.get(`${ownerType}/${ownerId}`)
+}
+
 export async function getGanttProject(ownerType: string, ownerId: string): Promise<GanttProject | null> {
   const res = await apiFetch(`/api/gantt/projects/${ownerType}/${ownerId}`)
-  if (res.status === 404) return null
+  if (res.status === 404) {
+    ganttProjectCache.set(`${ownerType}/${ownerId}`, null)
+    return null
+  }
   if (!res.ok) throw new Error(`API error ${res.status}`)
-  return res.json() as Promise<GanttProject>
+  const p = await res.json() as GanttProject
+  ganttProjectCache.set(`${ownerType}/${ownerId}`, p)
+  return p
 }
 
 export async function upsertGanttProject(ownerType: string, ownerId: string, name: string, data: object): Promise<GanttProject> {
-  return api<GanttProject>(`/gantt/projects/${ownerType}/${ownerId}`, {
+  const p = await api<GanttProject>(`/gantt/projects/${ownerType}/${ownerId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, data }),
   })
+  ganttProjectCache.set(`${ownerType}/${ownerId}`, p)
+  return p
 }
 
 // ─── 群催促提醒 ───────────────────────────────────────────────────────────────

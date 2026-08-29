@@ -30,8 +30,11 @@ python deploy.py
 # 前端单独开发
 cd tutoring-system && npm run dev   # localhost:5173（需后端在 8001 运行）
 
-# 后端单独启动
+# 后端单独启动（Win 用 .venv/Scripts/）
 cd epq-tutor-backend && .venv/bin/uvicorn app.main:app --reload --port 8001
+
+# 灌本地假数据（仅 dev，别在服务器上跑）——压测/验证列表视图用
+cd epq-tutor-backend && .venv/bin/python seed_local.py --students 30 --span-days 365
 
 # 数据迁移（服务器上运行）
 cd /opt/epq-tutor-backend && .venv/bin/python migrate_from_local.py --data-dir /opt/epq-tutor-data
