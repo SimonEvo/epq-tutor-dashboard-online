@@ -16,7 +16,7 @@ epq-tutor-dashboard-online/
 ```
 
 ## 技术栈
-**前端：** React 18 + Vite + TypeScript + Tailwind CSS + shadcn/ui + Zustand + React Router v6
+**前端：** React 19 + Vite + TypeScript + Tailwind CSS v4 + Zustand + React Router v7
 
 **后端：** FastAPI + SQLAlchemy + **SQLite**（`/opt/epq-tutor-backend/data/epq_tutor.db`）+ python-jose（JWT）+ passlib（bcrypt）
 

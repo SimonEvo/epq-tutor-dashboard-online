@@ -12,7 +12,6 @@
     "deploy": "npm run build && rsync -avz dist/ root@121.43.194.213:/opt/epq-tutor/dist/"
   },
   "dependencies": {
-    "@octokit/rest": "^22.0.1",
     "markmap-lib": "^0.18.12",
     "markmap-view": "^0.18.12",
     "pinyin-pro": "^3.29.3",
@@ -34,7 +33,6 @@
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
-    "gh-pages": "^6.3.0",
     "globals": "^17.4.0",
     "tailwindcss": "^4.2.2",
     "typescript": "~6.0.2",
