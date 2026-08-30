@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { Student, Supervisor, SessionRecord, Trial, ScheduleEvent } from '@/types'
-import { listTrials, listScheduleEvents } from '@/lib/dataService'
+import type { Student, Supervisor, SessionRecord, Trial, ScheduleEvent, GroupClass } from '@/types'
+import { listTrials, listScheduleEvents, listGroupClasses } from '@/lib/dataService'
 import QuickSessionEditPopover from '@/components/QuickSessionEditPopover'
 import QuickEventEditPopover from '@/components/QuickEventEditPopover'
+import ScheduleLegend, { type LegendItem } from '@/components/views/ScheduleLegend'
+import QuickGroupClassEditPopover from '@/components/QuickGroupClassEditPopover'
 import ScheduleCreateDialog from '@/components/ScheduleCreateDialog'
 
 interface Props {
@@ -28,9 +30,24 @@ const SA_YINGFANG_DEFENSE_COLOR = '#db4d4d'   // 醒目红
 const TRIAL_COLOR = '#f59e0b'   // 琥珀
 const EVENT_COLOR = '#eb66a8'   // 暖粉 —— 自定义事件（如私人安排）
 const OT_EVENT_COLOR = '#0d9488'  // 青 —— 「加个班儿」：非学生会议的加班项目，进加班申请
+const GROUP_CLASS_COLOR = '#0891b2'  // 天蓝 —— 团课（一对多理论课，不绑学生）
 // 占用模式：所有安排一律统一灰块，不区分类型、不露姓名
 const BUSY_COLOR = '#9CA3AF'
 const BUSY_LABEL = '占用'
+
+// 图例：中英方SA 分开列——英方SA 平时不用你出席所以是灰的，勾了「导师出席」才变 salmon
+const LEGEND_ITEMS: LegendItem[] = [
+  { label: '中方SA', color: SA_ZHONGFANG_COLOR, title: '导师本人当 SA，全程出席' },
+  { label: '英方SA', color: SESSION_COLOR.SA_MEETING, title: '英方SA 平时无需导师出席，弱化显示' },
+  { label: '英方SA·出席', color: SA_YINGFANG_ATTENDING_COLOR, title: '勾了「导师出席本次英方SA会议」' },
+  { label: '最终答辩', color: SA_ZHONGFANG_DEFENSE_COLOR, color2: SA_YINGFANG_DEFENSE_COLOR, title: '左上=中方 / 右下=英方，两边都要出席' },
+  { label: 'TA', color: SESSION_COLOR.TA_MEETING },
+  { label: '理论', color: SESSION_COLOR.THEORY },
+  { label: '试听', color: TRIAL_COLOR },
+  { label: '团课', color: GROUP_CLASS_COLOR, title: '一对多理论课，不绑学生' },
+  { label: '事件', color: EVENT_COLOR, title: '个人事件（私事，不计加班）' },
+  { label: '加班', color: OT_EVENT_COLOR, title: '加个班儿——非学生会议的加班项目' },
+]
 
 const SESSION_LABEL: Record<string, string> = { SA_MEETING: 'SA', TA_MEETING: 'TA', THEORY: '理论' }
 
@@ -64,7 +81,7 @@ function fmtRange(b: Block): string {
 
 interface Block {
   key: string
-  kind: 'session' | 'trial' | 'event'
+  kind: 'session' | 'trial' | 'event' | 'group'
   date: string
   startMin: number | null   // null = 未定时
   durationMin: number
@@ -78,6 +95,7 @@ interface Block {
   sessionId?: string
   trialId?: string
   event?: ScheduleEvent
+  groupClass?: GroupClass
 }
 
 const WEEKDAY = ['一', '二', '三', '四', '五', '六', '日']
@@ -91,15 +109,18 @@ export default function WeekScheduleView({ students, supervisors }: Props) {
   const [busyMode, setBusyMode] = useState(false)
   const [trials, setTrials] = useState<Trial[]>([])
   const [events, setEvents] = useState<ScheduleEvent[]>([])
+  const [groupClasses, setGroupClasses] = useState<GroupClass[]>([])
   const [now, setNow] = useState(new Date())
 
   const [editSession, setEditSession] = useState<{ studentId: string; studentName: string; sessionId: string } | null>(null)
   const [editEvent, setEditEvent] = useState<ScheduleEvent | null>(null)
+  const [editGroupClass, setEditGroupClass] = useState<GroupClass | null>(null)
   const [createPrefill, setCreatePrefill] = useState<{ date: string; time: string } | null>(null)
 
   const reload = () => {
     listTrials().then(setTrials).catch(() => {})
     listScheduleEvents().then(setEvents).catch(() => {})
+    listGroupClasses().then(setGroupClasses).catch(() => {})
   }
   useEffect(() => { reload() }, [])
   // 当前时间红线：每分钟刷新
@@ -169,8 +190,18 @@ export default function WeekScheduleView({ students, supervisors }: Props) {
         event: e,
       })
     }
+    for (const g of groupClasses) {
+      if (!weekSet.has(g.date)) continue
+      out.push({
+        key: `group-${g.id}`, kind: 'group', date: g.date,
+        startMin: parseMin(g.time), durationMin: g.durationMinutes || 60,
+        label: `团课 · ${g.title || '(无标题)'}`, time: g.time,
+        color: GROUP_CLASS_COLOR, occupies: true,
+        groupClass: g,
+      })
+    }
     return out
-  }, [students, supervisorById, trials, events, weekSet])
+  }, [students, supervisorById, trials, events, groupClasses, weekSet])
 
   // 占用模式只保留真正占用导师的安排
   const shown = busyMode ? blocks.filter(b => b.occupies) : blocks
@@ -203,6 +234,12 @@ export default function WeekScheduleView({ students, supervisors }: Props) {
 
   return (
     <div className="relative">
+      {editGroupClass && (
+        <QuickGroupClassEditPopover
+          groupClass={editGroupClass}
+          onClose={() => setEditGroupClass(null)} onSaved={() => { setEditGroupClass(null); reload() }}
+        />
+      )}
       {editSession && (
         <QuickSessionEditPopover
           studentId={editSession.studentId} studentName={editSession.studentName} sessionId={editSession.sessionId}
@@ -231,16 +268,6 @@ export default function WeekScheduleView({ students, supervisors }: Props) {
           <button onClick={() => setWeekOffset(o => o + 1)} className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50">›</button>
         </div>
         <span className="text-sm text-gray-500">{weekDates[0].slice(5)} – {weekDates[6].slice(5)}</span>
-        {!busyMode && (
-        <div className="flex items-center gap-3 ml-2 text-xs text-gray-400">
-          <span className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm" style={{ background: SESSION_COLOR.SA_MEETING }} />SA</span>
-          <span className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm" style={{ background: SESSION_COLOR.TA_MEETING }} />TA</span>
-          <span className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm" style={{ background: SESSION_COLOR.THEORY }} />理论</span>
-          <span className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm" style={{ background: TRIAL_COLOR }} />试听</span>
-          <span className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm" style={{ background: EVENT_COLOR }} />事件</span>
-          <span className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm" style={{ background: OT_EVENT_COLOR }} />加班</span>
-        </div>
-        )}
         <button
           onClick={() => setBusyMode(v => !v)}
           title="所有安排统一显示为灰色「占用」，隐去姓名与类型，方便截图发给学生看空闲时段"
@@ -259,6 +286,9 @@ export default function WeekScheduleView({ students, supervisors }: Props) {
           + 新建
         </button>
       </div>
+
+      {/* ── 图例 ─────────────────────────────────────────────────────────── */}
+      {!busyMode && <div className="mb-3"><ScheduleLegend items={LEGEND_ITEMS} /></div>}
 
       {/* ── 星期表头 ──────────────────────────────────────────────────────── */}
       <div className="flex border-b border-gray-200">
@@ -403,6 +433,8 @@ export default function WeekScheduleView({ students, supervisors }: Props) {
       navigate(`/trials/${b.trialId}`)
     } else if (b.kind === 'event' && b.event) {
       setEditEvent(b.event)
+    } else if (b.kind === 'group' && b.groupClass) {
+      setEditGroupClass(b.groupClass)
     }
   }
 }

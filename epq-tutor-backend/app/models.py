@@ -287,6 +287,26 @@ class ScheduleEvent(Base):
     updated_at = Column(DateTime, default=now_utc, onupdate=now_utc)
 
 
+class GroupClass(Base):
+    """团课：一对多的理论课。
+
+    刻意不关联 students——来上课的可能是系统里没有的人，名单先用自由文本记；
+    将来对接公共教务系统时把 roster 换成结构化数据即可，接口形状不用动。
+    团课一律计入加班申请统计（落在工作时间窗外的部分）。
+    """
+    __tablename__ = "group_classes"
+    id = Column(String(64), primary_key=True)
+    title = Column(String(256), nullable=False, default="")
+    date = Column(String(16), nullable=False)
+    time = Column(String(8), nullable=False)          # HH:MM，必填——和 session / 事件全线对齐
+    duration_minutes = Column(Integer, nullable=False, default=60)
+    roster = Column(Text, default="")                 # 参与名单，自由文本
+    note = Column(Text, default="")
+    link = Column(String(512), default="")
+    created_at = Column(DateTime, default=now_utc)
+    updated_at = Column(DateTime, default=now_utc, onupdate=now_utc)
+
+
 class GanttProject(Base):
     __tablename__ = "gantt_projects"
     id = Column(String(64), primary_key=True)

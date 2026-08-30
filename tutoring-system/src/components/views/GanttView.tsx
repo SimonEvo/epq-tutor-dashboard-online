@@ -5,35 +5,32 @@ import { getGanttProject, peekGanttProject } from '@/lib/dataService'
 import { getWrappedOpen, setWrappedOpen } from '@/lib/submission'
 import AddSessionModal from '@/components/AddSessionModal'
 import QuickSessionEditPopover from '@/components/QuickSessionEditPopover'
-
-const SESSION_COLOR: Record<string, string> = {
-  SA_MEETING: '#FA8072',
-  TA_MEETING: '#3b82f6',
-  THEORY: '#22c55e',
-}
-
-// SA 课后反馈状态环：已发送=绿；未发送且已到第 3 个工作日（含逾期）=黄
-const FEEDBACK_DONE_RING = '#16a34a'
-const FEEDBACK_DUE_RING = '#eab308'
-
-// 中方SA（tutor 亲自当 SA）会议用温和 prince 紫区分；英方SA 用正常 salmon（Gantt 里要靠这个颜色判断课后反馈状态，不弱化）
-const SA_ZHONGFANG_COLOR = '#9575CD'
-// 最终答辩：无论中英方都要出席，配色单独拉出来强调
-const SA_ZHONGFANG_DEFENSE_COLOR = '#A21CAF'  // 紫红
-const SA_YINGFANG_DEFENSE_COLOR = '#db4d4d'   // 醒目红
-
-const SESSION_LABEL: Record<string, string> = {
-  SA_MEETING: 'SA会议',
-  TA_MEETING: 'TA会议',
-  THEORY: '理论课',
-}
+import { printGantt } from '@/lib/ganttPrint'
+import ScheduleLegend, { type LegendItem } from '@/components/views/ScheduleLegend'
+import {
+  SESSION_COLOR, SESSION_LABEL, FEEDBACK_DONE_RING, FEEDBACK_DUE_RING,
+  SA_ZHONGFANG_COLOR, SA_ZHONGFANG_DEFENSE_COLOR, SA_YINGFANG_DEFENSE_COLOR,
+  FIXED_SECTION, FIXED_DEFAULT_COLOR,
+} from '@/lib/ganttColors'
 
 const COL_W = 64
+
+// 图例：只列甘特图真会画出来的东西。英方SA 这里不弱化成灰——课后反馈状态环
+// 要贴在这个底色上，弱化了看不清（和日历视图的处理刻意不同）。
+const GANTT_LEGEND_ITEMS: LegendItem[] = [
+  { label: '中方SA', color: SA_ZHONGFANG_COLOR, title: '导师本人当 SA' },
+  { label: '英方SA', color: SESSION_COLOR.SA_MEETING, title: '英方SA 会议' },
+  { label: '最终答辩', color: SA_ZHONGFANG_DEFENSE_COLOR, color2: SA_YINGFANG_DEFENSE_COLOR, title: '左上=中方 / 右下=英方，两边都要出席' },
+  { label: 'TA', color: SESSION_COLOR.TA_MEETING },
+  { label: '理论', color: SESSION_COLOR.THEORY },
+  { label: '固定安排', color: FIXED_DEFAULT_COLOR, title: '出差 / deadline 等整页高亮' },
+]
 
 interface Props {
   students: Student[]      // 当前 round 过滤后的学生，只决定显示哪些行
   allStudents: Student[]   // 全部学生，仅用于计算稳定的时间轴范围（切 round 时轴不变）
   supervisors: Supervisor[]
+  roundLabel: string       // 当前届过滤，导出 PDF 的标题里要写
 }
 
 function pad(n: number) { return String(n).padStart(2, '0') }
@@ -57,7 +54,7 @@ interface TooltipState { text: string; x: number; y: number }
 
 const MONTHS = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月']
 
-export default function GanttView({ students, allStudents, supervisors }: Props) {
+export default function GanttView({ students, allStudents, supervisors, roundLabel }: Props) {
   const supervisorById = useMemo(
     () => new Map(supervisors.map(sv => [sv.id, sv])),
     [supervisors]
@@ -73,6 +70,7 @@ export default function GanttView({ students, allStudents, supervisors }: Props)
   const [editSession, setEditSession] = useState<{ studentId: string; studentName: string; sessionId: string } | null>(null)
   // 已结项分组的展开状态跨视图联动（与提交视图 / 甘特图共用）
   const [showWrapped, setShowWrapped] = useState(getWrappedOpen)
+  const [printHint, setPrintHint] = useState('')
   const toggleWrapped = () => {
     setShowWrapped(v => {
       setWrappedOpen(!v)
@@ -386,8 +384,6 @@ export default function GanttView({ students, allStudents, supervisors }: Props)
   }
 
   // ── 固定安排 section: whole-page highlight (出差 / deadlines 等) ──────────────
-  const FIXED_SECTION = '固定安排'
-  const FIXED_DEFAULT_COLOR = '#f59e0b'
   const fixedSectionId = sectionIdByName.get(FIXED_SECTION)
   const fixedTasks = (fixedSectionId ? tasksBySection.get(fixedSectionId) : undefined) ?? []
 
@@ -471,6 +467,19 @@ export default function GanttView({ students, allStudents, supervisors }: Props)
           onClose={() => setEditSession(null)}
           onSaved={() => setEditSession(null)}
         />
+      )}
+      <div className="mb-3 flex items-start gap-3">
+        <ScheduleLegend items={GANTT_LEGEND_ITEMS} />
+        <button
+          onClick={() => setPrintHint(printGantt({ students, supervisors, project, roundLabel }) ?? '')}
+          title="把已上的课排成一张超宽的打印页，在打印对话框里选「另存为 PDF」"
+          className="ml-auto shrink-0 text-xs px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:border-gray-300 transition-colors"
+        >
+          导出 PDF
+        </button>
+      </div>
+      {printHint && (
+        <p className="mb-3 text-xs text-amber-600">{printHint}</p>
       )}
       <div
         ref={scrollRef}

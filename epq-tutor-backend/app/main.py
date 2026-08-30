@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
-from app.routers import auth, students, supervisors, config, reports, calendar, backup as backup_router, zoom, trials, workflow, ai, gantt, knowledge, schedule_events, nag as nag_router, checklist
+from app.routers import auth, students, supervisors, config, reports, calendar, backup as backup_router, zoom, trials, workflow, ai, gantt, knowledge, schedule_events, group_classes, nag as nag_router, checklist
 from app.database import engine, SessionLocal
 from app import models, nag
 
@@ -161,6 +161,7 @@ app.include_router(ai.router)
 app.include_router(gantt.router)
 app.include_router(knowledge.router)
 app.include_router(schedule_events.router)
+app.include_router(group_classes.router)
 app.include_router(nag_router.router)
 app.include_router(checklist.router)
 

@@ -1,16 +1,17 @@
 import { useState } from 'react'
 import { useStudentStore } from '@/stores/studentStore'
-import { getStudent, createScheduleEvent, createTrial } from '@/lib/dataService'
+import { getStudent, createScheduleEvent, createTrial, createGroupClass } from '@/lib/dataService'
 import { countsAsSaHour } from '@/lib/formatters'
 import StudentPicker from '@/components/StudentPicker'
-import type { ScheduleEvent, SessionRecord, SessionType, Student, Supervisor, Trial } from '@/types'
+import type { GroupClass, ScheduleEvent, SessionRecord, SessionType, Student, Supervisor, Trial } from '@/types'
 
 /**
- * 日程视图的通用「新建」入口：先选类别（课程 / 试听 / 个人事件 / 加个班儿），再填对应字段。
+ * 日程视图的通用「新建」入口：先选类别（课程 / 试听 / 团课 / 个人事件 / 加个班儿），再填对应字段。
  * 课程分支复用 AddSessionModal 的写入逻辑（拉全量学生 → 追加 session → 重算 SA 课时）。
  * 试听只落排期最小字段，评估打分等留到试听详情页补。
  * 个人事件与加个班儿共用 schedule_events 表，差别只在 countsAsOvertime——
  * 前者是私事不算加班，后者是非学生会议的加班项目，会进加班申请统计。
+ * 团课是一对多理论课，单独一张表、不绑学生（来的人可能不在系统里），一律算加班。
  */
 
 interface Props {
@@ -38,7 +39,7 @@ function computeAutoTitle(sessions: SessionRecord[], type: SessionType, date: st
 export default function ScheduleCreateDialog({ students, supervisors, prefill, onClose, onSaved }: Props) {
   const { saveStudent } = useStudentStore()
 
-  const [kind, setKind] = useState<'session' | 'trial' | 'event' | 'overtime'>('session')
+  const [kind, setKind] = useState<'session' | 'trial' | 'event' | 'overtime' | 'group'>('session')
   const [date, setDate] = useState(prefill.date)
   const [time, setTime] = useState(prefill.time)
   const [duration, setDuration] = useState<number | ''>(60)
@@ -49,6 +50,9 @@ export default function ScheduleCreateDialog({ students, supervisors, prefill, o
   const [title, setTitle] = useState('')
   const [link, setLink] = useState('')
   const [note, setNote] = useState('')
+
+  // 团课
+  const [roster, setRoster] = useState('')
 
   // 课程
   const [studentId, setStudentId] = useState<string | null>(null)
@@ -89,6 +93,32 @@ export default function ScheduleCreateDialog({ students, supervisors, prefill, o
           updatedAt: '',
         }
         await createScheduleEvent(payload)
+        onSaved()
+        onClose()
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e))
+        setSaving(false)
+      }
+      return
+    }
+
+    if (kind === 'group') {
+      if (!title.trim()) { setError('请填写课程标题'); return }
+      setSaving(true)
+      try {
+        const payload: GroupClass = {
+          id: generateId(),
+          title: title.trim(),
+          date,
+          time,
+          durationMinutes: duration === '' ? 60 : duration,
+          roster: roster.trim(),
+          note: note.trim(),
+          link: link.trim(),
+          createdAt: '',
+          updatedAt: '',
+        }
+        await createGroupClass(payload)
         onSaved()
         onClose()
       } catch (e) {
@@ -168,7 +198,7 @@ export default function ScheduleCreateDialog({ students, supervisors, prefill, o
         <div className="px-5 py-4 flex flex-col gap-4">
           {/* 类别 */}
           <div className="flex gap-2">
-            {([['session', '课程'], ['trial', '试听'], ['event', '个人事件'], ['overtime', '加个班儿']] as const).map(([k, label]) => (
+            {([['session', '课程'], ['trial', '试听'], ['group', '团课'], ['event', '个人事件'], ['overtime', '加个班儿']] as const).map(([k, label]) => (
               <button
                 key={k} type="button"
                 onClick={() => {
@@ -176,7 +206,7 @@ export default function ScheduleCreateDialog({ students, supervisors, prefill, o
                   // 加个班儿先占位、事后补时长，所以默认 0 分钟；别的类别照旧 60
                   setDuration(k === 'overtime' ? 0 : 60)
                 }}
-                className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${
+                className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors whitespace-nowrap px-1 ${
                   kind === k ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
                 }`}
               >
@@ -187,17 +217,29 @@ export default function ScheduleCreateDialog({ students, supervisors, prefill, o
 
           {error && <p className="text-red-500 text-xs">{error}</p>}
 
-          {(kind === 'event' || kind === 'overtime') && (
+          {(kind === 'event' || kind === 'overtime' || kind === 'group') && (
             <div>
-              <label className="block text-xs text-gray-500 mb-1">标题 <span className="text-red-500">*</span></label>
+              <label className="block text-xs text-gray-500 mb-1">
+                {kind === 'group' ? '课程标题' : '标题'} <span className="text-red-500">*</span>
+              </label>
               <input value={title} onChange={e => setTitle(e.target.value)}
-                placeholder={kind === 'overtime' ? '如：教研例会' : '如：陪娃看牙'}
+                placeholder={kind === 'group' ? '如：EPQ 方法论公开课' : (kind === 'overtime' ? '如：教研例会' : '如：陪娃看牙')}
                 className={inputCls} autoFocus />
               <p className="text-[11px] text-gray-400 mt-1">
-                {kind === 'overtime'
+                {kind === 'group'
+                  ? '一对多理论课，不绑学生——来的人可以是系统里没有的。一律计入「加班申请」统计。'
+                  : kind === 'overtime'
                   ? '非学生会议的加班项目。时长默认 0，事后补上实际时长才进「加班申请」统计（日历里按 60 分钟高度显示）。'
                   : '私事，不计加班时间。'}
               </p>
+            </div>
+          )}
+
+          {kind === 'group' && (
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">参与名单</label>
+              <textarea value={roster} onChange={e => setRoster(e.target.value)} rows={2}
+                placeholder="自由填，如：张三、李四、王五（外校 2 人）" className={inputCls} />
             </div>
           )}
 
@@ -269,7 +311,7 @@ export default function ScheduleCreateDialog({ students, supervisors, prefill, o
             </div>
           </div>
 
-          {(kind === 'event' || kind === 'overtime') && (
+          {(kind === 'event' || kind === 'overtime' || kind === 'group') && (
             <>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">链接</label>

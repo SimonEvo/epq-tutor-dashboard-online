@@ -10,9 +10,9 @@ import OverviewView from '@/components/views/OverviewView'
 import GanttView from '@/components/views/GanttView'
 import WeekScheduleView from '@/components/views/WeekScheduleView'
 import SubmissionSprintView from '@/components/views/SubmissionSprintView'
-import type { Student, Supervisor, Trial, ScheduleEvent } from '@/types'
+import type { Student, Supervisor, Trial, ScheduleEvent, GroupClass } from '@/types'
 import { formatHours, copyToClipboard, countsAsSaHour } from '@/lib/formatters'
-import { listTrials, listScheduleEvents, getDefaultRound } from '@/lib/dataService'
+import { listTrials, listScheduleEvents, listGroupClasses, getDefaultRound } from '@/lib/dataService'
 
 type ViewMode = 'schedule' | 'overview' | 'grid' | 'gantt' | 'kanban-progress' | 'milestone' | 'submission'
 
@@ -69,6 +69,7 @@ export default function DashboardPage() {
   const [overtimeTab, setOvertimeTab] = useState<'last' | 'current'>('last')
   const [overtimeTrials, setOvertimeTrials] = useState<Trial[]>([])
   const [overtimeEvents, setOvertimeEvents] = useState<ScheduleEvent[]>([])
+  const [overtimeGroupClasses, setOvertimeGroupClasses] = useState<GroupClass[]>([])
   const [overtimeCopied, setOvertimeCopied] = useState(false)
 
   // Stats modal
@@ -171,7 +172,7 @@ export default function DashboardPage() {
     {/* Overtime modal */}
     {showOvertime && (() => {
       const range = getWeekRange(overtimeTab === 'last' ? -1 : 0)
-      const entries = buildOvertimeEntries(students, overtimeTrials, overtimeEvents, supervisors, range.from, range.to)
+      const entries = buildOvertimeEntries(students, overtimeTrials, overtimeEvents, overtimeGroupClasses, supervisors, range.from, range.to)
       const total = entries.reduce((s, e) => s + e.overtimeMins, 0)
       const copyText = buildOvertimeCopyText(entries, range.from, range.to)
       return (
@@ -369,6 +370,7 @@ export default function DashboardPage() {
               setShowOvertime(true)
               listTrials().then(setOvertimeTrials).catch(() => {})
               listScheduleEvents().then(setOvertimeEvents).catch(() => {})
+              listGroupClasses().then(setOvertimeGroupClasses).catch(() => {})
             }}
             className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
           >
@@ -510,7 +512,7 @@ export default function DashboardPage() {
       ) : viewMode === 'overview' ? (
         <OverviewView students={filtered} supervisors={supervisors} />
       ) : viewMode === 'gantt' ? (
-        <GanttView students={filtered} allStudents={students} supervisors={supervisors} />
+        <GanttView students={filtered} allStudents={students} supervisors={supervisors} roundLabel={selectedRound || '全部'} />
       ) : viewMode === 'kanban-progress' ? (
         <KanbanProgressView students={filtered} />
       ) : viewMode === 'milestone' ? (
@@ -629,11 +631,13 @@ const OT_SA_ZHONGFANG_DEFENSE = '#A21CAF'
 const OT_SA_YINGFANG_DEFENSE = '#db4d4d'
 const OT_TRIAL_COLOR = '#f59e0b'
 const OT_EVENT_COLOR = '#0d9488'
+const OT_GROUP_CLASS_COLOR = '#0891b2'
 
 function buildOvertimeEntries(
   students: Student[],
   trials: Trial[],
   events: ScheduleEvent[],
+  groupClasses: GroupClass[],
   supervisors: Supervisor[],
   from: string,
   to: string,
@@ -712,6 +716,26 @@ function buildOvertimeEntries(
       personName: ev.title,
       copyName: ev.title,
       color: OT_EVENT_COLOR,
+    })
+  }
+
+  // 团课：一对多理论课，不绑学生，一律计入加班（落在工作时间窗外的部分）
+  for (const g of groupClasses) {
+    if (!g.time || !g.durationMinutes) continue
+    if (g.date < from || g.date > to) continue
+    const segments = computeOvertimeSegments(g.date, g.time, g.durationMinutes)
+    const ot = segments.reduce((sum, [a, b]) => sum + (b - a), 0)
+    if (ot === 0) continue
+    entries.push({
+      date: g.date,
+      timeStart: g.time,
+      timeEnd: addMins(g.time, g.durationMinutes),
+      overtimeMins: ot,
+      segments,
+      label: '团课',
+      personName: g.title,
+      copyName: g.title,
+      color: OT_GROUP_CLASS_COLOR,
     })
   }
 

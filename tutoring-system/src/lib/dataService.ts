@@ -1,6 +1,6 @@
 import { apiFetch } from './githubClient'
 import { API_BASE_URL } from '@/config'
-import type { Student, Supervisor, ChecklistTemplateItem, ChecklistCustomItem, SubmissionChecklist, TiiCheck, DeadlineTier, RoundDeadlines, WeeklyReportData, Trial, ActionLog, ManualLog, WorkflowAnalysis, GanttProject, GanttProjectSummary, ScheduleEvent, NagPreview, NagPushResult } from '@/types'
+import type { Student, Supervisor, ChecklistTemplateItem, ChecklistCustomItem, SubmissionChecklist, TiiCheck, DeadlineTier, RoundDeadlines, WeeklyReportData, Trial, ActionLog, ManualLog, WorkflowAnalysis, GanttProject, GanttProjectSummary, ScheduleEvent, GroupClass, NagPreview, NagPushResult } from '@/types'
 
 async function api<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await apiFetch(`${API_BASE_URL}${path}`, options)
@@ -286,6 +286,23 @@ export async function updateScheduleEvent(event: ScheduleEvent): Promise<Schedul
 export async function deleteScheduleEvent(id: string): Promise<void> {
   const res = await apiFetch(`${API_BASE_URL}/schedule-events/${id}`, { method: 'DELETE' })
   if (!res.ok) throw new Error(`Delete failed: ${res.status}`)
+}
+
+// ─── 团课（一对多理论课，不绑学生） ─────────────────────────────────────────────
+export async function listGroupClasses(): Promise<GroupClass[]> {
+  return api<GroupClass[]>('/group-classes')
+}
+
+export async function createGroupClass(cls: GroupClass): Promise<GroupClass> {
+  return api<GroupClass>('/group-classes', { method: 'POST', body: JSON.stringify(cls) })
+}
+
+export async function updateGroupClass(cls: GroupClass): Promise<GroupClass> {
+  return api<GroupClass>(`/group-classes/${cls.id}`, { method: 'PUT', body: JSON.stringify(cls) })
+}
+
+export async function deleteGroupClass(id: string): Promise<void> {
+  await api(`/group-classes/${id}`, { method: 'DELETE' })
 }
 
 // ─── Workflow Analysis ────────────────────────────────────────────────────────

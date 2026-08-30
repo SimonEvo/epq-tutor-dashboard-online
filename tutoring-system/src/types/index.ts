@@ -279,6 +279,24 @@ export interface ScheduleEvent {
   updatedAt: string
 }
 
+/**
+ * 团课：一对多的理论课。刻意不关联 students——来上课的可能是系统里没有的人，
+ * 名单先用自由文本（roster）记，将来对接公共教务系统再换结构化数据。
+ * 团课一律计入加班申请统计。
+ */
+export interface GroupClass {
+  id: string
+  title: string
+  date: string          // YYYY-MM-DD
+  time: string          // HH:MM — required
+  durationMinutes: number
+  roster: string        // 参与名单，自由文本
+  note: string
+  link: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface GanttTask {
   id: string
   name: string

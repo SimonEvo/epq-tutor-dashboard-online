@@ -233,6 +233,22 @@ class TrialSchema(BaseModel):
         from_attributes = True
 
 
+class GroupClassSchema(BaseModel):
+    id: str
+    title: str = ""
+    date: str
+    time: str
+    durationMinutes: int = 60
+    roster: str = ""
+    note: str = ""
+    link: str = ""
+    createdAt: str = ""
+    updatedAt: str = ""
+
+    class Config:
+        from_attributes = True
+
+
 class ScheduleEventSchema(BaseModel):
     id: str
     title: str = ""
