@@ -281,6 +281,8 @@ class ScheduleEvent(Base):
     duration_minutes = Column(Integer, nullable=False, default=60)
     note = Column(Text, default="")
     link = Column(String(512), default="")
+    # 「加个班儿」——非学生会议的加班项目，勾上才进加班申请统计（私事默认 False）
+    counts_as_overtime = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, default=now_utc)
     updated_at = Column(DateTime, default=now_utc, onupdate=now_utc)
 

@@ -273,6 +273,8 @@ export interface ScheduleEvent {
   durationMinutes: number
   note: string
   link: string
+  /** 「加个班儿」——非学生会议的加班项目，true 才进加班申请统计 */
+  countsAsOvertime: boolean
   createdAt: string
   updatedAt: string
 }

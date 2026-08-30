@@ -10,9 +10,9 @@ import OverviewView from '@/components/views/OverviewView'
 import GanttView from '@/components/views/GanttView'
 import WeekScheduleView from '@/components/views/WeekScheduleView'
 import SubmissionSprintView from '@/components/views/SubmissionSprintView'
-import type { Student, Supervisor, Trial } from '@/types'
+import type { Student, Supervisor, Trial, ScheduleEvent } from '@/types'
 import { formatHours, copyToClipboard, countsAsSaHour } from '@/lib/formatters'
-import { listTrials, getDefaultRound } from '@/lib/dataService'
+import { listTrials, listScheduleEvents, getDefaultRound } from '@/lib/dataService'
 
 type ViewMode = 'schedule' | 'overview' | 'grid' | 'gantt' | 'kanban-progress' | 'milestone' | 'submission'
 
@@ -68,6 +68,7 @@ export default function DashboardPage() {
   const [showOvertime, setShowOvertime] = useState(false)
   const [overtimeTab, setOvertimeTab] = useState<'last' | 'current'>('last')
   const [overtimeTrials, setOvertimeTrials] = useState<Trial[]>([])
+  const [overtimeEvents, setOvertimeEvents] = useState<ScheduleEvent[]>([])
   const [overtimeCopied, setOvertimeCopied] = useState(false)
 
   // Stats modal
@@ -170,7 +171,7 @@ export default function DashboardPage() {
     {/* Overtime modal */}
     {showOvertime && (() => {
       const range = getWeekRange(overtimeTab === 'last' ? -1 : 0)
-      const entries = buildOvertimeEntries(students, overtimeTrials, supervisors, range.from, range.to)
+      const entries = buildOvertimeEntries(students, overtimeTrials, overtimeEvents, supervisors, range.from, range.to)
       const total = entries.reduce((s, e) => s + e.overtimeMins, 0)
       const copyText = buildOvertimeCopyText(entries, range.from, range.to)
       return (
@@ -212,7 +213,8 @@ export default function DashboardPage() {
                       <div className="flex items-center gap-3">
                         <span className="text-gray-400 text-xs w-12 shrink-0">{fmtDateShort(e.date)}</span>
                         <span className="text-gray-500 text-xs w-24 shrink-0">{e.timeStart}–{e.timeEnd}</span>
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--primary-bg)] text-[var(--primary)] shrink-0">{e.label}</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full text-white font-medium shrink-0"
+                          style={{ background: e.color }}>{e.label}</span>
                         <span className="text-gray-700">{e.personName}</span>
                       </div>
                       <span className="text-gray-500 text-xs shrink-0 ml-2">{e.overtimeMins}min</span>
@@ -363,7 +365,11 @@ export default function DashboardPage() {
         </h1>
         <div className="flex gap-2">
           <button
-            onClick={() => { setShowOvertime(true); listTrials().then(setOvertimeTrials).catch(() => {}) }}
+            onClick={() => {
+              setShowOvertime(true)
+              listTrials().then(setOvertimeTrials).catch(() => {})
+              listScheduleEvents().then(setOvertimeEvents).catch(() => {})
+            }}
             className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
           >
             加班申请
@@ -548,18 +554,25 @@ function addMins(hhmm: string, mins: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
-function computeOvertimeMins(date: string, time: string, durationMins: number): number {
-  const dow = new Date(date + 'T12:00:00').getDay()
-  if (dow === 0 || dow === 6) return durationMins
+/** 落在工作时间窗之外的那些时段（分钟数，[起, 止]）。周末整场都算。 */
+function computeOvertimeSegments(date: string, time: string, durationMins: number): [number, number][] {
   const start = parseTimeMins(time)
   const end = start + durationMins
-  let total = 0
+  const dow = new Date(date + 'T12:00:00').getDay()
+  if (dow === 0 || dow === 6) return durationMins > 0 ? [[start, end]] : []
+  const segs: [number, number][] = []
   for (const [ws, we] of WEEKDAY_OT_WINDOWS) {
     const s = Math.max(start, ws)
     const e = Math.min(end, we)
-    if (e > s) total += e - s
+    if (e > s) segs.push([s, e])
   }
-  return total
+  return segs
+}
+
+function fmtMins(total: number): string {
+  const h = Math.floor(total / 60) % 24
+  const m = total % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
 function getWeekRange(weekOffset: 0 | -1): { from: string; to: string } {
@@ -589,8 +602,14 @@ interface OvertimeEntry {
   timeStart: string
   timeEnd: string
   overtimeMins: number
+  /** 加班的那几段（会议本身可能横跨工作时间，只有窗外的部分算） */
+  segments: [number, number][]
   label: string
   personName: string
+  /** 复制文本里的名字：课程/试听只写学生名，加班事件写标题——类型字段申请里用不上 */
+  copyName: string
+  /** 色块颜色，与甘特图 / 周日程一致 */
+  color: string
 }
 
 const SESSION_LABEL: Record<string, string> = {
@@ -599,9 +618,22 @@ const SESSION_LABEL: Record<string, string> = {
   THEORY: 'TE',
 }
 
+// 加班列表的色块跟甘特图 / 周日程同一套配色，别再自成一派
+const OT_SESSION_COLOR: Record<string, string> = {
+  SA_MEETING: '#FA8072',
+  TA_MEETING: '#3b82f6',
+  THEORY: '#22c55e',
+}
+const OT_SA_ZHONGFANG = '#9575CD'
+const OT_SA_ZHONGFANG_DEFENSE = '#A21CAF'
+const OT_SA_YINGFANG_DEFENSE = '#db4d4d'
+const OT_TRIAL_COLOR = '#f59e0b'
+const OT_EVENT_COLOR = '#0d9488'
+
 function buildOvertimeEntries(
   students: Student[],
   trials: Trial[],
+  events: ScheduleEvent[],
   supervisors: Supervisor[],
   from: string,
   to: string,
@@ -619,15 +651,26 @@ function buildOvertimeEntries(
       // 英方SA 平时会议默认不占用导师，但最终答辩（isFinalDefense）双方都要到场，
       // 或勾了「导师出席」，同样要占用时间 —— 与 WeekScheduleView 的 occupies 判定保持一致
       if (s.type === 'SA_MEETING' && !isZhongFangSA && !s.isFinalDefense && !s.tutorAttending) continue
-      const ot = computeOvertimeMins(s.date, s.time, s.durationMinutes)
+      const segments = computeOvertimeSegments(s.date, s.time, s.durationMinutes)
+      const ot = segments.reduce((sum, [a, b]) => sum + (b - a), 0)
       if (ot === 0) continue
+      const label = s.isFinalDefense ? '答辩' : (SESSION_LABEL[s.type] ?? s.type)
+      // 只有导师真的被占用的 SA 才会走到这里，所以没有「英方SA 弱化灰」那一档
+      const color = s.type === 'SA_MEETING'
+        ? (s.isFinalDefense
+            ? (isZhongFangSA ? OT_SA_ZHONGFANG_DEFENSE : OT_SA_YINGFANG_DEFENSE)
+            : (isZhongFangSA ? OT_SA_ZHONGFANG : OT_SESSION_COLOR.SA_MEETING))
+        : (OT_SESSION_COLOR[s.type] ?? '#9CA3AF')
       entries.push({
         date: s.date,
         timeStart: s.time,
         timeEnd: addMins(s.time, s.durationMinutes),
         overtimeMins: ot,
-        label: s.isFinalDefense ? '答辩' : (SESSION_LABEL[s.type] ?? s.type),
+        segments,
+        label,
         personName: student.name,
+        copyName: student.name,
+        color,
       })
     }
   }
@@ -635,28 +678,73 @@ function buildOvertimeEntries(
   for (const t of trials) {
     if (!t.time || !t.durationMinutes) continue
     if (t.date < from || t.date > to) continue
-    const ot = computeOvertimeMins(t.date, t.time, t.durationMinutes)
+    const segments = computeOvertimeSegments(t.date, t.time, t.durationMinutes)
+    const ot = segments.reduce((sum, [a, b]) => sum + (b - a), 0)
     if (ot === 0) continue
     entries.push({
       date: t.date,
       timeStart: t.time,
       timeEnd: addMins(t.time, t.durationMinutes),
       overtimeMins: ot,
+      segments,
       label: '试听课',
       personName: t.studentName,
+      copyName: t.studentName,
+      color: OT_TRIAL_COLOR,
+    })
+  }
+
+  // 「加个班儿」——非学生会议的加班项目。私事（countsAsOvertime=false）不进这里。
+  for (const ev of events) {
+    if (!ev.countsAsOvertime) continue
+    if (!ev.time || !ev.durationMinutes) continue
+    if (ev.date < from || ev.date > to) continue
+    const segments = computeOvertimeSegments(ev.date, ev.time, ev.durationMinutes)
+    const ot = segments.reduce((sum, [a, b]) => sum + (b - a), 0)
+    if (ot === 0) continue
+    entries.push({
+      date: ev.date,
+      timeStart: ev.time,
+      timeEnd: addMins(ev.time, ev.durationMinutes),
+      overtimeMins: ot,
+      segments,
+      label: '加班',
+      personName: ev.title,
+      copyName: ev.title,
+      color: OT_EVENT_COLOR,
     })
   }
 
   return entries.sort((a, b) => a.date.localeCompare(b.date) || a.timeStart.localeCompare(b.timeStart))
 }
 
+/** 钉钉加班申请详情限 300 字符，所以这段文本按日分组、时段只写加班的那截、单位压到 h/m。 */
 function buildOvertimeCopyText(entries: OvertimeEntry[], from: string, to: string): string {
   if (entries.length === 0) return `加班申请（${fmtDateShort(from)}–${fmtDateShort(to)}）\n\n本周无加班记录`
+
+  const byDate = new Map<string, OvertimeEntry[]>()
+  for (const e of entries) {
+    const arr = byDate.get(e.date)
+    if (arr) arr.push(e)
+    else byDate.set(e.date, [e])
+  }
+
+  // 跨月的周（如 8.31–9.6）在换月那天补上月份，否则只写日号
+  const firstMonth = entries[0].date.slice(5, 7)
+  const lines = [...byDate.entries()].map(([date, list]) => {
+    const month = date.slice(5, 7)
+    const day = String(Number(date.slice(8, 10)))
+    const head = month === firstMonth ? `${day}日` : `${Number(month)}.${day}日`
+    const items = list.map(e =>
+      e.segments.map(([a, b]) => `${fmtMins(a)}-${fmtMins(b)}`).join('+') + e.copyName
+    )
+    return `${head} ${items.join(' ')}`
+  })
+
   const total = entries.reduce((s, e) => s + e.overtimeMins, 0)
-  const lines = entries.map(e =>
-    `${fmtDateShort(e.date)} ${e.timeStart}-${e.timeEnd} ${e.label} -- ${e.personName} ${e.overtimeMins}min`
-  )
-  lines.push(`\n加班总计：${fmtDuration(total)}`)
+  const h = Math.floor(total / 60)
+  const m = total % 60
+  lines.push(`计${h > 0 ? `${h}h` : ''}${m > 0 || h === 0 ? `${m}m` : ''}`)
   return lines.join('\n')
 }
 

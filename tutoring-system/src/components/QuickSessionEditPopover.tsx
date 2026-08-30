@@ -8,7 +8,7 @@ import type { SessionRecord, Student } from '@/types'
 
 /**
  * Simplified session editor shown from the Gantt view when a session marker is
- * clicked. Covers the day-to-day patch case: fix the real time/duration, then
+ * clicked. Covers the day-to-day patch case: fix the real date/time/duration, then
  * paste a Zoom/Tencent recap → 解析 → 确认输入并生成课后报告 (jumps to the report
  * page). For anything heavier there's a "完整编辑" link into EditSessionPage.
  */
@@ -35,6 +35,7 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
   const [session, setSession] = useState<SessionRecord | null>(null)
   const [notFound, setNotFound] = useState(false)
 
+  const [date, setDate] = useState('')
   const [time, setTime] = useState('')
   const [duration, setDuration] = useState<number | ''>('')
   const [feedbackSent, setFeedbackSent] = useState(false)
@@ -60,6 +61,7 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
         const sv = svs.find(v => v.id === s.supervisorId)
         setIsZhongFang(sv?.saType === '中方SA')
         if (sess) {
+          setDate(sess.date ?? '')
           setTime(sess.time ?? '')
           setDuration(sess.durationMinutes || '')
           setFeedbackSent(sess.feedbackSent ?? false)
@@ -73,11 +75,12 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
     return () => { alive = false }
   }, [studentId, sessionId])
 
-  // Metadata-only quick save (time / duration / SA flags). Preserves existing
+  // Metadata-only quick save (date / time / duration / SA flags). Preserves existing
   // summary/homework/transcript and any cached report.
   const handleSave = async () => {
     if (!full || !session) return
     setError('')
+    if (!date) { setError('请填写日期'); return }
     if (!time) {
       setError('请填写起始时间——会议必须有起始时间')
       return
@@ -86,6 +89,7 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
     try {
       const updatedSession: SessionRecord = {
         ...session,
+        date,
         time,
         durationMinutes: duration === '' ? 0 : duration,
         feedbackSent,
@@ -115,6 +119,7 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
   const handleGenerate = async () => {
     if (!full || !session || !parsed) return
     setError('')
+    if (!date) { setError('请填写日期'); return }
     if (!time) {
       setError('请填写起始时间——会议必须有起始时间')
       return
@@ -123,6 +128,7 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
     try {
       const updatedSession: SessionRecord = {
         ...session,
+        date,
         time,
         durationMinutes: duration === '' ? 0 : duration,
         summary: parsed.summary || session.summary,
@@ -144,7 +150,7 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
   }
 
   const label = session
-    ? `${session.title || TYPE_LABEL[session.type] || session.type} · ${session.date}${time ? ` ${time}` : ''}`
+    ? `${session.title || TYPE_LABEL[session.type] || session.type} · ${date || session.date}${time ? ` ${time}` : ''}`
     : ''
 
   return (
@@ -168,7 +174,16 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
           {full && session && (
             <>
               {/* Time + Duration */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">日期 <span className="text-red-500">*</span></label>
+                  <input
+                    type="date" value={date}
+                    onChange={e => setDate(e.target.value)}
+                    className={inputCls}
+                    required
+                  />
+                </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">时间 <span className="text-red-500">*</span></label>
                   <input

@@ -27,6 +27,7 @@ const SA_ZHONGFANG_DEFENSE_COLOR = '#A21CAF'  // 紫红
 const SA_YINGFANG_DEFENSE_COLOR = '#db4d4d'   // 醒目红
 const TRIAL_COLOR = '#f59e0b'   // 琥珀
 const EVENT_COLOR = '#eb66a8'   // 暖粉 —— 自定义事件（如私人安排）
+const OT_EVENT_COLOR = '#0d9488'  // 青 —— 「加个班儿」：非学生会议的加班项目，进加班申请
 // 占用模式：所有安排一律统一灰块，不区分类型、不露姓名
 const BUSY_COLOR = '#9CA3AF'
 const BUSY_LABEL = '占用'
@@ -161,8 +162,10 @@ export default function WeekScheduleView({ students, supervisors }: Props) {
       if (!weekSet.has(e.date)) continue
       out.push({
         key: `event-${e.id}`, kind: 'event', date: e.date,
+        // 加个班儿默认 0 分钟（事后补时长），日历里按 60 分钟高度画，否则点都点不着
         startMin: parseMin(e.time), durationMin: e.durationMinutes || 60,
-        label: e.title || '(无标题)', time: e.time, color: EVENT_COLOR, occupies: true,
+        label: e.title || '(无标题)', time: e.time,
+        color: e.countsAsOvertime ? OT_EVENT_COLOR : EVENT_COLOR, occupies: true,
         event: e,
       })
     }
@@ -235,6 +238,7 @@ export default function WeekScheduleView({ students, supervisors }: Props) {
           <span className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm" style={{ background: SESSION_COLOR.THEORY }} />理论</span>
           <span className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm" style={{ background: TRIAL_COLOR }} />试听</span>
           <span className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm" style={{ background: EVENT_COLOR }} />事件</span>
+          <span className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm" style={{ background: OT_EVENT_COLOR }} />加班</span>
         </div>
         )}
         <button

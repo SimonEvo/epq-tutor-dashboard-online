@@ -29,6 +29,7 @@ export default function QuickEventEditPopover({ event, prefill, onClose, onSaved
   const [duration, setDuration] = useState<number | ''>(event?.durationMinutes ?? 60)
   const [note, setNote] = useState(event?.note ?? '')
   const [link, setLink] = useState(event?.link ?? '')
+  const [countsAsOvertime, setCountsAsOvertime] = useState(event?.countsAsOvertime ?? false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -49,9 +50,10 @@ export default function QuickEventEditPopover({ event, prefill, onClose, onSaved
         title: title.trim(),
         date,
         time,
-        durationMinutes: duration === '' ? 60 : duration,
+        durationMinutes: duration === '' ? 0 : duration,
         note: note.trim(),
         link: link.trim(),
+        countsAsOvertime,
         createdAt: event?.createdAt ?? '',
         updatedAt: event?.updatedAt ?? '',
       }
@@ -94,7 +96,8 @@ export default function QuickEventEditPopover({ event, prefill, onClose, onSaved
 
           <div>
             <label className="block text-xs text-gray-500 mb-1">标题 <span className="text-red-500">*</span></label>
-            <input value={title} onChange={e => setTitle(e.target.value)} placeholder="如：和王督导对接"
+            <input value={title} onChange={e => setTitle(e.target.value)}
+              placeholder={countsAsOvertime ? '如：教研例会' : '如：陪娃看牙'}
               className={inputCls} autoFocus />
           </div>
 
@@ -109,7 +112,7 @@ export default function QuickEventEditPopover({ event, prefill, onClose, onSaved
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">时长(分)</label>
-              <input type="number" min={1} value={duration}
+              <input type="number" min={0} value={duration}
                 onChange={e => setDuration(e.target.value === '' ? '' : Number(e.target.value))}
                 className={inputCls} />
             </div>
@@ -126,6 +129,13 @@ export default function QuickEventEditPopover({ event, prefill, onClose, onSaved
             <textarea value={note} onChange={e => setNote(e.target.value)} rows={2}
               placeholder="可选" className={inputCls} />
           </div>
+
+          <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer select-none">
+            <input type="checkbox" checked={countsAsOvertime}
+              onChange={e => setCountsAsOvertime(e.target.checked)}
+              className="w-4 h-4 accent-[var(--primary)]" />
+            算加班（非学生会议的加班项目，进「加班申请」统计）
+          </label>
 
           <div className="flex items-center gap-3 pt-1">
             <button type="button" onClick={handleSave} disabled={saving}

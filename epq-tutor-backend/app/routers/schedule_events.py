@@ -16,9 +16,10 @@ def _to_schema(e: models.ScheduleEvent) -> ScheduleEventSchema:
         title=e.title or "",
         date=e.date,
         time=e.time,
-        durationMinutes=e.duration_minutes or 60,
+        durationMinutes=e.duration_minutes if e.duration_minutes is not None else 60,
         note=e.note or "",
         link=e.link or "",
+        countsAsOvertime=bool(e.counts_as_overtime),
         createdAt=e.created_at.isoformat() if e.created_at else "",
         updatedAt=e.updated_at.isoformat() if e.updated_at else "",
     )
@@ -51,9 +52,10 @@ def create_event(
         title=data.title,
         date=data.date,
         time=data.time,
-        duration_minutes=data.durationMinutes or 60,
+        duration_minutes=data.durationMinutes,
         note=data.note,
         link=data.link,
+        counts_as_overtime=bool(data.countsAsOvertime),
     )
     db.add(event)
     log_action(db, "create", "schedule_event", event.id, {"title": data.title})
@@ -76,9 +78,10 @@ def update_event(
     event.title = data.title
     event.date = data.date
     event.time = data.time
-    event.duration_minutes = data.durationMinutes or 60
+    event.duration_minutes = data.durationMinutes
     event.note = data.note
     event.link = data.link
+    event.counts_as_overtime = bool(data.countsAsOvertime)
     log_action(db, "update", "schedule_event", event.id, {"title": data.title})
     db.commit()
     db.refresh(event)

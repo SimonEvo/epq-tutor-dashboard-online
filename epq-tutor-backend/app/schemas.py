@@ -241,6 +241,7 @@ class ScheduleEventSchema(BaseModel):
     durationMinutes: int = 60
     note: str = ""
     link: str = ""
+    countsAsOvertime: bool = False
     createdAt: str = ""
     updatedAt: str = ""
 

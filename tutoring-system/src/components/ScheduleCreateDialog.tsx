@@ -6,9 +6,11 @@ import StudentPicker from '@/components/StudentPicker'
 import type { ScheduleEvent, SessionRecord, SessionType, Student, Supervisor, Trial } from '@/types'
 
 /**
- * 日程视图的通用「新建」入口：先选类别（课程 / 试听 / 个人事件），再填对应字段。
+ * 日程视图的通用「新建」入口：先选类别（课程 / 试听 / 个人事件 / 加个班儿），再填对应字段。
  * 课程分支复用 AddSessionModal 的写入逻辑（拉全量学生 → 追加 session → 重算 SA 课时）。
  * 试听只落排期最小字段，评估打分等留到试听详情页补。
+ * 个人事件与加个班儿共用 schedule_events 表，差别只在 countsAsOvertime——
+ * 前者是私事不算加班，后者是非学生会议的加班项目，会进加班申请统计。
  */
 
 interface Props {
@@ -36,7 +38,7 @@ function computeAutoTitle(sessions: SessionRecord[], type: SessionType, date: st
 export default function ScheduleCreateDialog({ students, supervisors, prefill, onClose, onSaved }: Props) {
   const { saveStudent } = useStudentStore()
 
-  const [kind, setKind] = useState<'session' | 'trial' | 'event'>('session')
+  const [kind, setKind] = useState<'session' | 'trial' | 'event' | 'overtime'>('session')
   const [date, setDate] = useState(prefill.date)
   const [time, setTime] = useState(prefill.time)
   const [duration, setDuration] = useState<number | ''>(60)
@@ -70,7 +72,7 @@ export default function ScheduleCreateDialog({ students, supervisors, prefill, o
     setError('')
     if (!time) { setError('请填写起始时间——没有起始时间的安排不能创建'); return }
 
-    if (kind === 'event') {
+    if (kind === 'event' || kind === 'overtime') {
       if (!title.trim()) { setError('请填写标题'); return }
       setSaving(true)
       try {
@@ -79,9 +81,10 @@ export default function ScheduleCreateDialog({ students, supervisors, prefill, o
           title: title.trim(),
           date,
           time,
-          durationMinutes: duration === '' ? 60 : duration,
+          durationMinutes: duration === '' ? (kind === 'overtime' ? 0 : 60) : duration,
           note: note.trim(),
           link: link.trim(),
+          countsAsOvertime: kind === 'overtime',
           createdAt: '',
           updatedAt: '',
         }
@@ -165,9 +168,14 @@ export default function ScheduleCreateDialog({ students, supervisors, prefill, o
         <div className="px-5 py-4 flex flex-col gap-4">
           {/* 类别 */}
           <div className="flex gap-2">
-            {([['session', '课程'], ['trial', '试听'], ['event', '个人事件']] as const).map(([k, label]) => (
+            {([['session', '课程'], ['trial', '试听'], ['event', '个人事件'], ['overtime', '加个班儿']] as const).map(([k, label]) => (
               <button
-                key={k} type="button" onClick={() => { setKind(k); setError('') }}
+                key={k} type="button"
+                onClick={() => {
+                  setKind(k); setError('')
+                  // 加个班儿先占位、事后补时长，所以默认 0 分钟；别的类别照旧 60
+                  setDuration(k === 'overtime' ? 0 : 60)
+                }}
                 className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${
                   kind === k ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
                 }`}
@@ -179,11 +187,17 @@ export default function ScheduleCreateDialog({ students, supervisors, prefill, o
 
           {error && <p className="text-red-500 text-xs">{error}</p>}
 
-          {kind === 'event' && (
+          {(kind === 'event' || kind === 'overtime') && (
             <div>
               <label className="block text-xs text-gray-500 mb-1">标题 <span className="text-red-500">*</span></label>
-              <input value={title} onChange={e => setTitle(e.target.value)} placeholder="如：和王督导对接"
+              <input value={title} onChange={e => setTitle(e.target.value)}
+                placeholder={kind === 'overtime' ? '如：教研例会' : '如：陪娃看牙'}
                 className={inputCls} autoFocus />
+              <p className="text-[11px] text-gray-400 mt-1">
+                {kind === 'overtime'
+                  ? '非学生会议的加班项目。时长默认 0，事后补上实际时长才进「加班申请」统计（日历里按 60 分钟高度显示）。'
+                  : '私事，不计加班时间。'}
+              </p>
             </div>
           )}
 
@@ -249,13 +263,13 @@ export default function ScheduleCreateDialog({ students, supervisors, prefill, o
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">时长(分)</label>
-              <input type="number" min={1} value={duration}
+              <input type="number" min={0} value={duration}
                 onChange={e => setDuration(e.target.value === '' ? '' : Number(e.target.value))}
                 className={inputCls} />
             </div>
           </div>
 
-          {kind === 'event' && (
+          {(kind === 'event' || kind === 'overtime') && (
             <>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">链接</label>
