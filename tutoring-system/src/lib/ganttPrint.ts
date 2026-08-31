@@ -94,7 +94,7 @@ export function printGantt({ students, supervisors, project, roundLabel }: Gantt
   if (rows.length === 0) return '这一届还没有已上的课，没什么可导出的'
 
   const pageW = NAME_W + gridW + 48
-  const pageH = HEADER_H * 2 + rows.length * ROW_H + 150
+  const pageH = HEADER_H * 2 + (rows.length + 1) * ROW_H + 150   // +1 = 固定安排那一行
 
   // 周末底色用和屏幕版一样的渐变技巧：图案按周日起画，再平移到起始日的星期
   const startWeekday = rangeStart.getDay()
@@ -112,6 +112,25 @@ export function printGantt({ students, supervisors, project, roundLabel }: Gantt
     if (cs > ce) return ''
     return `<div class="band" style="left:${cs * COL_W}px;width:${(ce - cs + 1) * COL_W}px;background:${color};opacity:.12"></div>`
   }).join('')
+
+  // ── 固定安排行：和屏幕版一样，单独一行把出差 / deadline 的名字写出来 ────────
+  const fixedRow = fixedTasks.length === 0 ? '' : `<div class="row fixedrow">
+    <div class="name"><span class="nm">固定安排</span></div>
+    <div class="lane">${fixedBands}${fixedTasks.map(t => {
+      const color = t.color ?? FIXED_DEFAULT_COLOR
+      if (t.milestone || !t.endDate) {
+        const i = colIdx(t.startDate)
+        if (i < 0 || i >= totalDays) return ''
+        return `<div class="fx-ms" style="left:${i * COL_W + COL_W / 2}px;color:${color}">`
+          + `◆<span>${esc(t.name)}</span></div>`
+      }
+      const cs = Math.max(0, colIdx(t.startDate))
+      const ce = Math.min(totalDays - 1, colIdx(t.endDate))
+      if (cs > ce) return ''
+      return `<div class="fx-bar" style="left:${cs * COL_W}px;width:${(ce - cs + 1) * COL_W}px;background:${color}">`
+        + `<span>${esc(t.name)}</span></div>`
+    }).join('')}</div>
+  </div>`
 
   // ── 每个学生一行 ─────────────────────────────────────────────────────────
   const rowHtml = rows.map(s => {
@@ -212,6 +231,14 @@ export function printGantt({ students, supervisors, project, roundLabel }: Gantt
     background-position: 0 0, ${-startWeekday * COL_W}px 0;
   }
   .band { position:absolute; top:0; bottom:0; }
+  .fixedrow { background:#fafafa; border-bottom:1px solid #e5e7eb; }
+  .fixedrow .nm { color:#6b7280; font-weight:500; }
+  .fx-bar { position:absolute; top:50%; transform:translateY(-50%); height:14px; border-radius:2px;
+            opacity:.9; overflow:hidden; display:flex; align-items:center; padding-left:3px; }
+  .fx-bar span { font-size:8px; color:#fff; font-weight:600; white-space:nowrap; }
+  .fx-ms { position:absolute; top:50%; transform:translate(-50%,-50%); font-size:9px;
+           display:flex; align-items:center; gap:2px; white-space:nowrap; }
+  .fx-ms span { font-size:8px; font-weight:600; }
   .bar { position:absolute; top:50%; transform:translateY(-50%); height:13px; border-radius:2px;
          opacity:.85; overflow:hidden; display:flex; align-items:center; padding-left:3px; }
   .bar span { font-size:8px; color:#fff; white-space:nowrap; }
@@ -226,6 +253,7 @@ export function printGantt({ students, supervisors, project, roundLabel }: Gantt
 <div class="chart">
   <div class="hdr"><div class="pad"></div><div class="months">${monthCells}</div></div>
   <div class="hdr"><div class="pad"></div><div class="days">${dayCells}</div></div>
+  ${fixedRow}
   ${rowHtml}
 </div>
 <div class="foot">只统计已上的课（截至 ${todayISO}），不含未来排期。</div>
