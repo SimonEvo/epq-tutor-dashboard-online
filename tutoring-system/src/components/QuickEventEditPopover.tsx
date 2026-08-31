@@ -30,6 +30,7 @@ export default function QuickEventEditPopover({ event, prefill, onClose, onSaved
   const [note, setNote] = useState(event?.note ?? '')
   const [link, setLink] = useState(event?.link ?? '')
   const [countsAsOvertime, setCountsAsOvertime] = useState(event?.countsAsOvertime ?? false)
+  const [notify15Min, setNotify15Min] = useState(event?.notify15Min ?? false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -54,6 +55,7 @@ export default function QuickEventEditPopover({ event, prefill, onClose, onSaved
         note: note.trim(),
         link: link.trim(),
         countsAsOvertime,
+        notify15Min,
         createdAt: event?.createdAt ?? '',
         updatedAt: event?.updatedAt ?? '',
       }
@@ -135,6 +137,13 @@ export default function QuickEventEditPopover({ event, prefill, onClose, onSaved
               onChange={e => setCountsAsOvertime(e.target.checked)}
               className="w-4 h-4 accent-[var(--primary)]" />
             算加班（非学生会议的加班项目，进「加班申请」统计）
+          </label>
+
+          <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer select-none">
+            <input type="checkbox" checked={notify15Min}
+              onChange={e => setNotify15Min(e.target.checked)}
+              className="w-4 h-4 accent-[var(--primary)]" />
+            开始前 15 分钟推送 webhook 提醒
           </label>
 
           <div className="flex items-center gap-3 pt-1">

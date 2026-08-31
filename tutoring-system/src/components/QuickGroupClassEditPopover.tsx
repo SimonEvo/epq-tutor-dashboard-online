@@ -21,6 +21,7 @@ export default function QuickGroupClassEditPopover({ groupClass, onClose, onSave
   const [time, setTime] = useState(groupClass.time)
   const [duration, setDuration] = useState<number | ''>(groupClass.durationMinutes)
   const [roster, setRoster] = useState(groupClass.roster)
+  const [notify15Min, setNotify15Min] = useState(groupClass.notify15Min)
   const [note, setNote] = useState(groupClass.note)
   const [link, setLink] = useState(groupClass.link)
   const [saving, setSaving] = useState(false)
@@ -40,6 +41,7 @@ export default function QuickGroupClassEditPopover({ groupClass, onClose, onSave
         time,
         durationMinutes: duration === '' ? 0 : duration,
         roster: roster.trim(),
+        notify15Min,
         note: note.trim(),
         link: link.trim(),
       })
@@ -108,6 +110,13 @@ export default function QuickGroupClassEditPopover({ groupClass, onClose, onSave
             <textarea value={roster} onChange={e => setRoster(e.target.value)} rows={2}
               placeholder="自由填，如：张三、李四、王五（外校 2 人）" className={inputCls} />
           </div>
+
+          <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer select-none">
+            <input type="checkbox" checked={notify15Min}
+              onChange={e => setNotify15Min(e.target.checked)}
+              className="w-4 h-4 accent-[var(--primary)]" />
+            开始前 15 分钟推送 webhook 提醒
+          </label>
 
           <div>
             <label className="block text-xs text-gray-500 mb-1">链接</label>

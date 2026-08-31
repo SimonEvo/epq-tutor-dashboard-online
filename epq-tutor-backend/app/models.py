@@ -19,6 +19,11 @@ class Tutor(Base):
     default_round = Column(String(64), nullable=True)
     kb_context_sources = Column(JSON, nullable=True)  # KB layer-1 source toggles; null = all on
     submission_checklist_template = Column(JSON, nullable=True)  # [{id,label,order,archived}]; null = seed on first read
+    # ── 上课提醒 webhook（和「群催促」的 WECOM_WEBHOOK_URL 是两套，互不影响） ──
+    notify_enabled = Column(Boolean, nullable=False, default=False)     # 总开关
+    notify_webhook_url = Column(String(512), default="")
+    notify_digest_mode = Column(String(16), default="prev_evening")     # prev_evening | same_morning
+    notify_digest_time = Column(String(8), default="21:00")             # HH:MM，北京时间
     created_at = Column(DateTime, default=now_utc)
     students = relationship("Student", back_populates="tutor")
 
@@ -107,6 +112,7 @@ class Session(Base):
     feedback_sent = Column(Boolean, nullable=False, default=False)  # SA 会议课后反馈是否已发送
     is_final_defense = Column(Boolean, nullable=False, default=False)  # 标记为最终答辩的特殊 SA 会议（不计 SA 课时）
     tutor_attending = Column(Boolean, nullable=False, default=False)  # 英方SA会议导师是否出席
+    notify_15min = Column(Boolean, nullable=False, default=False)     # 课前 15 分钟 webhook 提醒
     zoom_meeting_id = Column(String(64))
     zoom_join_url = Column(Text)
     zoom_password = Column(String(64))
@@ -230,6 +236,7 @@ class Trial(Base):
     date = Column(String(16), nullable=False)
     time = Column("time", String(8), nullable=True)
     duration_minutes = Column(Integer, nullable=True)
+    notify_15min = Column(Boolean, nullable=False, default=False)     # 课前 15 分钟 webhook 提醒
     student_name = Column(String(128), nullable=False, default="")
     grade = Column(String(16), default="")
     intended_major = Column(String(256), default="")
@@ -283,6 +290,7 @@ class ScheduleEvent(Base):
     link = Column(String(512), default="")
     # 「加个班儿」——非学生会议的加班项目，勾上才进加班申请统计（私事默认 False）
     counts_as_overtime = Column(Boolean, nullable=False, default=False)
+    notify_15min = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, default=now_utc)
     updated_at = Column(DateTime, default=now_utc, onupdate=now_utc)
 
@@ -301,6 +309,7 @@ class GroupClass(Base):
     time = Column(String(8), nullable=False)          # HH:MM，必填——和 session / 事件全线对齐
     duration_minutes = Column(Integer, nullable=False, default=60)
     roster = Column(Text, default="")                 # 参与名单，自由文本
+    notify_15min = Column(Boolean, nullable=False, default=False)
     note = Column(Text, default="")
     link = Column(String(512), default="")
     created_at = Column(DateTime, default=now_utc)

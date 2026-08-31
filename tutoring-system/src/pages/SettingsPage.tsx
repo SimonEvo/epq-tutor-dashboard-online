@@ -9,13 +9,14 @@ import { THEMES } from '@/lib/themes'
 import { useThemeStore } from '@/stores/themeStore'
 import SubmissionTemplateSettings from '@/components/SubmissionTemplateSettings'
 import RoundManagementSection from '@/components/settings/RoundManagementSection'
+import NotifySettingsSection from '@/components/settings/NotifySettingsSection'
 
 type SettingsCategory = 'appearance' | 'teaching' | 'integrations' | 'ai' | 'data'
 
 const CATEGORIES: { id: SettingsCategory; label: string; hint: string }[] = [
   { id: 'appearance', label: '外观', hint: '界面主题' },
   { id: 'teaching', label: '教学', hint: '学期 / 提交清单 / 知识库' },
-  { id: 'integrations', label: '集成', hint: '日历 / Zoom / 腾讯文档' },
+  { id: 'integrations', label: '集成', hint: '通知 / 日历 / Zoom / 腾讯文档' },
   { id: 'ai', label: 'AI', hint: 'AI 模型配置' },
   { id: 'data', label: '数据', hint: '备份与恢复' },
 ]
@@ -229,6 +230,9 @@ export default function SettingsPage() {
           </div>
         </section>
         )}
+
+        {/* 上课提醒 webhook */}
+        {cat === 'integrations' && <NotifySettingsSection />}
 
         {/* iCloud Calendar */}
         {cat === 'integrations' && (

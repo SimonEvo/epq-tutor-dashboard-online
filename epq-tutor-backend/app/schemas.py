@@ -49,6 +49,7 @@ class SessionSchema(BaseModel):
     feedbackSent: bool = False
     isFinalDefense: bool = False
     tutorAttending: bool = False
+    notify15Min: bool = False
     zoomMeetingId: Optional[str] = None
     zoomJoinUrl: Optional[str] = None
     zoomPassword: Optional[str] = None
@@ -124,6 +125,7 @@ class SessionSummarySchema(BaseModel):
     feedbackSent: bool = False
     isFinalDefense: bool = False
     tutorAttending: bool = False
+    notify15Min: bool = False
 
 
 class StudentSummarySchema(BaseModel):
@@ -209,6 +211,7 @@ class TrialSchema(BaseModel):
     date: str
     time: str = ""
     durationMinutes: Optional[int] = None
+    notify15Min: bool = False
     studentName: str = ""
     grade: str = ""
     intendedMajor: str = ""
@@ -240,6 +243,7 @@ class GroupClassSchema(BaseModel):
     time: str
     durationMinutes: int = 60
     roster: str = ""
+    notify15Min: bool = False
     note: str = ""
     link: str = ""
     createdAt: str = ""
@@ -258,6 +262,7 @@ class ScheduleEventSchema(BaseModel):
     note: str = ""
     link: str = ""
     countsAsOvertime: bool = False
+    notify15Min: bool = False
     createdAt: str = ""
     updatedAt: str = ""
 

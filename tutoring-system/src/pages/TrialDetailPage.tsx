@@ -53,6 +53,7 @@ export default function TrialDetailPage() {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
   const [time, setTime] = useState('')
   const [durationMinutes, setDurationMinutes] = useState<number | ''>('')
+  const [notify15Min, setNotify15Min] = useState(false)
   const [studentName, setStudentName] = useState('')
   const [grade, setGrade] = useState<TrialGrade>('')
   const [intendedMajor, setIntendedMajor] = useState('')
@@ -80,6 +81,7 @@ export default function TrialDetailPage() {
       setDate(t.date)
       setTime(t.time || '')
       setDurationMinutes(t.durationMinutes ?? '')
+      setNotify15Min(t.notify15Min ?? false)
       setStudentName(t.studentName)
       setGrade(t.grade)
       setIntendedMajor(t.intendedMajor)
@@ -105,7 +107,7 @@ export default function TrialDetailPage() {
     const now = new Date().toISOString()
     return {
       id: id!,
-      date, time, durationMinutes: durationMinutes === '' ? null : durationMinutes,
+      date, time, durationMinutes: durationMinutes === '' ? null : durationMinutes, notify15Min,
       studentName, grade, intendedMajor,
       targetUniversity, areasOfInterest, englishLevel, trialTopic,
       topicFeasibility, studentMotivation, epqInterest, epqSuitability,
@@ -204,6 +206,15 @@ export default function TrialDetailPage() {
               />
             </div>
           </div>
+
+          <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+            <input
+              type="checkbox" checked={notify15Min}
+              onChange={e => setNotify15Min(e.target.checked)}
+              className="w-4 h-4 accent-[var(--primary)]"
+            />
+            开始前 15 分钟推送 webhook 提醒
+          </label>
 
           <div className="grid grid-cols-2 gap-4">
             <div>

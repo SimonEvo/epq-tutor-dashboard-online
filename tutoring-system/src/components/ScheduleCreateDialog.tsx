@@ -45,6 +45,8 @@ export default function ScheduleCreateDialog({ students, supervisors, prefill, o
   const [duration, setDuration] = useState<number | ''>(60)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  // 课前 15 分钟 webhook 提醒，默认不勾
+  const [notify15Min, setNotify15Min] = useState(false)
 
   // 个人事件
   const [title, setTitle] = useState('')
@@ -89,6 +91,7 @@ export default function ScheduleCreateDialog({ students, supervisors, prefill, o
           note: note.trim(),
           link: link.trim(),
           countsAsOvertime: kind === 'overtime',
+          notify15Min,
           createdAt: '',
           updatedAt: '',
         }
@@ -113,6 +116,7 @@ export default function ScheduleCreateDialog({ students, supervisors, prefill, o
           time,
           durationMinutes: duration === '' ? 60 : duration,
           roster: roster.trim(),
+          notify15Min,
           note: note.trim(),
           link: link.trim(),
           createdAt: '',
@@ -137,6 +141,7 @@ export default function ScheduleCreateDialog({ students, supervisors, prefill, o
           id: generateId(),
           date, time,
           durationMinutes: duration === '' ? null : duration,
+          notify15Min,
           studentName: trialName.trim(),
           grade: '', intendedMajor: '', targetUniversity: '', areasOfInterest: '',
           englishLevel: '', trialTopic: '',
@@ -173,6 +178,7 @@ export default function ScheduleCreateDialog({ students, supervisors, prefill, o
         privateNotes: '',
         isFinalDefense: sessionType === 'SA_MEETING' ? isFinalDefense : false,
         tutorAttending: sessionType === 'SA_MEETING' ? tutorAttending : false,
+        notify15Min,
         createdAt: new Date().toISOString(),
       }
       const allSessions = [...full.sessions, session]
@@ -325,6 +331,13 @@ export default function ScheduleCreateDialog({ students, supervisors, prefill, o
               </div>
             </>
           )}
+
+          <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer select-none -mt-1">
+            <input type="checkbox" checked={notify15Min}
+              onChange={e => setNotify15Min(e.target.checked)}
+              className="w-4 h-4 accent-[var(--primary)]" />
+            开始前 15 分钟推送 webhook 提醒
+          </label>
 
           {kind === 'session' && (
             <div>

@@ -41,6 +41,7 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
   const [feedbackSent, setFeedbackSent] = useState(false)
   const [isFinalDefense, setIsFinalDefense] = useState(false)
   const [tutorAttending, setTutorAttending] = useState(false)
+  const [notify15Min, setNotify15Min] = useState(false)
   const [isZhongFang, setIsZhongFang] = useState(false)
 
   // Paste-and-parse flow
@@ -67,6 +68,7 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
           setFeedbackSent(sess.feedbackSent ?? false)
           setIsFinalDefense(sess.isFinalDefense ?? false)
           setTutorAttending(sess.tutorAttending ?? false)
+          setNotify15Min(sess.notify15Min ?? false)
         } else {
           setNotFound(true)
         }
@@ -93,6 +95,7 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
         time,
         durationMinutes: duration === '' ? 0 : duration,
         feedbackSent,
+        notify15Min,
         isFinalDefense: session.type === 'SA_MEETING' ? isFinalDefense : false,
         tutorAttending: session.type === 'SA_MEETING' ? tutorAttending : false,
       }
@@ -134,6 +137,7 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
         summary: parsed.summary || session.summary,
         homework: parsed.homework || session.homework,
         transcript: parsed.transcript || session.transcript,
+        notify15Min,
         isFinalDefense: session.type === 'SA_MEETING' ? isFinalDefense : false,
         tutorAttending: session.type === 'SA_MEETING' ? tutorAttending : false,
         generatedReport: undefined,   // force a fresh report from the new content
@@ -234,6 +238,13 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
                   )}
                 </div>
               )}
+
+          <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer select-none">
+            <input type="checkbox" checked={notify15Min}
+              onChange={e => setNotify15Min(e.target.checked)}
+              className="w-4 h-4 accent-[var(--primary)]" />
+            开始前 15 分钟推送 webhook 提醒
+          </label>
 
               {/* 粘贴 Zoom/腾讯纪要 → 解析 → 确认生成报告 */}
               <div>

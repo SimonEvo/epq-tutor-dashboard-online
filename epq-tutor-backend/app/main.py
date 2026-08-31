@@ -3,9 +3,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
-from app.routers import auth, students, supervisors, config, reports, calendar, backup as backup_router, zoom, trials, workflow, ai, gantt, knowledge, schedule_events, group_classes, nag as nag_router, checklist
+from app.routers import auth, students, supervisors, config, reports, calendar, backup as backup_router, zoom, trials, workflow, ai, gantt, knowledge, schedule_events, group_classes, nag as nag_router, notify as notify_router, checklist
 from app.database import engine, SessionLocal
-from app import models, nag
+from app import models, nag, notify
 
 
 # Check workflow scheduler this often. Inside the helper we still only create a
@@ -14,6 +14,10 @@ SCHEDULER_CHECK_INTERVAL_SECONDS = 60 * 60 * 6  # every 6h
 BACKUP_INTERVAL_SECONDS = 60 * 60 * 24  # every 24h
 NAG_CHECK_INTERVAL_SECONDS = 60 * 10  # every 10min; fire once per workday 09:00 CN
 NAG_HOUR = 9  # 北京时间每工作日触发的整点
+# 上课提醒：每 30s 扫一次。课前 15 分钟提醒精确到分钟，间隔必须 < 60s 否则会漏。
+NOTIFY_CHECK_INTERVAL_SECONDS = 30
+# 每日汇总只在设定时间之后这么多分钟内补发，过了就算今天错过（避免开关/重启触发补推）
+NOTIFY_DIGEST_WINDOW_MINUTES = 10
 
 
 async def _backup_loop():
@@ -42,6 +46,50 @@ async def _scheduler_loop():
         except Exception:
             pass  # never let scheduler crash the loop
         await asyncio.sleep(SCHEDULER_CHECK_INTERVAL_SECONDS)
+
+
+async def _notify_loop():
+    """上课提醒：每日汇总 + 课前 15 分钟。总开关关掉就整个跳过。
+
+    去重靠内存里的两个集合，所以重启后当分钟内可能重复推一次——单人自用，
+    不值得为这个再加一张表。
+    """
+    sent_digest_on = None
+    sent_leads: set[str] = set()
+    while True:
+        try:
+            now = nag.datetime.now(nag.CN_TZ)
+            db = SessionLocal()
+            try:
+                tutor = db.query(models.Tutor).first()
+                cfg = notify.settings_of(tutor) if tutor else None
+                if tutor and cfg and cfg["enabled"] and cfg["webhookUrl"]:
+                    # 每日汇总：设定时间后 10 分钟内触发，今天只发一次。
+                    # 用窗口而不是「≥ 设定时间」——否则下午才打开开关、或者傍晚重启，
+                    # 都会立刻补推一条早上的汇总。
+                    hhmm = notify.parse_hhmm(cfg["digestTime"])
+                    if hhmm and sent_digest_on != now.date():
+                        delta = (now.hour * 60 + now.minute) - (hhmm[0] * 60 + hhmm[1])
+                        if 0 <= delta < NOTIFY_DIGEST_WINDOW_MINUTES:
+                            notify.run_digest(db, tutor)
+                            sent_digest_on = now.date()
+
+                    # 课前 15 分钟
+                    for key, content in notify.due_lead_reminders(db, now):
+                        if key in sent_leads:
+                            continue
+                        result = notify.send(cfg["webhookUrl"], content)
+                        notify.log.info("课前提醒 %s -> %s", key, result)
+                        sent_leads.add(key)
+                    # 集合只留今天的键，别无限涨
+                    today_prefix = now.date().isoformat()
+                    sent_leads = {k for k in sent_leads if k.startswith(today_prefix)}
+            finally:
+                db.close()
+        except Exception:
+            # 不中断循环，但要留痕——静默失败的通知功能等于没有
+            notify.log.exception("上课提醒循环异常")
+        await asyncio.sleep(NOTIFY_CHECK_INTERVAL_SECONDS)
 
 
 async def _nag_loop():
@@ -97,6 +145,14 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE students ADD COLUMN wrapped_up_at DATETIME",
             "ALTER TABLE students ADD COLUMN defense_confirmed BOOLEAN NOT NULL DEFAULT 0",
             "ALTER TABLE schedule_events ADD COLUMN counts_as_overtime BOOLEAN NOT NULL DEFAULT 0",
+            "ALTER TABLE tutors ADD COLUMN notify_enabled BOOLEAN NOT NULL DEFAULT 0",
+            "ALTER TABLE tutors ADD COLUMN notify_webhook_url VARCHAR(512)",
+            "ALTER TABLE tutors ADD COLUMN notify_digest_mode VARCHAR(16) DEFAULT 'prev_evening'",
+            "ALTER TABLE tutors ADD COLUMN notify_digest_time VARCHAR(8) DEFAULT '21:00'",
+            "ALTER TABLE sessions ADD COLUMN notify_15min BOOLEAN NOT NULL DEFAULT 0",
+            "ALTER TABLE trials ADD COLUMN notify_15min BOOLEAN NOT NULL DEFAULT 0",
+            "ALTER TABLE schedule_events ADD COLUMN notify_15min BOOLEAN NOT NULL DEFAULT 0",
+            "ALTER TABLE group_classes ADD COLUMN notify_15min BOOLEAN NOT NULL DEFAULT 0",
         ]:
             try:
                 conn.execute(text(stmt))
@@ -121,12 +177,14 @@ async def lifespan(app: FastAPI):
     task = asyncio.create_task(_scheduler_loop())
     backup_task = asyncio.create_task(_backup_loop())
     nag_task = asyncio.create_task(_nag_loop())
+    notify_task = asyncio.create_task(_notify_loop())
     try:
         yield
     finally:
         task.cancel()
         backup_task.cancel()
         nag_task.cancel()
+        notify_task.cancel()
 
 
 app = FastAPI(title="EPQ Tutor API", lifespan=lifespan)
@@ -163,6 +221,7 @@ app.include_router(knowledge.router)
 app.include_router(schedule_events.router)
 app.include_router(group_classes.router)
 app.include_router(nag_router.router)
+app.include_router(notify_router.router)
 app.include_router(checklist.router)
 
 

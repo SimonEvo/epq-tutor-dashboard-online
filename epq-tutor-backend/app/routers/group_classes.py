@@ -18,6 +18,7 @@ def _to_schema(c: models.GroupClass) -> GroupClassSchema:
         time=c.time,
         durationMinutes=c.duration_minutes if c.duration_minutes is not None else 60,
         roster=c.roster or "",
+        notify15Min=bool(c.notify_15min),
         note=c.note or "",
         link=c.link or "",
         createdAt=c.created_at.isoformat() if c.created_at else "",
@@ -54,6 +55,7 @@ def create_group_class(
         time=data.time,
         duration_minutes=data.durationMinutes,
         roster=data.roster,
+        notify_15min=bool(data.notify15Min),
         note=data.note,
         link=data.link,
     )
@@ -80,6 +82,7 @@ def update_group_class(
     cls.time = data.time
     cls.duration_minutes = data.durationMinutes
     cls.roster = data.roster
+    cls.notify_15min = bool(data.notify15Min)
     cls.note = data.note
     cls.link = data.link
     log_action(db, "update", "group_class", cls.id, {"title": data.title})

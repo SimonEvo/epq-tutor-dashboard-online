@@ -288,6 +288,42 @@ export async function deleteScheduleEvent(id: string): Promise<void> {
   if (!res.ok) throw new Error(`Delete failed: ${res.status}`)
 }
 
+// ─── 上课提醒 webhook ─────────────────────────────────────────────────────────
+export interface NotifySettings {
+  enabled: boolean
+  webhookUrl: string
+  digestMode: 'prev_evening' | 'same_morning'
+  digestTime: string           // HH:MM，北京时间
+}
+
+export interface NotifyPreviewItem {
+  kind: 'session' | 'trial' | 'group' | 'event'
+  id: string
+  time: string
+  durationMinutes: number
+  label: string
+  who: string
+  notify15: boolean
+}
+
+export async function getNotifySettings(): Promise<NotifySettings> {
+  return api<NotifySettings>('/notify/settings')
+}
+
+export async function saveNotifySettings(s: NotifySettings): Promise<NotifySettings> {
+  return api<NotifySettings>('/notify/settings', { method: 'PUT', body: JSON.stringify(s) })
+}
+
+export async function testNotifyPush(): Promise<{ date: string; items: number; ok: boolean; error: string }> {
+  return api('/notify/test', { method: 'POST' })
+}
+
+export async function previewNotifyDigest(): Promise<{
+  date: string; whenLabel: string; items: NotifyPreviewItem[]; markdown: string
+}> {
+  return api('/notify/preview')
+}
+
 // ─── 团课（一对多理论课，不绑学生） ─────────────────────────────────────────────
 export async function listGroupClasses(): Promise<GroupClass[]> {
   return api<GroupClass[]>('/group-classes')

@@ -23,6 +23,7 @@ export default function EditSessionPage() {
   const [type, setType] = useState<SessionType>('TA_MEETING')
   const [isFinalDefense, setIsFinalDefense] = useState(false)
   const [tutorAttending, setTutorAttending] = useState(false)
+  const [notify15Min, setNotify15Min] = useState(false)
   const [date, setDate] = useState('')
   const [time, setTime] = useState('')
   const [duration, setDuration] = useState(0)
@@ -39,6 +40,7 @@ export default function EditSessionPage() {
     setType(session.type)
     setIsFinalDefense(session.isFinalDefense ?? false)
     setTutorAttending(session.tutorAttending ?? false)
+    setNotify15Min(session.notify15Min ?? false)
     setDate(session.date)
     setTime(session.time ?? '')
     setDuration(session.durationMinutes)
@@ -79,6 +81,7 @@ export default function EditSessionPage() {
         privateNotes: privateNotes.trim(),
         isFinalDefense: type === 'SA_MEETING' ? isFinalDefense : false,
         tutorAttending: type === 'SA_MEETING' ? tutorAttending : false,
+        notify15Min,
         generatedReport: undefined,    // invalidate cached report on edit
         reportGeneratedAt: undefined,
       }
@@ -149,6 +152,14 @@ export default function EditSessionPage() {
               导师出席本次英方SA会议
             </label>
           )}
+          <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none mt-2">
+            <input
+              type="checkbox" checked={notify15Min}
+              onChange={e => setNotify15Min(e.target.checked)}
+              className="w-4 h-4 accent-[var(--primary)]"
+            />
+            开始前 15 分钟推送 webhook 提醒
+          </label>
           {type === 'SA_MEETING' && (
             <p className={`text-xs mt-2 ${saRemaining <= 2 ? 'text-amber-600' : 'text-gray-400'}`}>
               SA 剩余课次: <strong>{saRemaining}</strong> / {student.saHoursTotal}

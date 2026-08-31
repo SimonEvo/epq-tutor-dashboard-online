@@ -73,7 +73,9 @@ export interface SessionRecord {
   reportExtraContext?: string // 生成报告时的额外补充（督导反馈／导师补充）
   feedbackSent?: boolean       // SA 会议课后反馈是否已发送（首次生成 AI 报告时自动置 true）
   isFinalDefense?: boolean     // 标记为最终答辩的特殊 SA 会议（不计 SA 课时；甘特图红框标识）
-  tutorAttending?: boolean     // 英方SA会议：导师是否出席（决定日程视图颜色是否恢复正常）
+  tutorAttending?: boolean
+  /** 课前 15 分钟 webhook 提醒 */
+  notify15Min?: boolean     // 英方SA会议：导师是否出席（决定日程视图颜色是否恢复正常）
   zoomMeetingId?: string
   zoomJoinUrl?: string
   zoomPassword?: string
@@ -244,6 +246,8 @@ export interface Trial {
   date: string
   time: string
   durationMinutes: number | null
+  /** 课前 15 分钟 webhook 提醒 */
+  notify15Min?: boolean
   studentName: string
   grade: TrialGrade
   intendedMajor: string
@@ -275,6 +279,8 @@ export interface ScheduleEvent {
   link: string
   /** 「加个班儿」——非学生会议的加班项目，true 才进加班申请统计 */
   countsAsOvertime: boolean
+  /** 课前 15 分钟 webhook 提醒 */
+  notify15Min: boolean
   createdAt: string
   updatedAt: string
 }
@@ -291,6 +297,7 @@ export interface GroupClass {
   time: string          // HH:MM — required
   durationMinutes: number
   roster: string        // 参与名单，自由文本
+  notify15Min: boolean  // 课前 15 分钟 webhook 提醒
   note: string
   link: string
   createdAt: string
