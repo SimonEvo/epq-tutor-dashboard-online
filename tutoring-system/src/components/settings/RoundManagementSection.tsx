@@ -4,6 +4,7 @@ import type { ArchivedRound } from '@/lib/dataService'
 import type { RoundDeadlines } from '@/types'
 import { getToken } from '@/lib/githubClient'
 import { useStudentStore } from '@/stores/studentStore'
+import { inRound } from '@/lib/formatters'
 
 const dtCls = 'text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white'
 
@@ -48,7 +49,7 @@ export default function RoundManagementSection({ onArchived }: Props) {
   const archivedByName = new Map(archivedRounds.map(a => [a.name, a]))
 
   const studentCount = (name: string) =>
-    archivedByName.get(name)?.studentCount ?? students.filter(s => s.submissionRound === name).length
+    archivedByName.get(name)?.studentCount ?? students.filter(s => inRound(s, name)).length
 
   const saveDeadlines = async (name: string) => {
     setSavingRound(name)
@@ -162,7 +163,7 @@ export default function RoundManagementSection({ onArchived }: Props) {
                       </div>
                       <div className="divide-y divide-gray-50 border-t border-gray-100">
                         {(archived?.students
-                          ?? students.filter(s => s.submissionRound === name).map(s => ({ id: s.id, name: s.name, nameEn: s.nameEn }))
+                          ?? students.filter(s => inRound(s, name)).map(s => ({ id: s.id, name: s.name, nameEn: s.nameEn }))
                         ).map(s => (
                           <div key={s.id} className="py-1.5 text-sm text-gray-600">
                             {s.name}{s.nameEn ? ` · ${s.nameEn}` : ''}

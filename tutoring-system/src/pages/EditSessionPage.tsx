@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useStudentStore } from '@/stores/studentStore'
 import type { SessionRecord, SessionType, Student, Supervisor } from '@/types'
 import * as dataService from '@/lib/dataService'
-import { countsAsSaHour } from '@/lib/formatters'
+import { currentSaSessions } from '@/lib/formatters'
 
 export default function EditSessionPage() {
   const { id, sessionId } = useParams<{ id: string; sessionId: string }>()
@@ -88,7 +88,7 @@ export default function EditSessionPage() {
       const updatedSessions = student.sessions.map(s =>
         s.id === sessionId ? updatedSession : s
       )
-      const saCount = updatedSessions.filter(countsAsSaHour).length
+      const saCount = currentSaSessions({ ...student, sessions: updatedSessions }).length
 
       const updated: Student = {
         ...student,
@@ -103,7 +103,7 @@ export default function EditSessionPage() {
     }
   }
 
-  const saUsed = student.sessions.filter(countsAsSaHour).length
+  const saUsed = currentSaSessions(student).length
   const saRemaining = student.saHoursTotal - saUsed
 
   return (

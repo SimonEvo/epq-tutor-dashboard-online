@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useStudentStore } from '@/stores/studentStore'
 import { parseAICommand, type AICommandAction, type ParsedStudent } from '@/lib/claudeService'
 import * as dataService from '@/lib/dataService'
-import { countsAsSaHour } from '@/lib/formatters'
+import { currentSaSessions } from '@/lib/formatters'
 import type { Student, SessionRecord, SessionType } from '@/types'
 
 function generateId() {
@@ -135,8 +135,7 @@ export default function AICommandCenter() {
           privateNotes: '',
           createdAt: new Date().toISOString(),
         }
-        const saHoursUsed = [...student.sessions, session]
-          .filter(countsAsSaHour)
+        const saHoursUsed = currentSaSessions({ ...student, sessions: [...student.sessions, session] })
           .reduce((sum, s) => sum + s.durationMinutes / 60, 0)
         await saveStudent({
           ...student,

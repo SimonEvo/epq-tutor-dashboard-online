@@ -76,6 +76,8 @@ export interface SessionRecord {
   tutorAttending?: boolean
   /** 课前 15 分钟 webhook 提醒 */
   notify15Min?: boolean     // 英方SA会议：导师是否出席（决定日程视图颜色是否恢复正常）
+  /** 第几次提交（resit = 2）。新建的课不用填，服务端归到学生当前这一次 */
+  attempt?: number
   zoomMeetingId?: string
   zoomJoinUrl?: string
   zoomPassword?: string
@@ -139,6 +141,23 @@ export interface SubmissionFields {
   defenseConfirmed?: boolean          // 最终答辩时间已跟学生确认（日期取自 isFinalDefense 的 session）
 }
 
+/** resit 前那一次提交的只读快照（服务端 app/resit.py 生成） */
+export interface PreviousAttempt {
+  attempt: number
+  submissionRound?: string | null
+  deadlineTier: DeadlineTier
+  deadlineOverride?: string | null
+  deadlineChangeConfirmed: boolean
+  submissionChecklist: SubmissionChecklist
+  tiiChecks: TiiCheck[]
+  wrappedUpAt?: string | null
+  defenseConfirmed: boolean
+  milestones: MilestoneProgress
+  saHoursTotal: number
+  saHoursUsed: number
+  closedAt: string
+}
+
 export interface Student extends SubmissionFields {
   latestHomeworkEntry?: HomeworkEntry
   id: string
@@ -147,6 +166,12 @@ export interface Student extends SubmissionFields {
   gender?: string
   school?: string
   submissionRound?: string
+  /** 当前是第几次提交；>1 即 resit 中 */
+  currentAttempt?: number
+  /** 之前各次提交所在的轮次 —— 学生在这些轮次里也显示（已提交 · resit） */
+  previousRounds?: string[]
+  /** 之前各次提交的快照。只有详情接口带，列表接口没有 */
+  previousAttempts?: PreviousAttempt[]
   taughtElementType?: string
   universityAspiration?: string
   currentGrade?: string

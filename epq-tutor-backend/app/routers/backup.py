@@ -68,6 +68,7 @@ def _serialize_student(s: models.Student) -> dict:
         "createdAt": s.created_at.isoformat() if s.created_at else "",
         "updatedAt": s.updated_at.isoformat() if s.updated_at else "",
         "milestones": {m.milestone_id: m.status for m in s.milestones},
+        "previousAttempts": s.previous_attempts or [],
         "tags": [t.name for t in s.tags],
         "sessions": [
             {
@@ -81,6 +82,7 @@ def _serialize_student(s: models.Student) -> dict:
                 "feedbackSent": x.feedback_sent or False,
                 "isFinalDefense": x.is_final_defense or False,
                 "tutorAttending": x.tutor_attending or False,
+                "attempt": x.attempt or 1,
                 "zoomMeetingId": x.zoom_meeting_id,
                 "zoomJoinUrl": x.zoom_join_url,
                 "zoomPassword": x.zoom_password,
@@ -327,6 +329,7 @@ def restore_backup(
             s.ai_alias = data.get("aiAlias")
             s.generated_progress_report = data.get("generatedProgressReport")
             s.progress_report_generated_at = data.get("progressReportGeneratedAt")
+            s.previous_attempts = data.get("previousAttempts") or None
 
             # ── Replace sessions ─────────────────────────────────────────────
             for sess in list(s.sessions):
@@ -346,6 +349,7 @@ def restore_backup(
                     feedback_sent=sx.get("feedbackSent", False),
                     is_final_defense=sx.get("isFinalDefense", False),
                     tutor_attending=sx.get("tutorAttending", False),
+                    attempt=sx.get("attempt", 1),
                     zoom_meeting_id=sx.get("zoomMeetingId"),
                     zoom_join_url=sx.get("zoomJoinUrl"),
                     zoom_password=sx.get("zoomPassword"),
@@ -474,6 +478,7 @@ def _restore_student(db: Session, tutor_id: str, data: dict) -> None:
     s.ai_alias = data.get("aiAlias")
     s.generated_progress_report = data.get("generatedProgressReport")
     s.progress_report_generated_at = data.get("progressReportGeneratedAt")
+    s.previous_attempts = data.get("previousAttempts") or None
 
     for sess in list(s.sessions):
         db.delete(sess)
@@ -492,6 +497,7 @@ def _restore_student(db: Session, tutor_id: str, data: dict) -> None:
             feedback_sent=sx.get("feedbackSent", False),
             is_final_defense=sx.get("isFinalDefense", False),
             tutor_attending=sx.get("tutorAttending", False),
+            attempt=sx.get("attempt", 1),
             zoom_meeting_id=sx.get("zoomMeetingId"),
             zoom_join_url=sx.get("zoomJoinUrl"),
             zoom_password=sx.get("zoomPassword"),

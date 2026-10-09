@@ -39,6 +39,8 @@ Stored as `submissionRound` on the student (a free-form string matching a name i
 
 **Default Round** — configured per tutor in Settings → 默认学期. Stored as `tutors.default_round`. Dashboard remembers last-selected round in `localStorage('dashboard-round')`; if no memory, falls back to the configured default.
 
+**Resit（二次提交）** — a student who already submitted in one round and submits again in a later one. Not a kind of [[#deferral-to-the-next-round|deferral]]: the first submission really happened, so it is archived as a read-only **attempt snapshot** (`students.previousAttempts`: round, ddl arrangement, checklist, Tii checks, 结项, milestones, SA quota/used) and the student starts the resit round from blank — fresh ddl, checklist, Tii count, milestones (reset to 未开始) and a **separate SA package** entered at resit time. Sessions carry `attempt` (1, 2, …); SA quota counts and the 最终答辩 lookup only consider the current attempt, while every session stays in the record. `registrationRound` / `isOneYear` are untouched. The student shows in **both** rounds: in the resit round as normal (with a Resit badge), in the original round collapsed with the wrapped-up group as 「已提交 · Resit 至 X」. Started from the student detail page; reversible (撤销 Resit restores the snapshot and folds resit sessions back into the previous attempt). See ADR 0007.
+
 **Archived Round** — a round marked `is_archived = true`. Archived rounds and their students are excluded from the dashboard entirely (including "全部" view). Managed in Settings → 归档管理: can view student list (read-only), download full JSON, or unarchive. Archiving auto-clears `default_round` if it matches.
 
 ### EPQ Milestones
@@ -297,7 +299,7 @@ On top of the tier, a student may carry an arbitrary **override** (`deadlineOver
 
 **运营组确认 (`deadlineChangeConfirmed`)** — a boolean flag on the student. Any deviation from the round's `normal` deadline (switching to `extended`, or setting an override) requires confirmation from the 运营组 (operations team). The flag is a **marker, not a gate**: the deadline change takes effect immediately and the flag merely raises an "运营未确认" warning in the [[submission-sprint-view]]. Gating would force the data to lie while waiting for ops to reply. **Every deadline change resets the flag to `false`** — a stale tick is worse than no tick.
 
-**Deferral to the next round** — a student who defers submission to the following cohort is handled by changing their `submissionRound`, not by any deadline field. The tutor keeps teaching them; they simply leave the current round's views and appear in the next round's. Changing the round **clears** `deadlineTier` / `deadlineOverride` / `deadlineChangeConfirmed` (the previous round's arrangement no longer applies), with a confirmation prompt since it discards data.
+**Deferral to the next round** — (not to be confused with [[#submission-round|Resit]], where the first submission did happen) a student who defers submission to the following cohort is handled by changing their `submissionRound`, not by any deadline field. The tutor keeps teaching them; they simply leave the current round's views and appear in the next round's. Changing the round **clears** `deadlineTier` / `deadlineOverride` / `deadlineChangeConfirmed` (the previous round's arrangement no longer applies), with a confirmation prompt since it discards data.
 
 If the target round has no deadlines set yet, the student's effective deadline is **待定** — shown as such rather than hidden, with a prompt to go set the round's deadlines.
 

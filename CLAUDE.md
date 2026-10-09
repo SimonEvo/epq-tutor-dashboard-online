@@ -79,6 +79,8 @@ cd /opt/epq-tutor-backend && .venv/bin/python migrate_from_local.py --data-dir /
 
 - **设置页重构 + 学期管理（改动二）** — 已实现，`npm run typecheck` / lint 通过。设置页改成左侧 5 个分类目录（外观 / 教学 / 集成 / AI / 数据）+ 右侧只渲染当前分类，分类记 `localStorage['settings-category']`；新增「学期管理」节吃掉原「归档管理」（一行一届：两个 ddl + 学生数 + 归档开关 + 展开看学生/下载 JSON），改动一里的「提交截止时间」节并入其中。任务书 `docs/projects/settings-page-restructure.md`。**待办：与改动一一起 `python deploy.py` 上线 + 线上强刷验证。**
 
+- **Resit（二次提交）** — 已实现，后端 resit 测试 11 个通过、前端 `tsc` 通过。当前这次提交存成只读快照（`students.previous_attempts`），学生在新轮次从头来；`sessions.attempt` 让 SA 额度按次分开算，`sa_hours_used` 改由服务端保存时重算。学生在两个轮次都显示。详情页「开始 Resit / 撤销 Resit」。ALTER 自动迁移。ADR 0007。alembic 版实现在分支 `wip/resit-on-alembic`（合并 `feat/alembic-baseline` 时的冲突参考）。**待办：`python deploy.py` 上线 + 线上强刷验证。**
+
 ### Next Up
 - **学生知识库（Student Knowledge Base）** — 单学生私有 AI 知识库，三层架构（自动结构化上下文 / 活总结 / 原料层）+ 消化流程。任务书 `docs/projects/student-knowledge-base.md`（**§12 实现路线已批准，P1–P8 完成**），决策 `docs/adr/0002-student-knowledge-base-architecture.md`，术语见 `CONTEXT.md`
 - Dashboard 多视图（看板 / 时间线 / 统计等）

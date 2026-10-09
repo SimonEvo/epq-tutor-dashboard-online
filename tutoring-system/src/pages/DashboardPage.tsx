@@ -11,7 +11,7 @@ import GanttView from '@/components/views/GanttView'
 import WeekScheduleView from '@/components/views/WeekScheduleView'
 import SubmissionSprintView from '@/components/views/SubmissionSprintView'
 import type { Student, Supervisor, Trial, ScheduleEvent, GroupClass } from '@/types'
-import { formatHours, copyToClipboard, countsAsSaHour } from '@/lib/formatters'
+import { formatHours, copyToClipboard, countsAsSaHour, inRound, attemptForRound } from '@/lib/formatters'
 import { listTrials, listScheduleEvents, listGroupClasses, getDefaultRound } from '@/lib/dataService'
 
 type ViewMode = 'schedule' | 'overview' | 'grid' | 'gantt' | 'kanban-progress' | 'milestone' | 'submission'
@@ -91,7 +91,7 @@ export default function DashboardPage() {
 
   const filtered = students
     .filter(s => !selectedTag || s.tags.includes(selectedTag))
-    .filter(s => !selectedRound || s.submissionRound === selectedRound)
+    .filter(s => !selectedRound || inRound(s, selectedRound))
     .filter(s => {
       if (!saFilter) return true
       const supervisor = supervisors.find(sv => sv.id === s.supervisorId)
@@ -116,17 +116,21 @@ export default function DashboardPage() {
       const supervisor = supervisors.find(sv => sv.id === s.supervisorId)
       return !supervisor || supervisor.saType !== '中方SA'
     })
-    .filter(s => !statsRound || s.submissionRound === statsRound)
+    .filter(s => !statsRound || inRound(s, statsRound))
     .map(s => {
       const supervisor = supervisors.find(sv => sv.id === s.supervisorId)
+      // resit 学生：选了哪一轮就只数那一次提交的课；「全部」= 当前这一次
+      const attempt = (statsRound && attemptForRound(s, statsRound)) || (s.currentAttempt ?? 1)
       const doneSessions = s.sessions.filter(
-        sess => countsAsSaHour(sess) && sess.date <= statsCutoff
+        sess => countsAsSaHour(sess) && (sess.attempt ?? s.currentAttempt ?? 1) === attempt && sess.date <= statsCutoff
       )
       const sessionCount = doneSessions.length
       const totalMins = doneSessions.reduce((sum, sess) => sum + sess.durationMinutes, 0)
       const pastSaHours = totalMins / 60
       const saRemaining = s.saHoursTotal - pastSaHours
-      return { s, supervisor, sessionCount, totalMins, pastSaHours, saRemaining }
+      // 之前那次提交：额度是 resit 前的，s.saHoursTotal 已经是新课时包了，剩余没有意义
+      const pastAttempt = attempt !== (s.currentAttempt ?? 1)
+      return { s, supervisor, sessionCount, totalMins, pastSaHours, saRemaining, pastAttempt }
     })
     .sort((a, b) => a.s.name.localeCompare(b.s.name))
 
@@ -324,16 +328,22 @@ export default function DashboardPage() {
                       </button>
 
                       {/* Collapsible student list */}
-                      {!collapsed && g.students.map(({ s, sessionCount, totalMins, pastSaHours, saRemaining }) => (
+                      {!collapsed && g.students.map(({ s, sessionCount, totalMins, pastSaHours, saRemaining, pastAttempt }) => (
                         <div key={s.id} className="flex items-center gap-3 pl-10 pr-4 py-2 border-t border-gray-50 hover:bg-gray-50 text-sm">
                           <div className="flex-1 min-w-0">
                             <span className="font-medium text-gray-900">{s.name}</span>
                             {s.nameEn && <span className="text-xs text-gray-400 ml-1.5">{s.nameEn}</span>}
                           </div>
-                          <span className="text-xs text-gray-400 shrink-0">
-                            已用 {formatHours(pastSaHours)}/{s.saHoursTotal}h
-                            <span className={`ml-2 ${saRemaining <= 2 ? 'text-amber-600 font-medium' : ''}`}>剩 {formatHours(saRemaining)}</span>
-                          </span>
+                          {pastAttempt ? (
+                            <span className="text-xs text-gray-400 shrink-0">
+                              已用 {formatHours(pastSaHours)}h · 已提交，Resit 至 {s.submissionRound}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-400 shrink-0">
+                              已用 {formatHours(pastSaHours)}/{s.saHoursTotal}h
+                              <span className={`ml-2 ${saRemaining <= 2 ? 'text-amber-600 font-medium' : ''}`}>剩 {formatHours(saRemaining)}</span>
+                            </span>
+                          )}
                           <span className="w-14 text-right text-gray-700 font-medium shrink-0">{sessionCount} 节</span>
                           <span className="w-16 text-right text-gray-700 font-medium shrink-0">{formatHours(totalMins / 60)}</span>
                         </div>
@@ -512,13 +522,13 @@ export default function DashboardPage() {
       ) : viewMode === 'overview' ? (
         <OverviewView students={filtered} supervisors={supervisors} />
       ) : viewMode === 'gantt' ? (
-        <GanttView students={filtered} allStudents={students} supervisors={supervisors} roundLabel={selectedRound || '全部'} />
+        <GanttView students={filtered} allStudents={students} supervisors={supervisors} roundLabel={selectedRound || '全部'} round={selectedRound} />
       ) : viewMode === 'kanban-progress' ? (
         <KanbanProgressView students={filtered} />
       ) : viewMode === 'milestone' ? (
         <MilestoneGridView students={filtered} />
       ) : viewMode === 'submission' ? (
-        <SubmissionSprintView students={filtered} />
+        <SubmissionSprintView students={filtered} round={selectedRound} />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map(student => (
