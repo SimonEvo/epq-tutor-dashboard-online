@@ -22,24 +22,28 @@ class SendRequest(BaseModel):
 @router.post("/preview")
 def preview(
     db: Session = Depends(get_db),
-    _tutor: models.Tutor = Depends(get_current_tutor),
+    tutor: models.Tutor = Depends(get_current_tutor),
 ):
     """扫描并返回分组数据 + 规则版 markdown 分条，不推送。"""
-    scan = nag.scan_nags(db)
+    scan = nag.scan_nags(db, tutor)
     messages = nag.build_markdown(scan)
-    return {"scan": scan, "messages": messages, "webhookConfigured": bool(nag.webhook_url())}
+    return {
+        "scan": scan,
+        "messages": messages,
+        "webhookConfigured": bool(nag.webhook_url(tutor)),
+    }
 
 
 @router.post("/send")
 def send(
     data: SendRequest | None = None,
     db: Session = Depends(get_db),
-    _tutor: models.Tutor = Depends(get_current_tutor),
+    tutor: models.Tutor = Depends(get_current_tutor),
 ):
     """手动触发推送。带 content 则推该 markdown（自动分条）；否则跑规则版 run_nag。"""
     if data and data.content and data.content.strip():
-        scan = nag.scan_nags(db)  # 复用打包逻辑做分条
+        scan = nag.scan_nags(db, tutor)  # 复用打包逻辑做分条
         messages = nag._pack(f"# EPQ 每日催促 · {scan['date']} {scan['weekday']}", [data.content.strip()])
-        push = nag.send_wecom(messages)
+        push = nag.send_wecom(messages, nag.webhook_url(tutor))
         return {"total": scan["total"], "messages": len(messages), "push": push}
-    return nag.run_nag(db)
+    return nag.run_nag(db, tutor)

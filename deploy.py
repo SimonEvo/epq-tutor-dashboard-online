@@ -84,6 +84,12 @@ def main():
         "/opt/epq-tutor-backend",
         exclude=(".venv", "__pycache__", "*.pyc", ".env", "*.db"),
     )
+    # 依赖可能有新增（如 alembic）；已满足时 pip 直接跳过，几乎不耗时。
+    # 必须在 restart 之前 —— 服务启动时会跑 alembic 迁移。
+    run([
+        "ssh", f"root@{SERVER}",
+        "cd /opt/epq-tutor-backend && .venv/bin/pip install -q -r requirements.txt",
+    ])
     run(["ssh", f"root@{SERVER}", "systemctl restart epq-tutor; systemctl status epq-tutor --no-pager -l"])
 
     print("\n=== Deploying frontend ===")

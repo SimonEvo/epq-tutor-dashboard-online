@@ -1,31 +1,11 @@
-import { getSettings } from './settings'
-import { extractContent } from './aiResponse'
+import { aiProxy } from './dataService'
 import type { ActionLog, ManualLog } from '@/types'
 
 // ── AI call ───────────────────────────────────────────────────────────────────
 
 async function callAI(prompt: string): Promise<string> {
-  const { aiApiKey, aiModel, aiBaseUrl } = getSettings()
-  if (!aiApiKey) throw new Error('请先在设置页面填写 API Key')
-  const base = (aiBaseUrl || 'https://dashscope.aliyuncs.com/compatible-mode/v1').replace(/\/$/, '')
-
-  const res = await fetch(`${base}/chat/completions`, {
-    method: 'POST',
-    headers: { authorization: `Bearer ${aiApiKey}`, 'content-type': 'application/json' },
-    body: JSON.stringify({
-      model: aiModel || 'qwen-plus',
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: 2048,
-    }),
-  })
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    const msg = (err as { error?: { message?: string } })?.error?.message
-    throw new Error(msg ?? `API 错误 ${res.status}`)
-  }
-
-  return extractContent(await res.json())
+  // 见 claudeService 的同名函数：凭据收到服务端后，这里也不再直连 provider。
+  return aiProxy(prompt, 2048)
 }
 
 

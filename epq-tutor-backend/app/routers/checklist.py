@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models, submission
 from app.auth import get_current_tutor
+from app.scoping import require_admin
 from app.schemas import ChecklistTemplateSchema, RoundDeadlinesSchema
 
 router = APIRouter(tags=["submission"])
@@ -68,12 +69,14 @@ def get_round_deadlines(
     return RoundDeadlinesSchema(normal=r.deadline_normal, extended=r.deadline_extended)
 
 
+# 轮次截止时间是全机构统一的学期常量（同一个周五 17:00），和 rounds 本身一样
+# 只允许 admin 写；个别学生的偏移走 students.deadline_override（ADR 0003）。
 @router.put("/api/rounds/{name}/deadlines", response_model=RoundDeadlinesSchema)
 def save_round_deadlines(
     name: str,
     data: RoundDeadlinesSchema,
     db: Session = Depends(get_db),
-    _tutor: models.Tutor = Depends(get_current_tutor),
+    _tutor: models.Tutor = Depends(require_admin),
 ):
     r = db.query(models.Round).filter(models.Round.name == name).first()
     if r is None:

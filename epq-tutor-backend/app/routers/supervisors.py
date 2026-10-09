@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models
 from app.auth import get_current_tutor
+from app.scoping import scoped
 from app.schemas import SupervisorSchema
 from app.action_logger import log_action
 import uuid
@@ -21,9 +22,9 @@ def _to_schema(s: models.Supervisor) -> SupervisorSchema:
 @router.get("", response_model=list[SupervisorSchema])
 def list_supervisors(
     db: Session = Depends(get_db),
-    _tutor: models.Tutor = Depends(get_current_tutor),
+    tutor: models.Tutor = Depends(get_current_tutor),
 ):
-    return [_to_schema(s) for s in db.query(models.Supervisor).all()]
+    return [_to_schema(s) for s in scoped(db, models.Supervisor, tutor).all()]
 
 
 @router.put("/{supervisor_id}", response_model=SupervisorSchema)
@@ -31,11 +32,11 @@ def save_supervisor(
     supervisor_id: str,
     data: SupervisorSchema,
     db: Session = Depends(get_db),
-    _tutor: models.Tutor = Depends(get_current_tutor),
+    tutor: models.Tutor = Depends(get_current_tutor),
 ):
-    sv = db.query(models.Supervisor).filter(models.Supervisor.id == supervisor_id).first()
+    sv = scoped(db, models.Supervisor, tutor).filter(models.Supervisor.id == supervisor_id).first()
     if sv is None:
-        sv = models.Supervisor(id=supervisor_id)
+        sv = models.Supervisor(id=supervisor_id, tutor_id=tutor.id)
         db.add(sv)
     sv.name = data.name
     sv.gender = data.gender
@@ -44,7 +45,7 @@ def save_supervisor(
     sv.direction = data.direction
     sv.notes = data.notes
     sv.sa_type = data.saType
-    log_action(db, "update", "supervisor", supervisor_id)
+    log_action(db, tutor, "update", "supervisor", supervisor_id)
     db.commit()
     db.refresh(sv)
     return _to_schema(sv)
@@ -54,16 +55,17 @@ def save_supervisor(
 def create_supervisor(
     data: SupervisorSchema,
     db: Session = Depends(get_db),
-    _tutor: models.Tutor = Depends(get_current_tutor),
+    tutor: models.Tutor = Depends(get_current_tutor),
 ):
     sv = models.Supervisor(
+        tutor_id=tutor.id,
         id=data.id or str(uuid.uuid4()),
         name=data.name, gender=data.gender, education=data.education,
         background=data.background, direction=data.direction,
         notes=data.notes, sa_type=data.saType,
     )
     db.add(sv)
-    log_action(db, "create", "supervisor", sv.id, {"name": data.name})
+    log_action(db, tutor, "create", "supervisor", sv.id, {"name": data.name})
     db.commit()
     db.refresh(sv)
     return _to_schema(sv)
@@ -73,12 +75,12 @@ def create_supervisor(
 def delete_supervisor(
     supervisor_id: str,
     db: Session = Depends(get_db),
-    _tutor: models.Tutor = Depends(get_current_tutor),
+    tutor: models.Tutor = Depends(get_current_tutor),
 ):
-    sv = db.query(models.Supervisor).filter(models.Supervisor.id == supervisor_id).first()
+    sv = scoped(db, models.Supervisor, tutor).filter(models.Supervisor.id == supervisor_id).first()
     if sv is None:
         raise HTTPException(status_code=404, detail="Supervisor not found")
     db.delete(sv)
-    log_action(db, "delete", "supervisor", supervisor_id)
+    log_action(db, tutor, "delete", "supervisor", supervisor_id)
     db.commit()
     return {"ok": True}

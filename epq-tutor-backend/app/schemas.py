@@ -11,6 +11,16 @@ class LoginRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    role: str = "tutor"
+    username: str = ""
+    displayName: str = ""
+
+
+class MeResponse(BaseModel):
+    id: str
+    username: str
+    displayName: str = ""
+    role: str = "tutor"
 
 
 # ── Supervisor ────────────────────────────────────────────────────────────────
@@ -71,7 +81,9 @@ class StudentSchema(BaseModel):
     nameEn: Optional[str] = None
     gender: Optional[str] = None
     school: Optional[str] = None
-    submissionRound: Optional[str] = None
+    registrationRound: Optional[str] = None   # 签约批次
+    submissionRound: Optional[str] = None     # 提交批次（一年期顺延 / 延期可改）
+    isOneYear: bool = False
     taughtElementType: Optional[str] = None
     universityAspiration: Optional[str] = None
     currentGrade: Optional[str] = None
@@ -145,7 +157,9 @@ class StudentSummarySchema(BaseModel):
     lastSessionDate: Optional[str] = None
     lastSessionType: Optional[str] = None
     milestones: MilestoneProgress = {}
+    registrationRound: Optional[str] = None
     submissionRound: Optional[str] = None
+    isOneYear: bool = False
     supervisorId: Optional[str] = None
     nameEn: Optional[str] = None
     overview: Optional[str] = None

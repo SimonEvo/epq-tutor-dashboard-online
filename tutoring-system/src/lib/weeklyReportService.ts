@@ -72,20 +72,12 @@ function summariseStudent(s: Student, _today: string, changed: boolean): string 
 // ── AI call — routes through backend proxy for server-side anonymisation ──────
 
 async function callAI(prompt: string): Promise<string> {
-  const { aiApiKey, aiModel, aiBaseUrl } = getSettings()
-  if (!aiApiKey) throw new Error('请先在设置页面填写 API Key')
-
   // Use backend proxy: anonymises student names before forwarding to AI provider,
   // then decodes aliases in the response. The AI provider never sees real names.
+  // 凭据也由后端提供（机构共享配置），前端不再持有 key。
   const res = await apiFetch(`${API_BASE_URL}/ai/proxy`, {
     method: 'POST',
-    body: JSON.stringify({
-      prompt,
-      apiKey: aiApiKey,
-      model: aiModel || 'qwen-plus',
-      baseUrl: aiBaseUrl || 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-      maxTokens: 1024,
-    }),
+    body: JSON.stringify({ prompt, maxTokens: 1024 }),
   })
 
   if (!res.ok) {

@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models
 from app.auth import get_current_tutor
+from app.scoping import scoped, load_student
 from app.schemas import TrialSchema
 from app.action_logger import log_action
 import uuid
@@ -42,18 +43,27 @@ def _to_schema(t: models.Trial) -> TrialSchema:
 @router.get("", response_model=list[TrialSchema])
 def list_trials(
     db: Session = Depends(get_db),
-    _tutor: models.Tutor = Depends(get_current_tutor),
+    tutor: models.Tutor = Depends(get_current_tutor),
 ):
-    return [_to_schema(t) for t in db.query(models.Trial).order_by(models.Trial.date.desc()).all()]
+    return [_to_schema(t) for t in scoped(db, models.Trial, tutor).order_by(models.Trial.date.desc()).all()]
+
+
+def _checked_link(db, tutor, student_id):
+    """试听关联的学生必须属于同一租户 —— 否则可用别人的学生 id 建立关联。"""
+    if not student_id:
+        return None
+    load_student(db, student_id, tutor)   # 不属于本租户则 404
+    return student_id
 
 
 @router.post("", response_model=TrialSchema)
 def create_trial(
     data: TrialSchema,
     db: Session = Depends(get_db),
-    _tutor: models.Tutor = Depends(get_current_tutor),
+    tutor: models.Tutor = Depends(get_current_tutor),
 ):
     trial = models.Trial(
+        tutor_id=tutor.id,
         id=data.id or str(uuid.uuid4()),
         date=data.date,
         time=data.time or None,
@@ -75,10 +85,10 @@ def create_trial(
         feedback_for_consultant=data.feedbackForConsultant,
         retrospective=data.retrospective,
         outcome=data.outcome,
-        linked_student_id=data.linkedStudentId,
+        linked_student_id=_checked_link(db, tutor, data.linkedStudentId),
     )
     db.add(trial)
-    log_action(db, "create", "trial", trial.id, {"studentName": data.studentName})
+    log_action(db, tutor, "create", "trial", trial.id, {"studentName": data.studentName})
     db.commit()
     db.refresh(trial)
     return _to_schema(trial)
@@ -89,9 +99,9 @@ def update_trial(
     trial_id: str,
     data: TrialSchema,
     db: Session = Depends(get_db),
-    _tutor: models.Tutor = Depends(get_current_tutor),
+    tutor: models.Tutor = Depends(get_current_tutor),
 ):
-    trial = db.query(models.Trial).filter(models.Trial.id == trial_id).first()
+    trial = scoped(db, models.Trial, tutor).filter(models.Trial.id == trial_id).first()
     if trial is None:
         raise HTTPException(status_code=404, detail="Trial not found")
     trial.date = data.date
@@ -114,8 +124,8 @@ def update_trial(
     trial.feedback_for_consultant = data.feedbackForConsultant
     trial.retrospective = data.retrospective
     trial.outcome = data.outcome
-    trial.linked_student_id = data.linkedStudentId
-    log_action(db, "update", "trial", trial.id, {"outcome": data.outcome})
+    trial.linked_student_id = _checked_link(db, tutor, data.linkedStudentId)
+    log_action(db, tutor, "update", "trial", trial.id, {"outcome": data.outcome})
     db.commit()
     db.refresh(trial)
     return _to_schema(trial)
@@ -125,12 +135,12 @@ def update_trial(
 def delete_trial(
     trial_id: str,
     db: Session = Depends(get_db),
-    _tutor: models.Tutor = Depends(get_current_tutor),
+    tutor: models.Tutor = Depends(get_current_tutor),
 ):
-    trial = db.query(models.Trial).filter(models.Trial.id == trial_id).first()
+    trial = scoped(db, models.Trial, tutor).filter(models.Trial.id == trial_id).first()
     if trial is None:
         raise HTTPException(status_code=404, detail="Trial not found")
     db.delete(trial)
-    log_action(db, "delete", "trial", trial_id)
+    log_action(db, tutor, "delete", "trial", trial_id)
     db.commit()
     return {"ok": True}

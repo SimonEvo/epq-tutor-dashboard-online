@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.database import get_db
 from app import models
 from app.auth import get_current_tutor
+from app.scoping import scoped
 
 router = APIRouter(prefix="/api/backup", tags=["backup"])
 
@@ -20,15 +21,25 @@ def _write(path: Path, data: object) -> None:
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def _today_dir() -> Path:
-    return BACKUP_DIR / datetime.now(timezone.utc).strftime("%Y-%m-%d")
+def _tutor_dir(tutor: models.Tutor) -> Path:
+    """每个租户一个子目录。
+
+    P1 之前备份是全库一份、恢复也是全库写回 —— 多账号下任何人点一次「恢复备份」
+    都会用自己看到的快照覆盖所有人的数据。分目录后各人只看得见也只能恢复自己的。
+    """
+    return BACKUP_DIR / tutor.id
 
 
-def _cleanup_old_backups() -> None:
-    if not BACKUP_DIR.exists():
+def _today_dir(tutor: models.Tutor) -> Path:
+    return _tutor_dir(tutor) / datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+def _cleanup_old_backups(tutor: models.Tutor) -> None:
+    root = _tutor_dir(tutor)
+    if not root.exists():
         return
     dirs = sorted(
-        [d for d in BACKUP_DIR.iterdir() if d.is_dir() and len(d.name) == 10],
+        [d for d in root.iterdir() if d.is_dir() and len(d.name) == 10],
         reverse=True,
     )
     for old in dirs[MAX_BACKUPS:]:
@@ -107,13 +118,13 @@ def _serialize_student(s: models.Student) -> dict:
     }
 
 
-def run_backup(db: Session) -> dict:
+def run_backup(db: Session, tutor: models.Tutor) -> dict:
     """可直接调用（无需 HTTP 上下文），供定时任务使用。"""
-    dest = _today_dir()
+    dest = _today_dir(tutor)
     counts = {"students": 0, "supervisors": 0}
 
     students = (
-        db.query(models.Student)
+        scoped(db, models.Student, tutor)
         .options(
             selectinload(models.Student.sessions),
             selectinload(models.Student.milestones),
@@ -128,7 +139,7 @@ def run_backup(db: Session) -> dict:
         _write(dest / "students" / f"{s.id}.json", _serialize_student(s))
         counts["students"] += 1
 
-    supervisors = db.query(models.Supervisor).all()
+    supervisors = scoped(db, models.Supervisor, tutor).all()
     for sv in supervisors:
         _write(dest / "supervisors" / f"{sv.id}.json", {
             "id": sv.id, "name": sv.name, "gender": sv.gender,
@@ -137,10 +148,10 @@ def run_backup(db: Session) -> dict:
         })
         counts["supervisors"] += 1
 
-    tags = [t.name for t in db.query(models.Tag).all()]
+    tags = [t.name for t in scoped(db, models.Tag, tutor).all()]
     _write(dest / "config" / "tags.json", {"tags": tags})
 
-    wr = db.query(models.WeeklyReport).order_by(models.WeeklyReport.id.desc()).first()
+    wr = scoped(db, models.WeeklyReport, tutor).order_by(models.WeeklyReport.id.desc()).first()
     if wr:
         _write(dest / "config" / "weekly_report.json", {
             "generatedAt": wr.generated_at,
@@ -148,7 +159,7 @@ def run_backup(db: Session) -> dict:
             "cache": {"lastScanAt": wr.last_scan_at, "students": wr.student_cache or {}},
         })
 
-    _cleanup_old_backups()
+    _cleanup_old_backups(tutor)
 
     return {
         "ok": True,
@@ -159,10 +170,10 @@ def run_backup(db: Session) -> dict:
     }
 
 
-def _build_snapshot(db: Session) -> dict:
+def _build_snapshot(db: Session, tutor: models.Tutor) -> dict:
     """把全部数据聚合成单个 JSON 快照（供本地下载用），结构与服务器备份一致。"""
     students = (
-        db.query(models.Student)
+        scoped(db, models.Student, tutor)
         .options(
             selectinload(models.Student.sessions),
             selectinload(models.Student.milestones),
@@ -173,9 +184,9 @@ def _build_snapshot(db: Session) -> dict:
         )
         .all()
     )
-    supervisors = db.query(models.Supervisor).all()
-    tags = [t.name for t in db.query(models.Tag).all()]
-    wr = db.query(models.WeeklyReport).order_by(models.WeeklyReport.id.desc()).first()
+    supervisors = scoped(db, models.Supervisor, tutor).all()
+    tags = [t.name for t in scoped(db, models.Tag, tutor).all()]
+    wr = scoped(db, models.WeeklyReport, tutor).order_by(models.WeeklyReport.id.desc()).first()
 
     return {
         "exportedAt": datetime.now(timezone.utc).isoformat(),
@@ -200,29 +211,30 @@ def _build_snapshot(db: Session) -> dict:
 @router.post("/export")
 def export_backup(
     db: Session = Depends(get_db),
-    _tutor: models.Tutor = Depends(get_current_tutor),
+    tutor: models.Tutor = Depends(get_current_tutor),
 ):
-    return run_backup(db)
+    return run_backup(db, tutor)
 
 
 @router.get("/download")
 def download_backup(
     db: Session = Depends(get_db),
-    _tutor: models.Tutor = Depends(get_current_tutor),
+    tutor: models.Tutor = Depends(get_current_tutor),
 ):
     """返回完整数据快照（缩进美化的 JSON），前端触发下载到本地。"""
-    body = json.dumps(_build_snapshot(db), ensure_ascii=False, indent=2)
+    body = json.dumps(_build_snapshot(db, tutor), ensure_ascii=False, indent=2)
     return Response(content=body, media_type="application/json")
 
 
 @router.get("/list")
 def list_backups(
-    _tutor: models.Tutor = Depends(get_current_tutor),
+    tutor: models.Tutor = Depends(get_current_tutor),
 ):
-    if not BACKUP_DIR.exists():
+    root = _tutor_dir(tutor)
+    if not root.exists():
         return []
     result = []
-    for d in sorted(BACKUP_DIR.iterdir(), reverse=True):
+    for d in sorted(root.iterdir(), reverse=True):
         if not d.is_dir() or len(d.name) != 10:
             continue
         student_count = len(list((d / "students").glob("*.json"))) if (d / "students").exists() else 0
@@ -239,9 +251,9 @@ def list_backups(
 def restore_backup(
     date: str,
     db: Session = Depends(get_db),
-    _tutor: models.Tutor = Depends(get_current_tutor),
+    tutor: models.Tutor = Depends(get_current_tutor),
 ):
-    src = BACKUP_DIR / date
+    src = _tutor_dir(tutor) / date
     if not src.is_dir():
         raise HTTPException(status_code=404, detail=f"备份 {date} 不存在")
 
@@ -252,9 +264,13 @@ def restore_backup(
     if sv_dir.exists():
         for f in sv_dir.glob("*.json"):
             data = json.loads(f.read_text("utf-8"))
-            sv = db.get(models.Supervisor, data["id"])
+            sv = (
+                scoped(db, models.Supervisor, tutor)
+                .filter(models.Supervisor.id == data["id"])
+                .first()
+            )
             if not sv:
-                sv = models.Supervisor(id=data["id"])
+                sv = models.Supervisor(id=data["id"], tutor_id=tutor.id)
                 db.add(sv)
             sv.name = data.get("name", "")
             sv.gender = data.get("gender")
@@ -270,9 +286,9 @@ def restore_backup(
     if tags_file.exists():
         tag_names = json.loads(tags_file.read_text("utf-8")).get("tags", [])
         for name in tag_names:
-            exists = db.query(models.Tag).filter(models.Tag.name == name).first()
+            exists = scoped(db, models.Tag, tutor).filter(models.Tag.name == name).first()
             if not exists:
-                db.add(models.Tag(name=name))
+                db.add(models.Tag(name=name, tutor_id=tutor.id))
             restored["tags"] += 1
 
     db.flush()
@@ -292,11 +308,11 @@ def restore_backup(
                     selectinload(models.Student.mind_maps),
                     selectinload(models.Student.homework_entries),
                 )
-                .filter(models.Student.id == sid)
+                .filter(models.Student.id == sid, models.Student.tutor_id == tutor.id)
                 .first()
             )
             if not s:
-                s = models.Student(id=sid, tutor_id=_tutor.id, name=data.get("name", ""))
+                s = models.Student(id=sid, tutor_id=tutor.id, name=data.get("name", ""))
                 db.add(s)
 
             # Scalar fields
@@ -402,7 +418,11 @@ def restore_backup(
                 )
             )
             for tag_name in data.get("tags", []):
-                tag = db.query(models.Tag).filter(models.Tag.name == tag_name).first()
+                tag = (
+                    db.query(models.Tag)
+                    .filter(models.Tag.name == tag_name, models.Tag.tutor_id == tutor.id)
+                    .first()
+                )
                 if tag:
                     db.execute(
                         models.StudentTag.__table__.insert().values(
@@ -416,8 +436,9 @@ def restore_backup(
     wr_file = src / "config" / "weekly_report.json"
     if wr_file.exists():
         wr_data = json.loads(wr_file.read_text("utf-8"))
-        db.query(models.WeeklyReport).delete()
+        scoped(db, models.WeeklyReport, tutor).delete()
         db.add(models.WeeklyReport(
+            tutor_id=tutor.id,
             generated_at=wr_data.get("generatedAt", ""),
             content=wr_data.get("content", ""),
             last_scan_at=wr_data.get("cache", {}).get("lastScanAt", ""),
@@ -536,7 +557,11 @@ def _restore_student(db: Session, tutor_id: str, data: dict) -> None:
         models.StudentTag.__table__.delete().where(models.StudentTag.student_id == sid)
     )
     for tag_name in data.get("tags", []):
-        tag = db.query(models.Tag).filter(models.Tag.name == tag_name).first()
+        tag = (
+            db.query(models.Tag)
+            .filter(models.Tag.name == tag_name, models.Tag.tutor_id == tutor_id)
+            .first()
+        )
         if tag:
             db.execute(
                 models.StudentTag.__table__.insert().values(student_id=sid, tag_id=tag.id)
@@ -548,9 +573,16 @@ def _apply_snapshot(db: Session, tutor_id: str, snap: dict) -> dict:
     restored = {"students": 0, "supervisors": 0, "tags": 0}
 
     for sv_data in snap.get("supervisors", []):
-        sv = db.get(models.Supervisor, sv_data["id"])
+        sv = (
+            db.query(models.Supervisor)
+            .filter(
+                models.Supervisor.id == sv_data["id"],
+                models.Supervisor.tutor_id == tutor_id,
+            )
+            .first()
+        )
         if not sv:
-            sv = models.Supervisor(id=sv_data["id"])
+            sv = models.Supervisor(id=sv_data["id"], tutor_id=tutor_id)
             db.add(sv)
         sv.name = sv_data.get("name", "")
         sv.gender = sv_data.get("gender")
@@ -562,8 +594,13 @@ def _apply_snapshot(db: Session, tutor_id: str, snap: dict) -> dict:
         restored["supervisors"] += 1
 
     for name in snap.get("tags", []):
-        if not db.query(models.Tag).filter(models.Tag.name == name).first():
-            db.add(models.Tag(name=name))
+        exists = (
+            db.query(models.Tag)
+            .filter(models.Tag.name == name, models.Tag.tutor_id == tutor_id)
+            .first()
+        )
+        if not exists:
+            db.add(models.Tag(name=name, tutor_id=tutor_id))
         restored["tags"] += 1
 
     db.flush()
@@ -574,8 +611,11 @@ def _apply_snapshot(db: Session, tutor_id: str, snap: dict) -> dict:
 
     wr_data = snap.get("weeklyReport")
     if wr_data:
-        db.query(models.WeeklyReport).delete()
+        db.query(models.WeeklyReport).filter(
+            models.WeeklyReport.tutor_id == tutor_id
+        ).delete()
         db.add(models.WeeklyReport(
+            tutor_id=tutor_id,
             generated_at=wr_data.get("generatedAt", ""),
             content=wr_data.get("content", ""),
             last_scan_at=wr_data.get("cache", {}).get("lastScanAt", ""),
@@ -590,9 +630,9 @@ def _apply_snapshot(db: Session, tutor_id: str, snap: dict) -> dict:
 def restore_upload(
     snapshot: dict = Body(...),
     db: Session = Depends(get_db),
-    _tutor: models.Tutor = Depends(get_current_tutor),
+    tutor: models.Tutor = Depends(get_current_tutor),
 ):
     """从本地上传的完整 JSON 快照恢复数据（覆盖同名记录）。"""
     if not isinstance(snapshot, dict) or "students" not in snapshot:
         raise HTTPException(status_code=400, detail="不是有效的备份文件（缺少 students 字段）")
-    return _apply_snapshot(db, _tutor.id, snapshot)
+    return _apply_snapshot(db, tutor.id, snapshot)

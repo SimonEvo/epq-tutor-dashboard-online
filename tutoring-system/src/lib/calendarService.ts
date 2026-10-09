@@ -1,8 +1,10 @@
 import { apiFetch } from './githubClient'
 import type { Student, SessionType } from '@/types'
 
-export function calendarUrl(): string {
-  return `${window.location.origin}/api/calendar.ics`
+// 订阅地址现在带一个 per-tutor 的不可猜测 token —— 旧的 /api/calendar.ics 是
+// 全局共享且无鉴权的。token 由后端在发布时返回，这里只负责拼成绝对地址。
+export function calendarUrl(path?: string): string {
+  return `${window.location.origin}${path ?? '/api/calendar.ics'}`
 }
 
 // ─── ICS formatting helpers ──────────────────────────────────────────────────
@@ -133,11 +135,12 @@ export function generateICS(students: Student[]): string {
 
 export async function publishCalendar(students: Student[]): Promise<string> {
   const ics = generateICS(students)
-  await apiFetch('/api/calendar', {
+  const res = await apiFetch('/api/calendar', {
     method: 'PUT',
     body: JSON.stringify({ ics }),
   })
-  return calendarUrl()
+  const body = (await res.json().catch(() => null)) as { url?: string } | null
+  return calendarUrl(body?.url)
 }
 
 // Legacy compat — gistId is now always "backend"

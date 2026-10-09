@@ -16,7 +16,14 @@ class Tutor(Base):
     id = Column(String(64), primary_key=True)
     username = Column(String(64), unique=True, nullable=False)
     password_hash = Column(String(256), nullable=False)
+    role = Column(String(16), nullable=False, default="tutor")      # tutor | admin
+    status = Column(String(16), nullable=False, default="active")   # active | disabled
+    display_name = Column(String(128), nullable=True)               # 管理面显示用；空则回落 username
+    token_version = Column(Integer, nullable=False, default=1)      # 自增即让该账号已签发的 JWT 全部失效
+    last_login_at = Column(DateTime, nullable=True)
     default_round = Column(String(64), nullable=True)
+    nag_webhook_url = Column(String(512), nullable=True)            # 群催促；原先是全局 env
+    ics_token = Column(String(64), nullable=True, index=True, unique=True)  # 日历订阅地址里的不可猜测串
     kb_context_sources = Column(JSON, nullable=True)  # KB layer-1 source toggles; null = all on
     submission_checklist_template = Column(JSON, nullable=True)  # [{id,label,order,archived}]; null = seed on first read
     # ── 上课提醒 webhook（和「群催促」的 WECOM_WEBHOOK_URL 是两套，互不影响） ──
@@ -30,6 +37,7 @@ class Tutor(Base):
 
 class Supervisor(Base):
     __tablename__ = "supervisors"
+    tutor_id = Column(String(64), ForeignKey("tutors.id"), nullable=False, index=True)
     id = Column(String(64), primary_key=True)
     name = Column(String(128), nullable=False)
     gender = Column(String(16))
@@ -50,7 +58,9 @@ class Student(Base):
     name_en = Column(String(128))
     gender = Column(String(16))
     school = Column(String(256))
-    submission_round = Column(String(64))
+    registration_round = Column(String(64))   # 签约批次，不随延期变动
+    submission_round = Column(String(64))     # 提交批次，一年期顺延、延期可改
+    is_one_year = Column(Boolean, nullable=False, default=False)  # 一年期学制
     taught_element_type = Column(String(128))
     university_aspiration = Column(String(256))
     current_grade = Column(String(32))
@@ -135,9 +145,10 @@ class StudentMilestone(Base):
 
 class Tag(Base):
     __tablename__ = "tags"
+    tutor_id = Column(String(64), ForeignKey("tutors.id"), nullable=False, index=True)
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(64), nullable=False)
-    __table_args__ = (UniqueConstraint("name"),)
+    __table_args__ = (UniqueConstraint("tutor_id", "name", name="uq_tag_tutor_name"),)
 
 
 class StudentTag(Base):
@@ -185,6 +196,7 @@ class HomeworkEntry(Base):
 
 class WeeklyReport(Base):
     __tablename__ = "weekly_reports"
+    tutor_id = Column(String(64), ForeignKey("tutors.id"), nullable=False, index=True)
     id = Column(Integer, primary_key=True, autoincrement=True)
     generated_at = Column(String(32), nullable=False)
     content = Column(Text, nullable=False)
@@ -202,6 +214,7 @@ class Round(Base):
 
 class ActionLog(Base):
     __tablename__ = "action_logs"
+    tutor_id = Column(String(64), ForeignKey("tutors.id"), nullable=False, index=True)
     id = Column(Integer, primary_key=True, autoincrement=True)
     timestamp = Column(DateTime, default=now_utc, nullable=False, index=True)
     action = Column(String(32), nullable=False)        # create | update | delete | ai_generate
@@ -212,6 +225,7 @@ class ActionLog(Base):
 
 class ManualLog(Base):
     __tablename__ = "manual_logs"
+    tutor_id = Column(String(64), ForeignKey("tutors.id"), nullable=False, index=True)
     id = Column(String(64), primary_key=True)
     occurred_at = Column(DateTime, nullable=False, index=True)
     description = Column(Text, nullable=False)
@@ -221,6 +235,7 @@ class ManualLog(Base):
 
 class WorkflowAnalysis(Base):
     __tablename__ = "workflow_analyses"
+    tutor_id = Column(String(64), ForeignKey("tutors.id"), nullable=False, index=True)
     id = Column(Integer, primary_key=True, autoincrement=True)
     period_start = Column(DateTime, nullable=False)
     period_end = Column(DateTime, nullable=False)
@@ -232,6 +247,7 @@ class WorkflowAnalysis(Base):
 
 class Trial(Base):
     __tablename__ = "trials"
+    tutor_id = Column(String(64), ForeignKey("tutors.id"), nullable=False, index=True)
     id = Column(String(64), primary_key=True)
     date = Column(String(16), nullable=False)
     time = Column("time", String(8), nullable=True)
@@ -281,6 +297,7 @@ class StudentKnowledgeEntry(Base):
 class ScheduleEvent(Base):
     """轻量日程事件：把各处约的非上课会议手动收敛到周视角。上课/试听各有自己的表。"""
     __tablename__ = "schedule_events"
+    tutor_id = Column(String(64), ForeignKey("tutors.id"), nullable=False, index=True)
     id = Column(String(64), primary_key=True)
     title = Column(String(256), nullable=False, default="")
     date = Column(String(16), nullable=False)
@@ -303,6 +320,7 @@ class GroupClass(Base):
     团课一律计入加班申请统计（落在工作时间窗外的部分）。
     """
     __tablename__ = "group_classes"
+    tutor_id = Column(String(64), ForeignKey("tutors.id"), nullable=False, index=True)
     id = Column(String(64), primary_key=True)
     title = Column(String(256), nullable=False, default="")
     date = Column(String(16), nullable=False)
@@ -330,3 +348,18 @@ class GanttProject(Base):
     __table_args__ = (
         UniqueConstraint('tutor_id', 'owner_type', 'owner_id', name='uq_gantt_project_owner'),
     )
+
+
+class SystemConfig(Base):
+    """全局键值配置（非租户私有）。
+
+    目前只放机构共享的 AI 凭据。为什么不放 env：admin 要能在管理面里改，
+    改完不用重启服务、也不用登服务器。为什么不放 tutors：它是机构级的一份，
+    不属于任何一个导师。
+
+    `ai_api_key` 的值**永不回传给客户端**（只回 configured + 末四位提示）。
+    """
+    __tablename__ = "system_config"
+    key = Column(String(64), primary_key=True)
+    value = Column(Text, nullable=False, default="")
+    updated_at = Column(DateTime, default=now_utc, onupdate=now_utc)

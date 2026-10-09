@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
-import { getSettings } from '@/lib/settings'
 import * as dataService from '@/lib/dataService'
 import type { ChatMessage, KnowledgeEntry } from '@/lib/dataService'
 
@@ -8,11 +7,6 @@ const SOURCE_BADGE: Record<KnowledgeEntry['source'], { label: string; cls: strin
   manual: { label: '手动', cls: 'bg-gray-100 text-gray-500' },
   wechat: { label: '微信', cls: 'bg-green-100 text-green-600' },
   ai: { label: 'AI', cls: 'bg-purple-100 text-purple-600' },
-}
-
-function aiConfig() {
-  const { aiApiKey, aiModel, aiBaseUrl } = getSettings()
-  return { apiKey: aiApiKey, model: aiModel, baseUrl: aiBaseUrl }
 }
 
 const KB_SYSTEM_PROMPT = `你是资深 EPQ（Extended Project Qualification）辅导专家，担任这名学生的私人辅导参谋，只对导师一人服务。
@@ -125,8 +119,6 @@ export default function KnowledgeBaseTab({ studentId }: { studentId: string; stu
   const send = async () => {
     const text = input.trim()
     if (!text || sending) return
-    const cfg = aiConfig()
-    if (!cfg.apiKey) { setError('请先在设置页面填写 API Key'); return }
     setError('')
     const nextConversation: ChatMessage[] = [...messages, { role: 'user', content: text }]
     setMessages(nextConversation)
@@ -134,7 +126,7 @@ export default function KnowledgeBaseTab({ studentId }: { studentId: string; stu
     setSending(true)
     try {
       const system: ChatMessage = { role: 'system', content: buildSystemMessage(context, summary, entries) }
-      const { content } = await dataService.kbChat(studentId, [system, ...nextConversation], cfg)
+      const { content } = await dataService.kbChat(studentId, [system, ...nextConversation])
       setMessages([...nextConversation, { role: 'assistant', content }])
     } catch (e) {
       setError(String((e as Error).message || e))
@@ -164,12 +156,10 @@ export default function KnowledgeBaseTab({ studentId }: { studentId: string; stu
   }
 
   const runDigest = async () => {
-    const cfg = aiConfig()
-    if (!cfg.apiKey) { setError('请先在设置页面填写 API Key'); return }
     setError(''); setDigesting(true)
     try {
       const conversation = messages.filter(m => m.role !== 'system')
-      const res = await dataService.kbDigest(studentId, conversation, cfg)
+      const res = await dataService.kbDigest(studentId, conversation)
       if (res.rawReply) { setError('消化提议解析失败，AI 原文：' + res.rawReply); return }
       setProposals(res.proposals.map(text => ({ text, checked: true })))
       setDigestEntryIds(res.entryIds)
@@ -184,10 +174,9 @@ export default function KnowledgeBaseTab({ studentId }: { studentId: string; stu
     if (!proposals) return
     const approved = proposals.filter(p => p.checked).map(p => p.text.trim()).filter(Boolean)
     if (!approved.length) { setProposals(null); return }
-    const cfg = aiConfig()
     setMerging(true); setError('')
     try {
-      const res = await dataService.kbMerge(studentId, approved, cfg)
+      const res = await dataService.kbMerge(studentId, approved)
       setMergePreview(res)
       setProposals(null)
     } catch (e) {

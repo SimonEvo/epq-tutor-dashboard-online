@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models
 from app.auth import get_current_tutor
+from app.scoping import scoped
 from app.schemas import WeeklyReportSchema
 from app.action_logger import log_action
 
@@ -12,9 +13,9 @@ router = APIRouter(prefix="/api/weekly-report", tags=["reports"])
 @router.get("", response_model=WeeklyReportSchema | None)
 def get_weekly_report(
     db: Session = Depends(get_db),
-    _tutor: models.Tutor = Depends(get_current_tutor),
+    tutor: models.Tutor = Depends(get_current_tutor),
 ):
-    row = db.query(models.WeeklyReport).order_by(models.WeeklyReport.id.desc()).first()
+    row = scoped(db, models.WeeklyReport, tutor).order_by(models.WeeklyReport.id.desc()).first()
     if row is None:
         return None
     return WeeklyReportSchema(
@@ -28,9 +29,9 @@ def get_weekly_report(
 def save_weekly_report(
     data: WeeklyReportSchema,
     db: Session = Depends(get_db),
-    _tutor: models.Tutor = Depends(get_current_tutor),
+    tutor: models.Tutor = Depends(get_current_tutor),
 ):
-    row = db.query(models.WeeklyReport).order_by(models.WeeklyReport.id.desc()).first()
+    row = scoped(db, models.WeeklyReport, tutor).order_by(models.WeeklyReport.id.desc()).first()
     if row:
         row.generated_at = data.generatedAt
         row.content = data.content
@@ -38,12 +39,13 @@ def save_weekly_report(
         row.student_cache = data.cache.get("students", {})
     else:
         row = models.WeeklyReport(
+            tutor_id=tutor.id,
             generated_at=data.generatedAt,
             content=data.content,
             last_scan_at=data.cache.get("lastScanAt", data.generatedAt),
             student_cache=data.cache.get("students", {}),
         )
         db.add(row)
-    log_action(db, "ai_generate", "weekly_report")
+    log_action(db, tutor, "ai_generate", "weekly_report")
     db.commit()
     return data

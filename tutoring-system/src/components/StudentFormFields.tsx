@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { deriveSubmissionRound, submissionHint } from '@/lib/rounds'
+import { useAuthStore } from '@/stores/authStore'
 import type { Student, Supervisor } from '@/types'
 import { generateAiAlias } from '@/lib/claudeService'
 
@@ -11,7 +13,9 @@ export interface StudentFormState {
   school: string; setSchool: (v: string) => void
   currentGrade: string; setCurrentGrade: (v: string) => void
   universityEnrollment: string; setUniversityEnrollment: (v: string) => void
+  registrationRound: string; setRegistrationRound: (v: string) => void
   submissionRound: string; setSubmissionRound: (v: string) => void
+  isOneYear: boolean; setIsOneYear: (v: boolean) => void
   taughtElementType: string; setTaughtElementType: (v: string) => void
   universityAspiration: string; setUniversityAspiration: (v: string) => void
   contact: string; setContact: (v: string) => void
@@ -35,7 +39,9 @@ export function useStudentFormState(initial?: Partial<Student>): StudentFormStat
   const [school, setSchool] = useState(initial?.school ?? '')
   const [currentGrade, setCurrentGrade] = useState(initial?.currentGrade ?? '')
   const [universityEnrollment, setUniversityEnrollment] = useState(initial?.universityEnrollment ?? '')
+  const [registrationRound, setRegistrationRound] = useState(initial?.registrationRound ?? '')
   const [submissionRound, setSubmissionRound] = useState(initial?.submissionRound ?? '')
+  const [isOneYear, setIsOneYear] = useState(initial?.isOneYear ?? false)
   const [taughtElementType, setTaughtElementType] = useState(initial?.taughtElementType ?? '')
   const [universityAspiration, setUniversityAspiration] = useState(initial?.universityAspiration ?? '')
   const [contact, setContact] = useState(initial?.contact ?? '')
@@ -55,7 +61,9 @@ export function useStudentFormState(initial?: Partial<Student>): StudentFormStat
     name, setName, nameEn, setNameEn, gender, setGender,
     school, setSchool, currentGrade, setCurrentGrade,
     universityEnrollment, setUniversityEnrollment,
+    registrationRound, setRegistrationRound,
     submissionRound, setSubmissionRound,
+    isOneYear, setIsOneYear,
     taughtElementType, setTaughtElementType,
     universityAspiration, setUniversityAspiration, contact, setContact,
     topic, setTopic, topicZh, setTopicZh, overview, setOverview, saTotal, setSaTotal,
@@ -75,7 +83,9 @@ export function buildStudentFromForm(f: StudentFormState): Omit<Student, 'id' | 
     school: f.school.trim() || undefined,
     currentGrade: f.currentGrade.trim() || undefined,
     universityEnrollment: f.universityEnrollment.trim() || undefined,
+    registrationRound: f.registrationRound.trim() || undefined,
     submissionRound: f.submissionRound.trim() || undefined,
+    isOneYear: f.isOneYear,
     taughtElementType: f.taughtElementType.trim() || undefined,
     universityAspiration: f.universityAspiration.trim() || undefined,
     contact: f.contact.trim() || undefined,
@@ -110,6 +120,16 @@ interface Props {
 export default function StudentFormFields({ state, globalTags, globalRounds, supervisors, onSaveTag, onSaveRound }: Props) {
   const [newTag, setNewTag] = useState('')
   const [newRound, setNewRound] = useState('')
+  // 轮次是全机构共享的，只有管理员能增删（ADR 0004 决策 3）。
+  // 给普通导师留着这个输入框，点下去只会吃一个 403。
+  const canEditRounds = useAuthStore(s => s.role) === 'admin'
+
+  // 学生身上的轮次可能已归档（或由导入带进来），此时它不在 globalRounds 里。
+  // select 的 value 找不到对应 option 会渲染成空白，一保存就把轮次抹掉 ——
+  // 所以当前值必须始终出现在选项中。
+  const roundOptions = (current: string) =>
+    current && !globalRounds.includes(current) ? [current, ...globalRounds] : globalRounds
+
 
   const toggleTag = (tag: string) => {
     state.setSelectedTags(
@@ -117,6 +137,15 @@ export default function StudentFormFields({ state, globalTags, globalRounds, sup
         ? state.selectedTags.filter(t => t !== tag)
         : [...state.selectedTags, tag]
     )
+  }
+
+  const addRound = async () => {
+    const r = newRound.trim()
+    if (!r || globalRounds.includes(r)) return
+    await onSaveRound(r)
+    state.setRegistrationRound(r)
+    state.setSubmissionRound(deriveSubmissionRound(r, state.isOneYear))
+    setNewRound('')
   }
 
   const addNewTag = async () => {
@@ -160,43 +189,79 @@ export default function StudentFormFields({ state, globalTags, globalRounds, sup
           <input value={state.universityEnrollment} onChange={e => state.setUniversityEnrollment(e.target.value)}
             placeholder="e.g. September 2026" className={inputCls} />
         </Field>
-        <Field label="Submission Round">
+        <Field label="报名轮次 Registration Round">
           <div className="flex gap-2">
-            <select value={state.submissionRound} onChange={e => state.setSubmissionRound(e.target.value)} className={`${inputCls} flex-1`}>
-              <option value="">— Select —</option>
-              {globalRounds.map(r => <option key={r} value={r}>{r}</option>)}
-            </select>
-            <input
-              value={newRound}
-              onChange={e => setNewRound(e.target.value)}
-              onKeyDown={async e => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  const r = newRound.trim()
-                  if (!r || globalRounds.includes(r)) return
-                  await onSaveRound(r)
-                  state.setSubmissionRound(r)
-                  setNewRound('')
-                }
+            <select
+              value={state.registrationRound}
+              onChange={e => {
+                const reg = e.target.value
+                state.setRegistrationRound(reg)
+                // 只在动报名轮次时联动，不用 effect —— effect 会在打开页面时
+                // 把延期学生手工改过的提交轮次冲掉。
+                state.setSubmissionRound(deriveSubmissionRound(reg, state.isOneYear))
               }}
-              placeholder="New round…"
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] w-28"
-            />
-            <button
-              type="button"
-              onClick={async () => {
-                const r = newRound.trim()
-                if (!r || globalRounds.includes(r)) return
-                await onSaveRound(r)
-                state.setSubmissionRound(r)
-                setNewRound('')
-              }}
-              disabled={!newRound.trim()}
-              className="text-sm px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40"
+              className={`${inputCls} flex-1`}
             >
-              Add
-            </button>
+              <option value="">— Select —</option>
+              {roundOptions(state.registrationRound).map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+            {canEditRounds && (
+              <>
+                <input
+                  value={newRound}
+                  onChange={e => setNewRound(e.target.value)}
+                  onKeyDown={async e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      await addRound()
+                    }
+                  }}
+                  placeholder="New round…"
+                  className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] w-28"
+                />
+                <button
+                  type="button"
+                  onClick={addRound}
+                  disabled={!newRound.trim()}
+                  className="text-sm px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40"
+                >
+                  Add
+                </button>
+              </>
+            )}
           </div>
+          <label className="mt-2 flex items-center gap-2 text-sm text-gray-600">
+            <input
+              type="checkbox"
+              checked={state.isOneYear}
+              onChange={e => {
+                const v = e.target.checked
+                state.setIsOneYear(v)
+                state.setSubmissionRound(deriveSubmissionRound(state.registrationRound, v))
+              }}
+              className="rounded border-gray-300"
+            />
+            一年期（学制跨两批，提交顺延一轮）
+          </label>
+        </Field>
+        <Field label="提交轮次 Submission Round">
+          <select
+            value={state.submissionRound}
+            onChange={e => state.setSubmissionRound(e.target.value)}
+            className={inputCls}
+          >
+            <option value="">— Select —</option>
+            {roundOptions(state.submissionRound).map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+          <p className="mt-1 text-xs text-gray-500">
+            {state.submissionRound
+              ? (submissionHint(state.submissionRound) || '自定义批次')
+              : '由报名轮次自动填入'}
+            {state.submissionRound &&
+              state.submissionRound !== deriveSubmissionRound(state.registrationRound, state.isOneYear) &&
+              state.registrationRound &&
+              <span className="ml-1 text-amber-600">· 已手动改动（延期）</span>}
+          </p>
         </Field>
         <Field label="理论课班期">
           <input value={state.taughtElementType} onChange={e => state.setTaughtElementType(e.target.value)}

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.database import get_db
 from app import models
 from app.auth import get_current_tutor
+from app.scoping import scoped, require_admin
 from app.schemas import TagsConfig
 
 router = APIRouter(prefix="/api/config", tags=["config"])
@@ -12,9 +13,9 @@ router = APIRouter(prefix="/api/config", tags=["config"])
 @router.get("/tags", response_model=TagsConfig)
 def get_tags(
     db: Session = Depends(get_db),
-    _tutor: models.Tutor = Depends(get_current_tutor),
+    tutor: models.Tutor = Depends(get_current_tutor),
 ):
-    tags = db.query(models.Tag).order_by(models.Tag.name).all()
+    tags = scoped(db, models.Tag, tutor).order_by(models.Tag.name).all()
     return TagsConfig(tags=[t.name for t in tags])
 
 
@@ -22,14 +23,14 @@ def get_tags(
 def save_tags(
     data: TagsConfig,
     db: Session = Depends(get_db),
-    _tutor: models.Tutor = Depends(get_current_tutor),
+    tutor: models.Tutor = Depends(get_current_tutor),
 ):
-    existing = {t.name: t for t in db.query(models.Tag).all()}
+    existing = {t.name: t for t in scoped(db, models.Tag, tutor).all()}
     incoming = set(data.tags)
 
     # Add new tags
     for name in incoming - existing.keys():
-        db.add(models.Tag(name=name))
+        db.add(models.Tag(name=name, tutor_id=tutor.id))
 
     # Remove orphaned tags (not used by any student)
     for name in existing.keys() - incoming:
@@ -38,20 +39,23 @@ def save_tags(
             db.delete(tag)
 
     db.commit()
-    tags = db.query(models.Tag).order_by(models.Tag.name).all()
+    tags = scoped(db, models.Tag, tutor).order_by(models.Tag.name).all()
     return TagsConfig(tags=[t.name for t in tags])
 
 
 @router.get("/rounds")
 def get_rounds(
     db: Session = Depends(get_db),
-    _tutor: models.Tutor = Depends(get_current_tutor),
+    tutor: models.Tutor = Depends(get_current_tutor),
 ):
     archived = {r.name for r in db.query(models.Round).filter(models.Round.is_archived == True).all()}
     stored = [r.name for r in db.query(models.Round).filter(models.Round.is_archived == False).all()]
     from_students = [
         r[0] for r in db.query(models.Student.submission_round)
-        .filter(models.Student.submission_round.isnot(None))
+        .filter(
+            models.Student.submission_round.isnot(None),
+            models.Student.tutor_id == tutor.id,   # 派生轮次只看自己的学生
+        )
         .distinct().all()
         if r[0] not in archived
     ]
@@ -75,11 +79,13 @@ def get_archived_rounds(
     return result
 
 
+# rounds 是全局表：提交轮次是全机构统一的学期批次，每人自建一份会在对接教务
+# 的 academic_term 时产生 N 份同名轮次。故读开放、写仅 admin（ADR 决策 3）。
 @router.post("/rounds/{name}/archive")
 def archive_round(
     name: str,
     db: Session = Depends(get_db),
-    tutor: models.Tutor = Depends(get_current_tutor),
+    tutor: models.Tutor = Depends(require_admin),
 ):
     r = db.query(models.Round).filter(models.Round.name == name).first()
     if r is None:
@@ -96,7 +102,7 @@ def archive_round(
 def unarchive_round(
     name: str,
     db: Session = Depends(get_db),
-    _tutor: models.Tutor = Depends(get_current_tutor),
+    _tutor: models.Tutor = Depends(require_admin),
 ):
     r = db.query(models.Round).filter(models.Round.name == name).first()
     if r is None:
@@ -195,7 +201,7 @@ def set_default_round(
 def save_rounds(
     data: list[str],
     db: Session = Depends(get_db),
-    _tutor: models.Tutor = Depends(get_current_tutor),
+    _tutor: models.Tutor = Depends(require_admin),
 ):
     existing = {r.name: r for r in db.query(models.Round).all()}
     incoming = set(data)

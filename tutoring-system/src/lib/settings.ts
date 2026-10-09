@@ -1,10 +1,9 @@
 const KEY = 'epq_app_settings'
 
+// AI 凭据（key / model / baseUrl）已收到服务端的机构配置，不再存在本地 —— 见
+// epq-tutor-backend/app/ai_config.py。localStorage 里旧的 aiApiKey 等字段会被忽略。
 export interface AppSettings {
   wecomWebhookUrl: string
-  aiApiKey: string
-  aiModel: string
-  aiBaseUrl: string
   sessionReportTemplate: string   // empty = use built-in default
   progressReportTemplate: string  // empty = use built-in default
   weeklyReportOutputTemplate: string // empty = use built-in default
@@ -12,9 +11,6 @@ export interface AppSettings {
 
 const DEFAULTS: AppSettings = {
   wecomWebhookUrl: '',
-  aiApiKey: '',
-  aiModel: 'qwen-plus',
-  aiBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
   sessionReportTemplate: '',
   progressReportTemplate: '',
   weeklyReportOutputTemplate: '',

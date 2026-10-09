@@ -71,16 +71,23 @@ cd /opt/epq-tutor-backend && .venv/bin/python migrate_from_local.py --data-dir /
 认证（JWT）/ Dashboard 学生卡片、筛选排序、课时统计 / 新建&编辑学生、Brief Note 内联编辑、可用时间备注、标签系统 / Session 增删改查、三类 session、SA 课时自动计算 / 单节课 AI 报告、进度报告 / EPQ 里程碑追踪、N/A 支持 / 个人日志内联编辑 / 思维导图创建编辑、全屏、导出 SVG/PNG / 督导列表&详情页 / ICS 日历生成 / AI 指令中心、AI 周报 / 数据迁移脚本（migrate_from_local.py）
 
 ## 当前状态
-### In Progress
-- **学生知识库** — P1–P8 已实现并本地验证（分支 `feature/student-knowledge-base`）。**待办：`python deploy.py` 上线 + 线上强刷验证（P9）**。后端已加两表 + `tutors.kb_context_sources` 列，`create_all` / ALTER 自动迁移，无需手动建表。
-- **日程周视角（Week Schedule View）** — 已实现，本地 `tsc` / lint 通过。Dashboard 新增"日程"视图：周一~周日日历网格 + 动态时间轴 + 工作时间高亮 + 当前时间红线 + 撞车 split。新表 `schedule_events`（`create_all` 自动建）。顺带修 bug：session 起始时间全线必填。任务书 `docs/projects/week-schedule-view.md`。**待办：`python deploy.py` 上线 + 线上强刷验证。**
 
-- **提交前检查清单 + 提交截止时间 + 结项（改动一）** — 已实现，本地 `tsc` / lint 通过。后端加 tutors/students/rounds 列（`create_all` + ALTER 自动迁移）+ 窄端点 `PATCH /api/students/{id}/checklist|deadline|wrap-up|tii-checks`、`/api/checklist-template`、`PUT /api/rounds/{name}/deadlines`；前端新增 Dashboard「提交」视图、详情页「提交」卡片、设置页「提交清单模板 / 提交截止时间」两节、甘特图已结项折叠。任务书 `docs/projects/submission-checklist.md`，ADR 0003。**待办：`python deploy.py` 上线 + 线上强刷验证（走任务书 §7 验收清单）。**
+> 以下工作都在分支 `feat/alembic-baseline` 上，**尚未提交、未部署**。
 
-- **设置页重构 + 学期管理（改动二）** — 已实现，`npm run typecheck` / lint 通过。设置页改成左侧 5 个分类目录（外观 / 教学 / 集成 / AI / 数据）+ 右侧只渲染当前分类，分类记 `localStorage['settings-category']`；新增「学期管理」节吃掉原「归档管理」（一行一届：两个 ddl + 学生数 + 归档开关 + 展开看学生/下载 JSON），改动一里的「提交截止时间」节并入其中。任务书 `docs/projects/settings-page-restructure.md`。**待办：与改动一一起 `python deploy.py` 上线 + 线上强刷验证。**
+### 已完成（本分支）
+- **P0 迁移框架** — Alembic + SQLite WAL。删掉 `main.py` 里 35 条吞异常的裸 ALTER，改为启动时跑迁移；前-Alembic 的旧库自动 stamp。**不迁 MySQL**（生产 ECS 882 MB 内存，MySQL 当初就是被这个逼退的）。
+- **P1 租户隔离** — 九张全局表加 `tutor_id`，`app/scoping.py` 收口，13 个 router 改造，越权回归测试自动枚举端点。过程中修掉 7 个既有漏洞（含 `save_student` 跨租户覆写、`/api/calendar.ics` 公开无鉴权、nag/notify 全局扫表、备份互覆盖）。
+- **学期拆分 + Excel 导入** — `registration_round` / `is_one_year`，一年期自动推导；Excel 表头自动识别 + diff 确认导入。
+- **P2 角色与管理员后台** — `token_version` 让停用/改密当场作废旧令牌；`/api/admin/tutors` 只给元数据、无代登录；前端 `/admin` 页面 + 按角色隐藏轮次控件。
+- **P3 内测运营配套** — AI 凭据收到服务端（机构共享一份，明文不下发），全部 AI 流量改经后端，按人记用量；新账号首屏引导 + 隐私说明。
+
+任务书：`docs/projects/multi-tenant-internal-beta.md`、`docs/projects/term-split-and-student-import.md`
+决策：`docs/adr/0004-multi-tenant-internal-beta.md`、`0005-registration-vs-submission-round.md`、`0006-org-shared-ai-credentials.md`
 
 ### Next Up
-- **学生知识库（Student Knowledge Base）** — 单学生私有 AI 知识库，三层架构（自动结构化上下文 / 活总结 / 原料层）+ 消化流程。任务书 `docs/projects/student-knowledge-base.md`（**§12 实现路线已批准，P1–P8 完成**），决策 `docs/adr/0002-student-knowledge-base-architecture.md`，术语见 `CONTEXT.md`
+- **上线** — 四个阶段全部完成，仍在分支上未部署。首次部署前建议先给服务器 DB 做文件级快照；**上线后 admin 必须去设置页填一次 AI key**，否则所有人的 AI 功能报 503。
+- **可选清理** — 生产 `trials` 表有一列废弃的 `duration_category`（8 行里 1 行有值），删与不删见 `docs/projects/multi-tenant-internal-beta.md` P0 章节。
+- **教务系统对接** — 存档未实施，方案见 `docs/projects/multi-tenant-internal-beta.md` §8。
 - Dashboard 多视图（看板 / 时间线 / 统计等）
 
 ## Agent skills

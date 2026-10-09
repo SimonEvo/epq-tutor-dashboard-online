@@ -24,7 +24,8 @@ export default function LoginPage() {
         navigate('/')
       }
     } else {
-      setError('用户名或密码错误')
+      // 停用账号的提示和密码错不同，用服务端给的文案
+      setError(useAuthStore.getState().loginError || '用户名或密码错误')
     }
     setLoading(false)
   }

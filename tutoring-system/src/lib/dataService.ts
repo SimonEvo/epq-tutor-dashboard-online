@@ -1,5 +1,6 @@
 import { apiFetch } from './githubClient'
 import { API_BASE_URL } from '@/config'
+import type { ImportRow } from './studentExcelParser'
 import type { Student, Supervisor, ChecklistTemplateItem, ChecklistCustomItem, SubmissionChecklist, TiiCheck, DeadlineTier, RoundDeadlines, WeeklyReportData, Trial, ActionLog, ManualLog, WorkflowAnalysis, GanttProject, GanttProjectSummary, ScheduleEvent, GroupClass, NagPreview, NagPushResult } from '@/types'
 
 async function api<T>(path: string, options?: RequestInit): Promise<T> {
@@ -10,6 +11,84 @@ async function api<T>(path: string, options?: RequestInit): Promise<T> {
     throw new Error(msg ?? `API error ${res.status}`)
   }
   return res.json() as Promise<T>
+}
+
+// ─── AI 配置（机构共享，admin 维护） ─────────────────────────────────────────
+
+export interface AiConfigView {
+  configured: boolean
+  keyHint: string        // 只有末四位；key 明文不会下发
+  baseUrl: string
+  model: string
+}
+
+export async function getAiConfig(): Promise<AiConfigView> {
+  return api<AiConfigView>('/admin/ai-config')
+}
+
+export async function saveAiConfig(body: {
+  apiKey?: string; baseUrl?: string; model?: string
+}): Promise<AiConfigView> {
+  return api<AiConfigView>('/admin/ai-config', { method: 'PUT', body: JSON.stringify(body) })
+}
+
+/** 任何导师都能查：AI 能不能用、用的哪个模型。 */
+export async function getAiStatus(): Promise<{ configured: boolean; model: string }> {
+  return api('/ai/status')
+}
+
+export async function aiProxy(prompt: string, maxTokens?: number): Promise<string> {
+  const res = await api<{ content: string }>('/ai/proxy', {
+    method: 'POST',
+    body: JSON.stringify({ prompt, ...(maxTokens ? { maxTokens } : {}) }),
+  })
+  return res.content
+}
+
+// ─── 身份与账号管理 ───────────────────────────────────────────────────────────
+
+export interface Me { id: string; username: string; displayName: string; role: 'tutor' | 'admin' }
+
+export async function fetchMe(): Promise<Me> {
+  // /auth 不在 API_BASE_URL 之下，直接给 apiFetch 绝对路径
+  const res = await apiFetch('/auth/me')
+  if (!res.ok) throw new Error(`auth/me ${res.status}`)
+  return res.json() as Promise<Me>
+}
+
+export interface TutorAccount {
+  id: string
+  username: string
+  displayName: string
+  role: 'tutor' | 'admin'
+  status: 'active' | 'disabled'
+  createdAt: string
+  lastLoginAt: string
+  studentCount: number
+  aiCallCount: number
+}
+
+export async function listTutorAccounts(): Promise<TutorAccount[]> {
+  return api<TutorAccount[]>('/admin/tutors')
+}
+
+export async function createTutorAccount(body: {
+  username: string; password: string; displayName?: string; role?: 'tutor' | 'admin'
+}): Promise<TutorAccount> {
+  return api<TutorAccount>('/admin/tutors', { method: 'POST', body: JSON.stringify(body) })
+}
+
+export async function updateTutorAccount(
+  id: string,
+  body: { displayName?: string; role?: 'tutor' | 'admin'; status?: 'active' | 'disabled' },
+): Promise<TutorAccount> {
+  return api<TutorAccount>(`/admin/tutors/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+}
+
+export async function resetTutorPassword(id: string, password: string): Promise<TutorAccount> {
+  return api<TutorAccount>(`/admin/tutors/${id}/reset-password`, {
+    method: 'POST', body: JSON.stringify({ password }),
+  })
 }
 
 // ─── Students ────────────────────────────────────────────────────────────────
@@ -24,6 +103,41 @@ export async function getStudent(id: string): Promise<Student> {
 
 export async function saveStudent(student: Student): Promise<void> {
   await api(`/students/${student.id}`, { method: 'PUT', body: JSON.stringify(student) })
+}
+
+// ─── 学生批量导入 ─────────────────────────────────────────────────────────────
+
+export interface ImportFieldDiff { field: string; label: string; before: string; after: string }
+
+export interface ImportPreviewRow {
+  rowIndex: number
+  category: 'new' | 'update' | 'conflict'
+  name: string
+  reason: string
+  matchedStudentId: string | null
+  matchedStudentName: string | null
+  diffs: ImportFieldDiff[]
+  supervisorId: string | null
+  supervisorWarning: string
+  data: ImportRow
+}
+
+export interface ImportPreviewResult {
+  rows: ImportPreviewRow[]
+  summary: { new: number; update: number; conflict: number; unchanged: number }
+}
+
+export async function previewStudentImport(rows: ImportRow[]): Promise<ImportPreviewResult> {
+  return api<ImportPreviewResult>('/students/import/preview', {
+    method: 'POST',
+    body: JSON.stringify({ rows }),
+  })
+}
+
+export async function applyStudentImport(
+  rows: { action: 'create' | 'update' | 'skip'; studentId?: string | null; data: ImportRow }[],
+): Promise<{ created: number; updated: number; skipped: number }> {
+  return api('/students/import/apply', { method: 'POST', body: JSON.stringify({ rows }) })
 }
 
 export async function patchStudentAlias(id: string, aiAlias: string): Promise<void> {
@@ -599,36 +713,25 @@ export async function deleteKnowledgeEntry(studentId: string, entryId: string): 
 // Multi-turn chat — the single AI boundary (server encodes/decodes names).
 export async function kbChat(
   studentId: string, messages: ChatMessage[],
-  ai: { apiKey: string; model: string; baseUrl: string },
 ): Promise<{ content: string }> {
-  return api('/ai/chat', {
-    method: 'POST',
-    body: JSON.stringify({
-      studentId, messages,
-      apiKey: ai.apiKey, model: ai.model, baseUrl: ai.baseUrl,
-    }),
-  })
+  return api('/ai/chat', { method: 'POST', body: JSON.stringify({ studentId, messages }) })
 }
 
 // Digest: propose durable facts (not persisted).
 export async function kbDigest(
   studentId: string, messages: ChatMessage[],
-  ai: { apiKey: string; model: string; baseUrl: string },
 ): Promise<{ proposals: string[]; rawReply: string | null; entryIds: string[] }> {
   return api(`/students/${studentId}/kb-digest`, {
-    method: 'POST',
-    body: JSON.stringify({ messages, apiKey: ai.apiKey, model: ai.model, baseUrl: ai.baseUrl }),
+    method: 'POST', body: JSON.stringify({ messages }),
   })
 }
 
 // Merge approved facts into the summary — returns a preview (not persisted).
 export async function kbMerge(
   studentId: string, approvedFacts: string[],
-  ai: { apiKey: string; model: string; baseUrl: string },
 ): Promise<{ merged: string; previous: string }> {
   return api(`/students/${studentId}/living-summary/merge`, {
-    method: 'POST',
-    body: JSON.stringify({ approvedFacts, apiKey: ai.apiKey, model: ai.model, baseUrl: ai.baseUrl }),
+    method: 'POST', body: JSON.stringify({ approvedFacts }),
   })
 }
 

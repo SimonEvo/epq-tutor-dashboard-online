@@ -9,6 +9,7 @@ import MilestoneGridView from '@/components/views/MilestoneGridView'
 import OverviewView from '@/components/views/OverviewView'
 import GanttView from '@/components/views/GanttView'
 import WeekScheduleView from '@/components/views/WeekScheduleView'
+import FirstRunGuide from '@/components/FirstRunGuide'
 import SubmissionSprintView from '@/components/views/SubmissionSprintView'
 import type { Student, Supervisor, Trial, ScheduleEvent, GroupClass } from '@/types'
 import { formatHours, copyToClipboard, countsAsSaHour } from '@/lib/formatters'
@@ -383,6 +384,12 @@ export default function DashboardPage() {
             统计课时
           </button>
           <Link
+            to="/students/import"
+            className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            导入 Excel
+          </Link>
+          <Link
             to="/students/new"
             className="bg-[var(--primary)] text-white text-sm px-4 py-2 rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
           >
@@ -505,9 +512,12 @@ export default function DashboardPage() {
 
       {viewMode === 'schedule' ? (
         <WeekScheduleView students={students} supervisors={supervisors} />
+      ) : students.length === 0 ? (
+        // 全新账号：给三条路 + 隐私说明，而不是一行 "No students yet"
+        <FirstRunGuide />
       ) : filtered.length === 0 ? (
         <div className="text-gray-400 text-sm py-16 text-center">
-          {students.length === 0 ? 'No students yet. Add your first student!' : 'No students match this filter.'}
+          No students match this filter.
         </div>
       ) : viewMode === 'overview' ? (
         <OverviewView students={filtered} supervisors={supervisors} />

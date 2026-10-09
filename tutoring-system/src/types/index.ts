@@ -146,7 +146,12 @@ export interface Student extends SubmissionFields {
   nameEn?: string
   gender?: string
   school?: string
+  /** 签约批次，不随延期变动 */
+  registrationRound?: string
+  /** 提交批次：一年期顺延一轮，延期学生手动改 */
   submissionRound?: string
+  /** 一年期学制（跨两个批次） */
+  isOneYear?: boolean
   taughtElementType?: string
   universityAspiration?: string
   currentGrade?: string

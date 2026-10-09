@@ -32,6 +32,16 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
+def token_for(tutor: models.Tutor) -> str:
+    """签发带 token_version 的令牌。
+
+    payload 里带 ver，是为了让「停用账号」和「重置密码」能立刻生效 ——
+    令牌有效期 7 天，光改库里的密码不作废旧令牌等于没停用。
+    所有签发点都应走这里，不要直接调 create_access_token。
+    """
+    return create_access_token({"sub": tutor.id, "ver": tutor.token_version or 1})
+
+
 def get_current_tutor(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: Session = Depends(get_db),
@@ -47,10 +57,16 @@ def get_current_tutor(
         tutor_id: str = payload.get("sub")
         if tutor_id is None:
             raise credentials_exception
-    except JWTError:
+        token_ver = int(payload.get("ver", 0))
+    except (JWTError, TypeError, ValueError):
         raise credentials_exception
 
     tutor = db.query(models.Tutor).filter(models.Tutor.id == tutor_id).first()
     if tutor is None:
+        raise credentials_exception
+    if tutor.status != "active":
+        raise credentials_exception
+    if (tutor.token_version or 1) != token_ver:
+        # 密码被重置 / 账号被停用过 —— 这张旧令牌作废
         raise credentials_exception
     return tutor

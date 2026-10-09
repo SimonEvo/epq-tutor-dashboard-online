@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { getSettings, saveSettings, AI_PROVIDERS } from '@/lib/settings'
 import { publishCalendar, calendarUrl as getCalendarUrl } from '@/lib/calendarService'
 import { useStudentStore } from '@/stores/studentStore'
 import * as dataService from '@/lib/dataService'
@@ -9,6 +8,8 @@ import { THEMES } from '@/lib/themes'
 import { useThemeStore } from '@/stores/themeStore'
 import SubmissionTemplateSettings from '@/components/SubmissionTemplateSettings'
 import RoundManagementSection from '@/components/settings/RoundManagementSection'
+import AiConfigSection from '@/components/settings/AiConfigSection'
+import { useAuthStore } from '@/stores/authStore'
 import NotifySettingsSection from '@/components/settings/NotifySettingsSection'
 
 type SettingsCategory = 'appearance' | 'teaching' | 'integrations' | 'ai' | 'data'
@@ -35,6 +36,7 @@ const KB_SOURCE_LABELS: [dataService.KbSource, string][] = [
 ]
 
 export default function SettingsPage() {
+  const isAdmin = useAuthStore(s => s.role) === 'admin'
   const [cat, setCat] = useState<SettingsCategory>(
     () => (localStorage.getItem('settings-category') as SettingsCategory) ?? 'appearance'
   )
@@ -44,8 +46,6 @@ export default function SettingsPage() {
     localStorage.setItem('settings-category', next)
   }
 
-  const [settings, setSettings] = useState(getSettings)
-  const [saved, setSaved] = useState(false)
   const [calSyncing, setCalSyncing] = useState(false)
   const [calStatus, setCalStatus] = useState<'idle' | 'ok' | 'err'>('idle')
   const [calError, setCalError] = useState('')
@@ -166,13 +166,6 @@ export default function SettingsPage() {
     }
   }
 
-  const handleSave = (e: React.FormEvent) => {
-    e.preventDefault()
-    saveSettings(settings)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
-  }
-
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
@@ -199,7 +192,8 @@ export default function SettingsPage() {
           ))}
         </nav>
 
-      <form onSubmit={handleSave} className="flex-1 min-w-0 flex flex-col gap-5">
+      {/* 各分区都是即时保存；AI 凭据已搬到服务端，本页没有需要统一提交的本地设置了 */}
+      <form onSubmit={e => e.preventDefault()} className="flex-1 min-w-0 flex flex-col gap-5">
 
         {/* Theme */}
         {cat === 'appearance' && (
@@ -296,66 +290,8 @@ export default function SettingsPage() {
         </section>
         )}
 
-        {/* AI Model */}
-        {cat === 'ai' && (
-        <section className="bg-white rounded-2xl border border-gray-200 p-6">
-          <h2 className="text-sm font-semibold text-gray-900 mb-1">AI 模型配置</h2>
-          <p className="text-xs text-gray-400 mb-4">
-            支持任何 OpenAI 兼容接口。选择预设厂商或手动填写 Base URL 和模型名称。
-          </p>
-
-          {/* Provider presets */}
-          <div className="flex gap-2 mb-4 flex-wrap">
-            {AI_PROVIDERS.map(p => (
-              <button
-                key={p.label}
-                type="button"
-                onClick={() => setSettings(s => ({ ...s, aiBaseUrl: p.baseUrl, aiModel: p.model }))}
-                className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
-                  settings.aiBaseUrl === p.baseUrl
-                    ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
-                    : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-gray-700">API Key</label>
-              <input
-                type="password"
-                value={settings.aiApiKey}
-                onChange={e => setSettings(s => ({ ...s, aiApiKey: e.target.value }))}
-                placeholder="sk-…"
-                className={inputCls}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-gray-700">Base URL</label>
-              <input
-                type="text"
-                value={settings.aiBaseUrl}
-                onChange={e => setSettings(s => ({ ...s, aiBaseUrl: e.target.value }))}
-                placeholder="https://api.openai.com/v1"
-                className={inputCls}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-gray-700">模型名称</label>
-              <input
-                type="text"
-                value={settings.aiModel}
-                onChange={e => setSettings(s => ({ ...s, aiModel: e.target.value }))}
-                placeholder="gpt-4o / qwen-plus / deepseek-v4-flash …"
-                className={inputCls}
-              />
-            </div>
-          </div>
-        </section>
-        )}
+        {/* AI 凭据是机构共享的一份，存在服务端；管理员维护，导师只看状态。 */}
+        {cat === 'ai' && <AiConfigSection />}
 
         {/* Data Backup & Restore */}
         {cat === 'data' && (
@@ -495,8 +431,18 @@ export default function SettingsPage() {
         </section>
         )}
 
-        {cat === 'teaching' && (
+        {/* 轮次和截止时间是全机构统一的，只有管理员能改（ADR 0004 决策 3）。
+            整块隐藏而不是禁用控件 —— 里面每个按钮都会吃 403，留着只会让人困惑。 */}
+        {cat === 'teaching' && isAdmin && (
           <RoundManagementSection onArchived={name => { if (defaultRound === name) setDefaultRound('') }} />
+        )}
+        {cat === 'teaching' && !isAdmin && (
+          <section className="bg-white rounded-2xl border border-[var(--border)] p-5">
+            <h2 className="text-sm font-semibold text-gray-700 mb-1">提交轮次</h2>
+            <p className="text-xs text-gray-500">
+              轮次和截止时间由管理员统一维护，所有老师共用同一套。需要新增或调整请联系管理员。
+            </p>
+          </section>
         )}
 
         {cat === 'teaching' && <SubmissionTemplateSettings />}
@@ -554,20 +500,6 @@ export default function SettingsPage() {
         </section>
         )}
 
-        {/* 只有 AI 那节的字段挂在 settings 上，其余分类都是各自即时保存 */}
-        {cat === 'ai' && (
-          <div className="flex gap-3">
-            <button
-              type="submit"
-              className="bg-[var(--primary)] text-white text-sm px-5 py-2 rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
-            >
-              {saved ? '已保存 ✓' : 'Save Settings'}
-            </button>
-            <Link to="/" className="text-sm px-5 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
-              Cancel
-            </Link>
-          </div>
-        )}
       </form>
       </div>
     </div>

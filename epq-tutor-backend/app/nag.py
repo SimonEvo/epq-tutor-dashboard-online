@@ -21,6 +21,7 @@ import requests as http
 from sqlalchemy.orm import Session
 
 from app import models
+from app.scoping import scoped
 from app.database import SessionLocal
 
 log = logging.getLogger("nag")
@@ -50,8 +51,22 @@ def deadline_days_threshold() -> int:
     return _cfg_int("NAG_DEADLINE_DAYS", 2)
 
 
-def webhook_url() -> str:
-    return (os.getenv("WECOM_WEBHOOK_URL") or "").strip()
+def webhook_url(tutor: models.Tutor) -> str:
+    """群催促的推送地址，按导师取。
+
+    P1 之前是全局 env WECOM_WEBHOOK_URL —— 多账号下所有人的催促会推进同一个群。
+    现在存在 tutors.nag_webhook_url。
+
+    env 仅作为 admin 账号的回退：系统所有者原先就是靠 env 配的，且还没有
+    对应的设置页入口，不回退会让现有推送静默失效。内测导师（role=tutor）
+    不会继承这个地址。
+    """
+    own = (tutor.nag_webhook_url or "").strip()
+    if own:
+        return own
+    if tutor.role == "admin":
+        return (os.getenv("WECOM_WEBHOOK_URL") or "").strip()
+    return ""
 
 
 # ── 日期工具 ───────────────────────────────────────────────────────────────
@@ -125,7 +140,7 @@ def _last_activity(db: Session, student_id: str) -> date | None:
     return max(candidates) if candidates else None
 
 
-def scan_nags(db: Session, today: date | None = None) -> dict:
+def scan_nags(db: Session, tutor: models.Tutor, today: date | None = None) -> dict:
     """扫描全部学生，返回分组结果。纯读，无副作用。"""
     today = today or today_cn()
     stale_th = stale_days_threshold()
@@ -135,7 +150,7 @@ def scan_nags(db: Session, today: date | None = None) -> dict:
     stale: list[dict] = []
     upcoming_sa: list[dict] = []
 
-    students = db.query(models.Student).order_by(models.Student.name).all()
+    students = scoped(db, models.Student, tutor).order_by(models.Student.name).all()
     for s in students:
         name = s.name
         topic = _topic(s)
@@ -172,7 +187,11 @@ def scan_nags(db: Session, today: date | None = None) -> dict:
 
     # 临近日程（非学生绑定，tutor 自己的会议）
     events: list[dict] = []
-    for e in db.query(models.ScheduleEvent).order_by(models.ScheduleEvent.date, models.ScheduleEvent.time).all():
+    for e in (
+        scoped(db, models.ScheduleEvent, tutor)
+        .order_by(models.ScheduleEvent.date, models.ScheduleEvent.time)
+        .all()
+    ):
         d = _parse_date(e.date)
         if d is None:
             continue
@@ -282,12 +301,15 @@ def _split_block(header: str, block: str) -> list[str]:
 
 
 # ── 推送 ───────────────────────────────────────────────────────────────────
-def send_wecom(messages: list[str], url: str | None = None) -> dict:
-    """逐条 POST 到企业微信群机器人。返回 {sent, failed, errors}。"""
-    url = url or webhook_url()
+def send_wecom(messages: list[str], url: str) -> dict:
+    """逐条 POST 到企业微信群机器人。返回 {sent, failed, errors}。
+
+    url 必填（P1）：原先缺省回退到全局 env，多租户下等于把所有人的催促
+    推进同一个群。调用方必须显式用 webhook_url(tutor) 取地址。
+    """
     if not url:
-        log.warning("WECOM_WEBHOOK_URL 未配置，跳过推送")
-        return {"sent": 0, "failed": 0, "skipped": True, "errors": ["WECOM_WEBHOOK_URL 未配置"]}
+        log.warning("该导师未配置催促 webhook，跳过推送")
+        return {"sent": 0, "failed": 0, "skipped": True, "errors": ["未配置催促 webhook"]}
 
     sent, failed, errors = 0, 0, []
     for i, content in enumerate(messages):
@@ -314,14 +336,17 @@ def send_wecom(messages: list[str], url: str | None = None) -> dict:
     return {"sent": sent, "failed": failed, "skipped": False, "errors": errors}
 
 
-def run_nag(db: Session) -> dict:
-    """扫描 → 渲染 → 推送。无人需催促则不发（避免噪音）。"""
-    scan = scan_nags(db)
+def run_nag(db: Session, tutor: models.Tutor) -> dict:
+    """扫描 → 渲染 → 推送。无人需催促则不发（避免噪音）。按导师逐个执行。"""
+    url = webhook_url(tutor)
+    if not url:
+        return {"total": 0, "messages": 0, "push": {"sent": 0, "failed": 0, "skipped": True, "errors": []}}
+    scan = scan_nags(db, tutor)
     messages = build_markdown(scan)
     if not messages:
         log.info("今日无需催促的学生，不发消息")
         return {"total": 0, "messages": 0, "push": {"sent": 0, "failed": 0, "skipped": True, "errors": []}}
-    push = send_wecom(messages)
+    push = send_wecom(messages, url)
     log.info("催促推送完成: 学生/事件=%d, 分条=%d, 成功=%d, 失败=%d",
              scan["total"], len(messages), push["sent"], push["failed"])
     return {"total": scan["total"], "messages": len(messages), "push": push}
@@ -332,7 +357,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     db = SessionLocal()
     try:
-        result = run_nag(db)
-        print(result)
+        for tutor in db.query(models.Tutor).all():
+            print(tutor.username, run_nag(db, tutor))
     finally:
         db.close()

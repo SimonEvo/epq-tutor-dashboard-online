@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from dotenv import load_dotenv
 import os
@@ -21,6 +21,21 @@ engine = create_engine(
         "pool_recycle": 1800,
     }),
 )
+
+if _is_sqlite:
+    @event.listens_for(engine, "connect")
+    def _sqlite_pragmas(dbapi_conn, _record):
+        """WAL 让读写不互斥（多导师并发下必需）；busy_timeout 避免瞬时写锁直接报错。
+
+        不开 foreign_keys=ON —— SQLite 默认关闭，存量数据未经外键约束校验，
+        贸然打开可能让原本成功的写入开始失败。要开需先跑一次孤儿行体检。
+        """
+        cur = dbapi_conn.cursor()
+        cur.execute("PRAGMA journal_mode=WAL")
+        cur.execute("PRAGMA synchronous=NORMAL")
+        cur.execute("PRAGMA busy_timeout=5000")
+        cur.close()
+
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useStudentStore } from '@/stores/studentStore'
 import { generateProgressReport } from '@/lib/claudeService'
-import { getSettings } from '@/lib/settings'
 import * as dataService from '@/lib/dataService'
 import type { Student } from '@/types'
 
@@ -125,7 +124,7 @@ export default function ProgressReportPage() {
       {loading && (
         <div className="bg-white rounded-2xl border border-gray-200 p-8 flex items-center justify-center gap-3 text-gray-400 text-sm">
           <span className="animate-spin text-[var(--primary)]">⟳</span>
-          正在调用 {getSettings().aiModel || 'qwen-plus'} 生成报告，请稍候…
+          正在调用 AI 生成报告，请稍候…
         </div>
       )}
       {error && (

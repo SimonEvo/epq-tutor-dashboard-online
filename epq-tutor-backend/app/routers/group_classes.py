@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models
 from app.auth import get_current_tutor
+from app.scoping import scoped
 from app.schemas import GroupClassSchema
 from app.action_logger import log_action
 import uuid
@@ -35,9 +36,9 @@ def _require_time(data: GroupClassSchema) -> None:
 @router.get("", response_model=list[GroupClassSchema])
 def list_group_classes(
     db: Session = Depends(get_db),
-    _tutor: models.Tutor = Depends(get_current_tutor),
+    tutor: models.Tutor = Depends(get_current_tutor),
 ):
-    rows = db.query(models.GroupClass).order_by(models.GroupClass.date, models.GroupClass.time).all()
+    rows = scoped(db, models.GroupClass, tutor).order_by(models.GroupClass.date, models.GroupClass.time).all()
     return [_to_schema(c) for c in rows]
 
 
@@ -45,10 +46,11 @@ def list_group_classes(
 def create_group_class(
     data: GroupClassSchema,
     db: Session = Depends(get_db),
-    _tutor: models.Tutor = Depends(get_current_tutor),
+    tutor: models.Tutor = Depends(get_current_tutor),
 ):
     _require_time(data)
     cls = models.GroupClass(
+        tutor_id=tutor.id,
         id=data.id or str(uuid.uuid4()),
         title=data.title,
         date=data.date,
@@ -60,7 +62,7 @@ def create_group_class(
         link=data.link,
     )
     db.add(cls)
-    log_action(db, "create", "group_class", cls.id, {"title": data.title})
+    log_action(db, tutor, "create", "group_class", cls.id, {"title": data.title})
     db.commit()
     db.refresh(cls)
     return _to_schema(cls)
@@ -71,10 +73,10 @@ def update_group_class(
     class_id: str,
     data: GroupClassSchema,
     db: Session = Depends(get_db),
-    _tutor: models.Tutor = Depends(get_current_tutor),
+    tutor: models.Tutor = Depends(get_current_tutor),
 ):
     _require_time(data)
-    cls = db.query(models.GroupClass).filter(models.GroupClass.id == class_id).first()
+    cls = scoped(db, models.GroupClass, tutor).filter(models.GroupClass.id == class_id).first()
     if cls is None:
         raise HTTPException(status_code=404, detail="Group class not found")
     cls.title = data.title
@@ -85,7 +87,7 @@ def update_group_class(
     cls.notify_15min = bool(data.notify15Min)
     cls.note = data.note
     cls.link = data.link
-    log_action(db, "update", "group_class", cls.id, {"title": data.title})
+    log_action(db, tutor, "update", "group_class", cls.id, {"title": data.title})
     db.commit()
     db.refresh(cls)
     return _to_schema(cls)
@@ -95,12 +97,12 @@ def update_group_class(
 def delete_group_class(
     class_id: str,
     db: Session = Depends(get_db),
-    _tutor: models.Tutor = Depends(get_current_tutor),
+    tutor: models.Tutor = Depends(get_current_tutor),
 ):
-    cls = db.query(models.GroupClass).filter(models.GroupClass.id == class_id).first()
+    cls = scoped(db, models.GroupClass, tutor).filter(models.GroupClass.id == class_id).first()
     if cls is None:
         raise HTTPException(status_code=404, detail="Group class not found")
-    log_action(db, "delete", "group_class", cls.id, {"title": cls.title})
+    log_action(db, tutor, "delete", "group_class", cls.id, {"title": cls.title})
     db.delete(cls)
     db.commit()
     return {"ok": True}

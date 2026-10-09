@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models
 from app.auth import get_current_tutor
+from app.scoping import scoped
 from app.schemas import ScheduleEventSchema
 from app.action_logger import log_action
 import uuid
@@ -35,9 +36,9 @@ def _require_time(data: ScheduleEventSchema) -> None:
 @router.get("", response_model=list[ScheduleEventSchema])
 def list_events(
     db: Session = Depends(get_db),
-    _tutor: models.Tutor = Depends(get_current_tutor),
+    tutor: models.Tutor = Depends(get_current_tutor),
 ):
-    rows = db.query(models.ScheduleEvent).order_by(models.ScheduleEvent.date, models.ScheduleEvent.time).all()
+    rows = scoped(db, models.ScheduleEvent, tutor).order_by(models.ScheduleEvent.date, models.ScheduleEvent.time).all()
     return [_to_schema(e) for e in rows]
 
 
@@ -45,10 +46,11 @@ def list_events(
 def create_event(
     data: ScheduleEventSchema,
     db: Session = Depends(get_db),
-    _tutor: models.Tutor = Depends(get_current_tutor),
+    tutor: models.Tutor = Depends(get_current_tutor),
 ):
     _require_time(data)
     event = models.ScheduleEvent(
+        tutor_id=tutor.id,
         id=data.id or str(uuid.uuid4()),
         title=data.title,
         date=data.date,
@@ -60,7 +62,7 @@ def create_event(
         notify_15min=bool(data.notify15Min),
     )
     db.add(event)
-    log_action(db, "create", "schedule_event", event.id, {"title": data.title})
+    log_action(db, tutor, "create", "schedule_event", event.id, {"title": data.title})
     db.commit()
     db.refresh(event)
     return _to_schema(event)
@@ -71,10 +73,10 @@ def update_event(
     event_id: str,
     data: ScheduleEventSchema,
     db: Session = Depends(get_db),
-    _tutor: models.Tutor = Depends(get_current_tutor),
+    tutor: models.Tutor = Depends(get_current_tutor),
 ):
     _require_time(data)
-    event = db.query(models.ScheduleEvent).filter(models.ScheduleEvent.id == event_id).first()
+    event = scoped(db, models.ScheduleEvent, tutor).filter(models.ScheduleEvent.id == event_id).first()
     if event is None:
         raise HTTPException(status_code=404, detail="Event not found")
     event.title = data.title
@@ -85,7 +87,7 @@ def update_event(
     event.link = data.link
     event.counts_as_overtime = bool(data.countsAsOvertime)
     event.notify_15min = bool(data.notify15Min)
-    log_action(db, "update", "schedule_event", event.id, {"title": data.title})
+    log_action(db, tutor, "update", "schedule_event", event.id, {"title": data.title})
     db.commit()
     db.refresh(event)
     return _to_schema(event)
@@ -95,12 +97,12 @@ def update_event(
 def delete_event(
     event_id: str,
     db: Session = Depends(get_db),
-    _tutor: models.Tutor = Depends(get_current_tutor),
+    tutor: models.Tutor = Depends(get_current_tutor),
 ):
-    event = db.query(models.ScheduleEvent).filter(models.ScheduleEvent.id == event_id).first()
+    event = scoped(db, models.ScheduleEvent, tutor).filter(models.ScheduleEvent.id == event_id).first()
     if event is None:
         raise HTTPException(status_code=404, detail="Event not found")
     db.delete(event)
-    log_action(db, "delete", "schedule_event", event_id)
+    log_action(db, tutor, "delete", "schedule_event", event_id)
     db.commit()
     return {"ok": True}

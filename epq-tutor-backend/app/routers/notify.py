@@ -73,7 +73,7 @@ def preview(
         day, when = now.date(), "今日"
     else:
         day, when = now.date() + timedelta(days=1), "明日"
-    items = notify.items_on(db, day)
+    items = notify.items_on(db, day, tutor)
     return {
         "date": day.isoformat(),
         "whenLabel": when,

@@ -99,6 +99,8 @@ const BUILD_TIME = import.meta.env.VITE_BUILD_TIME || '本地开发'
 const BUILD_SIG = import.meta.env.VITE_BUILD_SIG || 'dev build'
 
 export default function AppSidebar({ onAiClick, onQuickCaptureClick }: Props) {
+  const isAdmin = useAuthStore(s => s.role) === 'admin'
+
   const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     {
       label: '主要',
@@ -122,6 +124,8 @@ export default function AppSidebar({ onAiClick, onQuickCaptureClick }: Props) {
       label: '系统',
       items: [
         { to: '/settings', label: '设置', icon: Icons.settings },
+        // 仅管理员可见。真正的闸门在后端 require_admin —— 这里只是不给入口。
+        ...(isAdmin ? [{ to: '/admin', label: '账号管理', icon: Icons.supervisors }] : []),
       ],
     },
   ]

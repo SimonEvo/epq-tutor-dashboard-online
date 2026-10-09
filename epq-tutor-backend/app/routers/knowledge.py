@@ -390,19 +390,14 @@ class ChatMsg(BaseModel):
     content: str
 
 
+# 凭据由服务端的机构配置提供，不走请求体（P3 方案 B，见 app/ai_config.py）
 class DigestRequest(BaseModel):
     messages: list[ChatMsg] = []
-    apiKey: str
-    model: str = "deepseek-v4-flash"
-    baseUrl: str = "https://api.deepseek.com/v1"
     maxTokens: int = 2048
 
 
 class MergeRequest(BaseModel):
     approvedFacts: list[str]
-    apiKey: str
-    model: str = "deepseek-v4-flash"
-    baseUrl: str = "https://api.deepseek.com/v1"
     maxTokens: int = 4096
 
 
@@ -430,9 +425,9 @@ def kb_digest(
     Does NOT persist anything — returns proposals for the tutor to approve/edit,
     plus the candidate entry ids that would be archived on merge.
     """
-    if not data.apiKey:
-        raise HTTPException(status_code=400, detail="API key required")
-    _verify_student(db, student_id, tutor.id)
+    _verify_student(db, student_id, tutor.id)   # 先验归属，再看服务可用性
+    from app.routers.ai import _credentials
+    cfg = _credentials(db)
 
     entries = (
         db.query(models.StudentKnowledgeEntry)
@@ -460,11 +455,12 @@ def kb_digest(
     students = ensure_all_aliases(db, tutor.id)
     mappings = build_name_mappings(students)
 
-    from app.routers.ai import _call_provider
+    from app.routers.ai import _call_provider, _record
     reply = _call_provider(
         [{"role": "user", "content": encode_names(prompt, mappings)}],
-        data.apiKey, data.model, data.baseUrl, data.maxTokens,
+        cfg["api_key"], cfg["model"], cfg["base_url"], data.maxTokens,
     )
+    _record(db, tutor, "kb_digest")
     decoded = decode_names(reply, mappings)
     proposals = _extract_json_array(decoded)
 
@@ -488,11 +484,11 @@ def merge_living_summary(
     on confirmation it calls PUT living-summary (with digestedEntryIds) to land
     the change and archive the raw entries atomically.
     """
-    if not data.apiKey:
-        raise HTTPException(status_code=400, detail="API key required")
+    _verify_student(db, student_id, tutor.id)   # 先验归属，再看服务可用性
     if not data.approvedFacts:
         raise HTTPException(status_code=400, detail="No approved facts")
-    _verify_student(db, student_id, tutor.id)
+    from app.routers.ai import _credentials
+    cfg = _credentials(db)
 
     row = (
         db.query(models.StudentLivingSummary)
@@ -515,10 +511,11 @@ def merge_living_summary(
     students = ensure_all_aliases(db, tutor.id)
     mappings = build_name_mappings(students)
 
-    from app.routers.ai import _call_provider
+    from app.routers.ai import _call_provider, _record
     reply = _call_provider(
         [{"role": "user", "content": encode_names(prompt, mappings)}],
-        data.apiKey, data.model, data.baseUrl, data.maxTokens,
+        cfg["api_key"], cfg["model"], cfg["base_url"], data.maxTokens,
     )
+    _record(db, tutor, "kb_merge")
     merged = decode_names(reply, mappings)
     return {"merged": merged, "previous": row.content if row else ""}

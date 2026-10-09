@@ -2,8 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, selectinload
 from datetime import datetime, timezone
 from app.database import get_db
-from app import models
+from app import models, rounds
 from app.auth import get_current_tutor
+from app.scoping import scoped
 from app.schemas import StudentSchema, StudentSummarySchema, SessionSummarySchema
 from app.action_logger import log_action
 from app import submission
@@ -74,7 +75,10 @@ def _to_full_schema(s: models.Student, deadlines: dict | None = None) -> Student
     sorted_sessions = sorted(s.sessions, key=lambda x: x.date)
     return StudentSchema(
         id=s.id, name=s.name, nameEn=s.name_en, gender=s.gender,
-        school=s.school, submissionRound=s.submission_round,
+        school=s.school,
+        registrationRound=s.registration_round,
+        submissionRound=s.submission_round,
+        isOneYear=bool(s.is_one_year),
         taughtElementType=s.taught_element_type, universityAspiration=s.university_aspiration,
         currentGrade=s.current_grade, universityEnrollment=s.university_enrollment,
         contact=s.contact, supervisorId=s.supervisor_id,
@@ -109,7 +113,10 @@ def _to_summary(s: models.Student, deadlines: dict | None = None) -> StudentSumm
         saHoursTotal=s.sa_hours_total, saHoursUsed=s.sa_hours_used,
         nextSaSession=s.next_sa_session, nextTaSession=s.next_ta_session,
         nextTheorySession=s.next_theory_session,
-        submissionRound=s.submission_round, supervisorId=s.supervisor_id,
+        registrationRound=s.registration_round,
+        submissionRound=s.submission_round,
+        isOneYear=bool(s.is_one_year),
+        supervisorId=s.supervisor_id,
         nameEn=s.name_en, overview=s.overview,
         sessions=[SessionSummarySchema(id=x.id, type=x.type, date=x.date, time=x.time, durationMinutes=x.duration_minutes, feedbackSent=x.feedback_sent or False, isFinalDefense=x.is_final_defense or False, tutorAttending=x.tutor_attending or False, notify15Min=x.notify_15min or False) for x in s.sessions],
         availabilityNote=s.availability_note or "", briefNote=s.brief_note or "",
@@ -193,14 +200,43 @@ def save_student(
 ):
     if data.id != student_id:
         raise HTTPException(status_code=400, detail="ID mismatch")
-    existing = db.query(models.Student).filter(models.Student.id == student_id).first()
+    # 必须带 tutor 过滤：否则用别人的学生 id 发 PUT 会覆写别人的记录
+    existing = scoped(db, models.Student, tutor).filter(models.Student.id == student_id).first()
     return _upsert_student(db, tutor, data, is_new=existing is None)
+
+
+def _checked_supervisor_id(
+    db: Session, tutor: models.Tutor, supervisor_id: str | None
+) -> str | None:
+    """校验督导属于同一租户。
+
+    不校验的话，这里就是一条跨租户读取的旁路：把别人的 supervisor_id 写进自己的
+    学生，学生详情页就会把别人的督导档案（含 notes 私人评价）渲染出来。
+    """
+    if not supervisor_id:
+        return None
+    exists = (
+        scoped(db, models.Supervisor, tutor)
+        .filter(models.Supervisor.id == supervisor_id)
+        .first()
+    )
+    if exists is None:
+        raise HTTPException(status_code=422, detail="督导不存在")
+    return supervisor_id
 
 
 def _upsert_student(
     db: Session, tutor: models.Tutor, data: StudentSchema, is_new: bool
 ) -> StudentSchema:
-    s = db.query(models.Student).filter(models.Student.id == data.id).first() if not is_new else None
+    s = (
+        scoped(db, models.Student, tutor).filter(models.Student.id == data.id).first()
+        if not is_new
+        else None
+    )
+    if is_new and db.query(models.Student.id).filter(models.Student.id == data.id).first():
+        # 该 id 存在，但不属于本租户（否则上面就查到了，is_new 也不会为真）。
+        # 不加这一层就会走到 INSERT，撞主键炸成 500；对调用方而言它就是「不存在」。
+        raise HTTPException(status_code=404, detail="学生不存在")
 
     # Capture old state for diff-based action logging
     old_session_ids: set[str] = set()
@@ -221,33 +257,39 @@ def _upsert_student(
 
     # AI generation detection: progress report newly set or changed
     if data.generatedProgressReport and data.generatedProgressReport != old_progress_report:
-        log_action(db, "ai_generate", "progress_report", data.id, {"studentId": data.id})
+        log_action(db, tutor, "ai_generate", "progress_report", data.id, {"studentId": data.id})
 
     # AI generation detection: any session report newly set or changed
     for sd in (data.sessions or []):
         if sd.generatedReport and sd.generatedReport != old_session_reports.get(sd.id):
-            log_action(db, "ai_generate", "session_report", sd.id,
+            log_action(db, tutor, "ai_generate", "session_report", sd.id,
                        {"sessionId": sd.id, "studentId": data.id})
 
     if s is None:
         s = models.Student(id=data.id, tutor_id=tutor.id)
         db.add(s)
-        log_action(db, "create", "student", data.id, {"name": data.name})
+        log_action(db, tutor, "create", "student", data.id, {"name": data.name})
     else:
-        log_action(db, "update", "student", data.id)
+        log_action(db, tutor, "update", "student", data.id)
 
     s.name = data.name; s.name_en = data.nameEn; s.gender = data.gender
     s.school = data.school
     # 换届 = 上一届的 ddl 安排作废（任务书 D11 / §5）
-    if s.submission_round != data.submissionRound:
+    # 轮次标签归一为短格式（`25秋`）——从教务表导入的可能是 `25秋季（26年3月提交）`
+    new_submission = rounds.normalize_round(data.submissionRound)
+    if s.submission_round != new_submission:
+        # 换轮次 = 上一轮的截止安排不再适用（ADR 0003）
         s.deadline_tier = "normal"
         s.deadline_override = None
         s.deadline_change_confirmed = False
-    s.submission_round = data.submissionRound
+    s.submission_round = new_submission
+    s.registration_round = rounds.normalize_round(data.registrationRound)
+    s.is_one_year = bool(data.isOneYear)
     s.taught_element_type = data.taughtElementType
     s.university_aspiration = data.universityAspiration
     s.current_grade = data.currentGrade; s.university_enrollment = data.universityEnrollment
-    s.contact = data.contact; s.supervisor_id = data.supervisorId
+    s.contact = data.contact
+    s.supervisor_id = _checked_supervisor_id(db, tutor, data.supervisorId)
     s.topic = data.topic; s.topic_zh = data.topicZh; s.overview = data.overview
     s.sa_hours_total = data.saHoursTotal; s.sa_hours_used = data.saHoursUsed
     s.next_sa_session = data.nextSaSession; s.next_ta_session = data.nextTaSession
@@ -265,10 +307,10 @@ def _upsert_student(
     new_session_ids = {sd.id for sd in (data.sessions or [])}
     for added in new_session_ids - old_session_ids:
         sd = next((x for x in data.sessions if x.id == added), None)
-        log_action(db, "create", "session", added,
+        log_action(db, tutor, "create", "session", added,
                    {"type": sd.type, "studentId": s.id} if sd else {"studentId": s.id})
     for removed in old_session_ids - new_session_ids:
-        log_action(db, "delete", "session", removed, {"studentId": s.id})
+        log_action(db, tutor, "delete", "session", removed, {"studentId": s.id})
 
     db.query(models.Session).filter(models.Session.student_id == s.id).delete()
     for sd in (data.sessions or []):
@@ -291,7 +333,7 @@ def _upsert_student(
     for mid, new_status in (data.milestones or {}).items():
         old_status = old_milestones.get(mid)
         if old_status != new_status:
-            log_action(db, "update", "milestone", mid,
+            log_action(db, tutor, "update", "milestone", mid,
                        {"studentId": s.id, "from": old_status or "none", "to": new_status})
 
     db.query(models.StudentMilestone).filter(models.StudentMilestone.student_id == s.id).delete()
@@ -301,9 +343,9 @@ def _upsert_student(
     # tags
     s.tags.clear()
     for tag_name in (data.tags or []):
-        tag = db.query(models.Tag).filter(models.Tag.name == tag_name).first()
+        tag = scoped(db, models.Tag, tutor).filter(models.Tag.name == tag_name).first()
         if tag is None:
-            tag = models.Tag(name=tag_name)
+            tag = models.Tag(name=tag_name, tutor_id=tutor.id)
             db.add(tag)
             db.flush()
         s.tags.append(tag)
@@ -311,9 +353,9 @@ def _upsert_student(
     # personal entries
     new_personal_ids = {e["id"] for e in (data.personalEntries or [])}
     for added in new_personal_ids - old_personal_ids:
-        log_action(db, "create", "personal_entry", added, {"studentId": s.id})
+        log_action(db, tutor, "create", "personal_entry", added, {"studentId": s.id})
     for removed in old_personal_ids - new_personal_ids:
-        log_action(db, "delete", "personal_entry", removed, {"studentId": s.id})
+        log_action(db, tutor, "delete", "personal_entry", removed, {"studentId": s.id})
 
     db.query(models.PersonalEntry).filter(models.PersonalEntry.student_id == s.id).delete()
     for e in (data.personalEntries or []):
@@ -325,9 +367,9 @@ def _upsert_student(
     # mind maps
     new_mindmap_ids = {m["id"] for m in (data.mindMaps or [])}
     for added in new_mindmap_ids - old_mindmap_ids:
-        log_action(db, "create", "mind_map", added, {"studentId": s.id})
+        log_action(db, tutor, "create", "mind_map", added, {"studentId": s.id})
     for removed in old_mindmap_ids - new_mindmap_ids:
-        log_action(db, "delete", "mind_map", removed, {"studentId": s.id})
+        log_action(db, tutor, "delete", "mind_map", removed, {"studentId": s.id})
 
     db.query(models.MindMap).filter(models.MindMap.student_id == s.id).delete()
     for m in (data.mindMaps or []):
@@ -339,9 +381,9 @@ def _upsert_student(
     # homework entries
     new_homework_ids = {h["id"] for h in (data.homeworkEntries or [])}
     for added in new_homework_ids - old_homework_ids:
-        log_action(db, "create", "homework", added, {"studentId": s.id})
+        log_action(db, tutor, "create", "homework", added, {"studentId": s.id})
     for removed in old_homework_ids - new_homework_ids:
-        log_action(db, "delete", "homework", removed, {"studentId": s.id})
+        log_action(db, tutor, "delete", "homework", removed, {"studentId": s.id})
 
     db.query(models.HomeworkEntry).filter(models.HomeworkEntry.student_id == s.id).delete()
     for h in (data.homeworkEntries or []):

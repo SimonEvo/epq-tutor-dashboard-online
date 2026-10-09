@@ -1,34 +1,14 @@
-import { getSettings } from './settings'
-import { extractContent } from './aiResponse'
+import { aiProxy } from './dataService'
+import { getSettings } from './settings'   // 报告模板仍是每人本地设置
 import { EPQ_MILESTONES } from '@/config'
 import type { Student, SessionRecord, NagScan } from '@/types'
 import { isSessionStarted, countsAsSaHour } from './formatters'
 
 async function callAI(prompt: string, options?: { maxTokens?: number }): Promise<string> {
-  const { aiApiKey, aiModel, aiBaseUrl } = getSettings()
-  if (!aiApiKey) throw new Error('请先在设置页面填写 API Key')
-  const base = (aiBaseUrl || 'https://dashscope.aliyuncs.com/compatible-mode/v1').replace(/\/$/, '')
-
-  const res = await fetch(`${base}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'authorization': `Bearer ${aiApiKey}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: aiModel || 'qwen-plus',
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: options?.maxTokens ?? 2048,
-    }),
-  })
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    const msg = (err as { error?: { message?: string } })?.error?.message
-    throw new Error(msg ?? `API 错误 ${res.status}`)
-  }
-
-  return extractContent(await res.json())
+  // 凭据在服务端（机构共享，见 epq-tutor-backend/app/ai_config.py）。
+  // 这里原先是浏览器直连 provider —— 那种调用既要求每人自备 key，
+  // 也没法计入用量（后端看不见它）。
+  return aiProxy(prompt, options?.maxTokens ?? 2048)
 }
 
 // ── AI Command Center ─────────────────────────────────────────────────────────

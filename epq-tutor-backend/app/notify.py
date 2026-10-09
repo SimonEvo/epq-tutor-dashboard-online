@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app import models
 from app.nag import CN_TZ
+from app.scoping import scoped
 
 log = logging.getLogger(__name__)
 
@@ -58,15 +59,18 @@ def _mins(hhmm: str | None) -> int:
     return p[0] * 60 + p[1] if p else 24 * 60 + 1   # 无时间的排最后
 
 
-def items_on(db: Session, day: date) -> list[dict]:
-    """当天所有带时间的安排，按开始时间排序。"""
+def items_on(db: Session, day: date, tutor: models.Tutor) -> list[dict]:
+    """某位导师当天所有带时间的安排，按开始时间排序。
+
+    必须按 tutor 过滤：否则 B 的机器人会收到 A 的课表。
+    """
     iso = day.isoformat()
     out: list[dict] = []
 
     rows = (
         db.query(models.Session, models.Student.name)
         .join(models.Student, models.Session.student_id == models.Student.id)
-        .filter(models.Session.date == iso)
+        .filter(models.Session.date == iso, models.Student.tutor_id == tutor.id)
         .all()
     )
     for sess, student_name in rows:
@@ -80,7 +84,7 @@ def items_on(db: Session, day: date) -> list[dict]:
             "notify15": bool(sess.notify_15min),
         })
 
-    for t in db.query(models.Trial).filter(models.Trial.date == iso).all():
+    for t in scoped(db, models.Trial, tutor).filter(models.Trial.date == iso).all():
         out.append({
             "kind": "trial", "id": t.id, "time": t.time or "",
             "durationMinutes": t.duration_minutes or 0,
@@ -88,7 +92,7 @@ def items_on(db: Session, day: date) -> list[dict]:
             "notify15": bool(t.notify_15min),
         })
 
-    for g in db.query(models.GroupClass).filter(models.GroupClass.date == iso).all():
+    for g in scoped(db, models.GroupClass, tutor).filter(models.GroupClass.date == iso).all():
         out.append({
             "kind": "group", "id": g.id, "time": g.time or "",
             "durationMinutes": g.duration_minutes or 0,
@@ -96,7 +100,7 @@ def items_on(db: Session, day: date) -> list[dict]:
             "notify15": bool(g.notify_15min),
         })
 
-    for e in db.query(models.ScheduleEvent).filter(models.ScheduleEvent.date == iso).all():
+    for e in scoped(db, models.ScheduleEvent, tutor).filter(models.ScheduleEvent.date == iso).all():
         out.append({
             "kind": "event", "id": e.id, "time": e.time or "",
             "durationMinutes": e.duration_minutes or 0,
@@ -173,22 +177,27 @@ def run_digest(db: Session, tutor: models.Tutor) -> dict:
         day, when = now.date(), "今日"
     else:
         day, when = now.date() + timedelta(days=1), "明日"
-    items = items_on(db, day)
+    items = items_on(db, day, tutor)
     result = send(cfg["webhookUrl"], build_digest(day, items, when))
     return {"date": day.isoformat(), "items": len(items), **result}
 
 
-def due_lead_reminders(db: Session, now: datetime) -> list[tuple[str, str]]:
-    """返回 [(去重键, markdown)]：开始时间正好落在 now+15min 那一分钟的安排。"""
+def due_lead_reminders(
+    db: Session, now: datetime, tutor: models.Tutor
+) -> list[tuple[str, str]]:
+    """返回 [(去重键, markdown)]：开始时间正好落在 now+15min 那一分钟的安排。
+
+    去重键带上 tutor.id —— 多租户下不同导师可能有同一分钟的安排。
+    """
     target = now + timedelta(minutes=LEAD_MINUTES)
     out: list[tuple[str, str]] = []
-    for it in items_on(db, target.date()):
+    for it in items_on(db, target.date(), tutor):
         if not it["notify15"] or not it["time"]:
             continue
         p = parse_hhmm(it["time"])
         if not p:
             continue
         if p[0] == target.hour and p[1] == target.minute:
-            key = f"{target.date().isoformat()}:{it['kind']}:{it['id']}"
+            key = f"{target.date().isoformat()}:{tutor.id}:{it['kind']}:{it['id']}"
             out.append((key, build_lead_reminder(it, target)))
     return out

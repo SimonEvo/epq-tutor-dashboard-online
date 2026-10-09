@@ -1,12 +1,18 @@
 import asyncio
 from contextlib import asynccontextmanager
+from pathlib import Path
+
+from alembic import command
+from alembic.config import Config
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
-from app.routers import auth, students, supervisors, config, reports, calendar, backup as backup_router, zoom, trials, workflow, ai, gantt, knowledge, schedule_events, group_classes, nag as nag_router, notify as notify_router, checklist
-from app.database import engine, SessionLocal
+from sqlalchemy import inspect
+from app.routers import auth, students, supervisors, config, reports, calendar, backup as backup_router, zoom, trials, workflow, ai, gantt, knowledge, schedule_events, group_classes, student_import, nag as nag_router, admin as admin_router, notify as notify_router, checklist
+from app.database import engine, SessionLocal, DATABASE_URL
 from app import models, nag, notify
 
+
+BACKEND_ROOT = Path(__file__).resolve().parent.parent
 
 # Check workflow scheduler this often. Inside the helper we still only create a
 # new pending row when 14 days have passed, so this just controls timeliness.
@@ -27,7 +33,9 @@ async def _backup_loop():
         try:
             db = SessionLocal()
             try:
-                backup_router.run_backup(db)
+                # 每个租户各备各的 —— 备份目录按 tutor_id 分子目录
+                for tutor in db.query(models.Tutor).all():
+                    backup_router.run_backup(db, tutor)
             finally:
                 db.close()
         except Exception:
@@ -40,7 +48,8 @@ async def _scheduler_loop():
         try:
             db = SessionLocal()
             try:
-                workflow.maybe_create_pending_analysis(db)
+                for tutor in db.query(models.Tutor).all():
+                    workflow.maybe_create_pending_analysis(db, tutor)
             finally:
                 db.close()
         except Exception:
@@ -54,36 +63,38 @@ async def _notify_loop():
     去重靠内存里的两个集合，所以重启后当分钟内可能重复推一次——单人自用，
     不值得为这个再加一张表。
     """
-    sent_digest_on = None
-    sent_leads: set[str] = set()
+    sent_digest_on: dict[str, object] = {}   # tutor_id -> date
+    sent_leads: set[str] = set()             # 键已含 tutor_id
     while True:
         try:
             now = nag.datetime.now(nag.CN_TZ)
             db = SessionLocal()
             try:
-                tutor = db.query(models.Tutor).first()
-                cfg = notify.settings_of(tutor) if tutor else None
-                if tutor and cfg and cfg["enabled"] and cfg["webhookUrl"]:
+                for tutor in db.query(models.Tutor).all():
+                    cfg = notify.settings_of(tutor)
+                    if not (cfg["enabled"] and cfg["webhookUrl"]):
+                        continue
                     # 每日汇总：设定时间后 10 分钟内触发，今天只发一次。
                     # 用窗口而不是「≥ 设定时间」——否则下午才打开开关、或者傍晚重启，
                     # 都会立刻补推一条早上的汇总。
                     hhmm = notify.parse_hhmm(cfg["digestTime"])
-                    if hhmm and sent_digest_on != now.date():
+                    if hhmm and sent_digest_on.get(tutor.id) != now.date():
                         delta = (now.hour * 60 + now.minute) - (hhmm[0] * 60 + hhmm[1])
                         if 0 <= delta < NOTIFY_DIGEST_WINDOW_MINUTES:
                             notify.run_digest(db, tutor)
-                            sent_digest_on = now.date()
+                            sent_digest_on[tutor.id] = now.date()
 
                     # 课前 15 分钟
-                    for key, content in notify.due_lead_reminders(db, now):
+                    for key, content in notify.due_lead_reminders(db, now, tutor):
                         if key in sent_leads:
                             continue
                         result = notify.send(cfg["webhookUrl"], content)
                         notify.log.info("课前提醒 %s -> %s", key, result)
                         sent_leads.add(key)
-                    # 集合只留今天的键，别无限涨
-                    today_prefix = now.date().isoformat()
-                    sent_leads = {k for k in sent_leads if k.startswith(today_prefix)}
+
+                # 集合只留今天的键，别无限涨
+                today_prefix = now.date().isoformat()
+                sent_leads = {k for k in sent_leads if k.startswith(today_prefix)}
             finally:
                 db.close()
         except Exception:
@@ -103,7 +114,8 @@ async def _nag_loop():
             if now.weekday() < 5 and now.hour == NAG_HOUR and last_sent_date != today:
                 db = SessionLocal()
                 try:
-                    nag.run_nag(db)
+                    for tutor in db.query(models.Tutor).all():
+                        nag.run_nag(db, tutor)
                 finally:
                     db.close()
                 last_sent_date = today
@@ -112,65 +124,45 @@ async def _nag_loop():
         await asyncio.sleep(NAG_CHECK_INTERVAL_SECONDS)
 
 
+BASELINE_REVISION = "0001_baseline"
+
+
+def _alembic_config() -> Config:
+    cfg = Config(str(BACKEND_ROOT / "alembic.ini"))
+    cfg.set_main_option("script_location", str(BACKEND_ROOT / "alembic"))
+    cfg.set_main_option("sqlalchemy.url", DATABASE_URL)
+    return cfg
+
+
+def run_migrations() -> None:
+    """启动时把库推到最新 schema。
+
+    取代原先 lifespan 里那串吞异常的裸 ALTER TABLE：迁移失败会直接让服务起不来，
+    而不是悄悄跳过、留下一个和代码对不上的库。
+
+    引入 Alembic 之前建立的库（生产库、各开发机上的旧 SQLite 文件）已经有全部表
+    但没有 alembic_version。对它们直接跑 upgrade 会因为 baseline 重建已存在的表
+    而失败，所以这里先自动 stamp 到 baseline 再 upgrade —— 否则"先部署、后 stamp"
+    的顺序一旦弄反，服务就起不来。
+
+    判据是"有 tutors 表但没有 alembic_version"：全新库两者都没有，走正常 upgrade。
+    """
+    cfg = _alembic_config()
+    tables = set(inspect(engine).get_table_names())
+    if "alembic_version" not in tables and "tutors" in tables:
+        command.stamp(cfg, BASELINE_REVISION)
+    command.upgrade(cfg, "head")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    models.Base.metadata.create_all(engine)
-    # Safe column migrations — no-op if column already exists
-    with engine.connect() as conn:
-        for stmt in [
-            "ALTER TABLE students ADD COLUMN topic_zh TEXT DEFAULT ''",
-            "ALTER TABLE sessions ADD COLUMN zoom_meeting_id VARCHAR(64)",
-            "ALTER TABLE sessions ADD COLUMN zoom_join_url TEXT",
-            "ALTER TABLE sessions ADD COLUMN zoom_password VARCHAR(64)",
-            "ALTER TABLE trials ADD COLUMN linked_student_id VARCHAR(64)",
-            "ALTER TABLE trials ADD COLUMN `time` VARCHAR(8)",
-            "ALTER TABLE trials ADD COLUMN duration_minutes INT",
-            "ALTER TABLE tutors ADD COLUMN default_round VARCHAR(64)",
-            "ALTER TABLE rounds ADD COLUMN is_archived BOOLEAN NOT NULL DEFAULT 0",
-            "ALTER TABLE students ADD COLUMN schedule_entries JSON",
-            "ALTER TABLE students ADD COLUMN ai_alias VARCHAR(128)",
-            "ALTER TABLE sessions ADD COLUMN report_extra_context TEXT",
-            "ALTER TABLE sessions ADD COLUMN feedback_sent BOOLEAN NOT NULL DEFAULT 0",
-            "ALTER TABLE sessions ADD COLUMN is_final_defense BOOLEAN NOT NULL DEFAULT 0",
-            "ALTER TABLE tutors ADD COLUMN kb_context_sources JSON",
-            "ALTER TABLE sessions ADD COLUMN tutor_attending BOOLEAN NOT NULL DEFAULT 0",
-            "ALTER TABLE tutors ADD COLUMN submission_checklist_template JSON",
-            "ALTER TABLE rounds ADD COLUMN deadline_normal VARCHAR(20)",
-            "ALTER TABLE rounds ADD COLUMN deadline_extended VARCHAR(20)",
-            "ALTER TABLE students ADD COLUMN submission_checklist JSON",
-            "ALTER TABLE students ADD COLUMN tii_checks JSON",
-            "ALTER TABLE students ADD COLUMN deadline_tier VARCHAR(16) DEFAULT 'normal'",
-            "ALTER TABLE students ADD COLUMN deadline_override VARCHAR(20)",
-            "ALTER TABLE students ADD COLUMN deadline_change_confirmed BOOLEAN NOT NULL DEFAULT 0",
-            "ALTER TABLE students ADD COLUMN wrapped_up_at DATETIME",
-            "ALTER TABLE students ADD COLUMN defense_confirmed BOOLEAN NOT NULL DEFAULT 0",
-            "ALTER TABLE schedule_events ADD COLUMN counts_as_overtime BOOLEAN NOT NULL DEFAULT 0",
-            "ALTER TABLE tutors ADD COLUMN notify_enabled BOOLEAN NOT NULL DEFAULT 0",
-            "ALTER TABLE tutors ADD COLUMN notify_webhook_url VARCHAR(512)",
-            "ALTER TABLE tutors ADD COLUMN notify_digest_mode VARCHAR(16) DEFAULT 'prev_evening'",
-            "ALTER TABLE tutors ADD COLUMN notify_digest_time VARCHAR(8) DEFAULT '21:00'",
-            "ALTER TABLE sessions ADD COLUMN notify_15min BOOLEAN NOT NULL DEFAULT 0",
-            "ALTER TABLE trials ADD COLUMN notify_15min BOOLEAN NOT NULL DEFAULT 0",
-            "ALTER TABLE schedule_events ADD COLUMN notify_15min BOOLEAN NOT NULL DEFAULT 0",
-            "ALTER TABLE group_classes ADD COLUMN notify_15min BOOLEAN NOT NULL DEFAULT 0",
-        ]:
-            try:
-                conn.execute(text(stmt))
-                conn.commit()
-            except Exception:
-                pass
-
-    # One-time data migrations (idempotent — no-op if already done)
-    with engine.connect() as conn:
-        for old, new in [("August 2026", "26春"), ("March 2026", "25秋")]:
-            conn.execute(text("UPDATE rounds SET name = :new WHERE name = :old"), {"new": new, "old": old})
-            conn.execute(text("UPDATE students SET submission_round = :new WHERE submission_round = :old"), {"new": new, "old": old})
-        conn.commit()
+    run_migrations()
 
     # Initial check at startup, then schedule recurring checks
     db = SessionLocal()
     try:
-        workflow.maybe_create_pending_analysis(db)
+        for tutor in db.query(models.Tutor).all():
+            workflow.maybe_create_pending_analysis(db, tutor)
     finally:
         db.close()
 
@@ -206,6 +198,9 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(admin_router.router)
+# 放在 students 之前：/api/students/import/* 比 /api/students/{student_id} 更具体
+app.include_router(student_import.router)
 app.include_router(students.router)
 app.include_router(supervisors.router)
 app.include_router(config.router)
