@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useStudentStore } from '@/stores/studentStore'
 import type { SessionRecord, SessionType, Student } from '@/types'
 import * as dataService from '@/lib/dataService'
-import { countsAsSaHour } from '@/lib/formatters'
+import { currentSaSessions } from '@/lib/formatters'
 
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
@@ -90,7 +90,7 @@ export default function NewSessionPage() {
 
       // Recompute SA hours from all SA sessions including this new one
       const allSessions = [...student.sessions, session]
-      const saCount = allSessions.filter(countsAsSaHour).length
+      const saCount = currentSaSessions({ ...student, sessions: allSessions }).length
 
       const updated: Student = {
         ...student,
@@ -106,7 +106,7 @@ export default function NewSessionPage() {
     }
   }
 
-  const saUsed = student.sessions.filter(countsAsSaHour).length
+  const saUsed = currentSaSessions(student).length
   const saRemaining = student.saHoursTotal - saUsed
 
   return (

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useStudentStore } from '@/stores/studentStore'
 import { getStudent, listSupervisors } from '@/lib/dataService'
-import { countsAsSaHour } from '@/lib/formatters'
+import { currentSaSessions } from '@/lib/formatters'
 import { parseZoomRecap, type ParsedFields } from '@/components/ZoomImportDialog'
 import type { SessionRecord, Student } from '@/types'
 
@@ -100,7 +100,7 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
         tutorAttending: session.type === 'SA_MEETING' ? tutorAttending : false,
       }
       const updatedSessions = full.sessions.map(s => s.id === sessionId ? updatedSession : s)
-      const saCount = updatedSessions.filter(countsAsSaHour).length
+      const saCount = currentSaSessions({ ...full, sessions: updatedSessions }).length
       await saveStudent({ ...full, sessions: updatedSessions, saHoursUsed: saCount })
       onSaved()
       onClose()
@@ -144,7 +144,7 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
         reportGeneratedAt: undefined,
       }
       const updatedSessions = full.sessions.map(s => s.id === sessionId ? updatedSession : s)
-      const saCount = updatedSessions.filter(countsAsSaHour).length
+      const saCount = currentSaSessions({ ...full, sessions: updatedSessions }).length
       await saveStudent({ ...full, sessions: updatedSessions, saHoursUsed: saCount })
       navigate(`/students/${studentId}/session/${sessionId}/report`)
     } catch (e) {

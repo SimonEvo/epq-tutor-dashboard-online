@@ -60,6 +60,7 @@ class SessionSchema(BaseModel):
     isFinalDefense: bool = False
     tutorAttending: bool = False
     notify15Min: bool = False
+    attempt: Optional[int] = None   # 第几次提交；不带 = 归到学生当前这一次（新建课不用管它）
     zoomMeetingId: Optional[str] = None
     zoomJoinUrl: Optional[str] = None
     zoomPassword: Optional[str] = None
@@ -122,6 +123,10 @@ class StudentSchema(BaseModel):
     deadlineNeedsConfirm: bool = False
     wrappedUpAt: Optional[str] = None
     defenseConfirmed: bool = False
+    # ── resit（read-only here; written via /resit）──────────────────────────
+    currentAttempt: int = 1
+    previousRounds: list[str] = []
+    previousAttempts: list[dict] = []
     createdAt: str = ""
     updatedAt: str = ""
 
@@ -138,6 +143,7 @@ class SessionSummarySchema(BaseModel):
     isFinalDefense: bool = False
     tutorAttending: bool = False
     notify15Min: bool = False
+    attempt: int = 1
 
 
 class StudentSummarySchema(BaseModel):
@@ -177,6 +183,9 @@ class StudentSummarySchema(BaseModel):
     deadlineNeedsConfirm: bool = False
     wrappedUpAt: Optional[str] = None
     defenseConfirmed: bool = False
+    # ── resit ────────────────────────────────────────────────────────────────
+    currentAttempt: int = 1
+    previousRounds: list[str] = []   # 之前各次提交所在轮次，学生在那些轮次里也显示
 
 
 # ── Tags ──────────────────────────────────────────────────────────────────────

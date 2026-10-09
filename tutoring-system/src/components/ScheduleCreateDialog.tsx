@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useStudentStore } from '@/stores/studentStore'
 import { getStudent, createScheduleEvent, createTrial, createGroupClass } from '@/lib/dataService'
-import { countsAsSaHour } from '@/lib/formatters'
+import { currentSaSessions } from '@/lib/formatters'
 import StudentPicker from '@/components/StudentPicker'
 import type { GroupClass, ScheduleEvent, SessionRecord, SessionType, Student, Supervisor, Trial } from '@/types'
 
@@ -182,7 +182,7 @@ export default function ScheduleCreateDialog({ students, supervisors, prefill, o
         createdAt: new Date().toISOString(),
       }
       const allSessions = [...full.sessions, session]
-      const saCount = allSessions.filter(countsAsSaHour).length
+      const saCount = currentSaSessions({ ...full, sessions: allSessions }).length
       await saveStudent({ ...full, sessions: allSessions, saHoursUsed: saCount })
       onSaved()
       onClose()

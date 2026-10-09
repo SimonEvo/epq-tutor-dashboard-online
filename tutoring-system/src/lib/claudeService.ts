@@ -2,7 +2,7 @@ import { aiProxy } from './dataService'
 import { getSettings } from './settings'   // 报告模板仍是每人本地设置
 import { EPQ_MILESTONES } from '@/config'
 import type { Student, SessionRecord, NagScan } from '@/types'
-import { isSessionStarted, countsAsSaHour } from './formatters'
+import { isSessionStarted, countsAsSaHour, inCurrentAttempt } from './formatters'
 
 async function callAI(prompt: string, options?: { maxTokens?: number }): Promise<string> {
   // 凭据在服务端（机构共享，见 epq-tutor-backend/app/ai_config.py）。
@@ -219,7 +219,7 @@ export async function generateSessionReport(student: Student, session: SessionRe
   const { sessionReportTemplate } = getSettings()
   const today = new Date().toISOString().slice(0, 10)
   const pastSaCount = student.sessions.filter(
-    s => countsAsSaHour(s) && s.date <= session.date
+    s => countsAsSaHour(s) && inCurrentAttempt(s, student) && s.date <= session.date
   ).length
   const saRemaining = student.saHoursTotal - pastSaCount
   const typeLabel = session.type === 'SA_MEETING' ? (session.isFinalDefense ? 'SA Meeting · 最终答辩' : 'SA Meeting（学术督导课）')
@@ -261,7 +261,7 @@ export async function generateProgressReport(student: Student): Promise<string> 
   const today = new Date().toISOString().slice(0, 10)
 
   const pastSaCount = student.sessions.filter(
-    s => countsAsSaHour(s) && isSessionStarted(s)
+    s => countsAsSaHour(s) && inCurrentAttempt(s, student) && isSessionStarted(s)
   ).length
   const saRemaining = student.saHoursTotal - pastSaCount
 

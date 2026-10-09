@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, selectinload
 from datetime import datetime, timezone
 from app.database import get_db
-from app import models, rounds
+from app import models, rounds, resit
 from app.auth import get_current_tutor
 from app.scoping import scoped
 from app.schemas import StudentSchema, StudentSummarySchema, SessionSummarySchema
@@ -34,6 +34,7 @@ def _session_to_dict(s: models.Session) -> dict:
         "isFinalDefense": s.is_final_defense or False,
         "tutorAttending": s.tutor_attending or False,
         "notify15Min": s.notify_15min or False,
+        "attempt": s.attempt or 1,
         "zoomMeetingId": s.zoom_meeting_id,
         "zoomJoinUrl": s.zoom_join_url,
         "zoomPassword": s.zoom_password,
@@ -68,6 +69,8 @@ def _submission_fields(s: models.Student, deadlines: dict) -> dict:
         deadlineNeedsConfirm=submission.deadline_needs_confirm_warning(s),
         wrappedUpAt=s.wrapped_up_at.isoformat() if s.wrapped_up_at else None,
         defenseConfirmed=bool(s.defense_confirmed),
+        currentAttempt=resit.current_attempt(s),
+        previousRounds=resit.previous_rounds(s),
     )
 
 
@@ -97,6 +100,7 @@ def _to_full_schema(s: models.Student, deadlines: dict | None = None) -> Student
         homeworkEntries=[_homework_to_dict(h) for h in s.homework_entries],
         generatedProgressReport=s.generated_progress_report,
         progressReportGeneratedAt=s.progress_report_generated_at,
+        previousAttempts=list(s.previous_attempts or []),
         createdAt=s.created_at.isoformat() if s.created_at else "",
         updatedAt=s.updated_at.isoformat() if s.updated_at else "",
         **_submission_fields(s, deadlines or {}),
@@ -118,7 +122,7 @@ def _to_summary(s: models.Student, deadlines: dict | None = None) -> StudentSumm
         isOneYear=bool(s.is_one_year),
         supervisorId=s.supervisor_id,
         nameEn=s.name_en, overview=s.overview,
-        sessions=[SessionSummarySchema(id=x.id, type=x.type, date=x.date, time=x.time, durationMinutes=x.duration_minutes, feedbackSent=x.feedback_sent or False, isFinalDefense=x.is_final_defense or False, tutorAttending=x.tutor_attending or False, notify15Min=x.notify_15min or False) for x in s.sessions],
+        sessions=[SessionSummarySchema(id=x.id, type=x.type, date=x.date, time=x.time, durationMinutes=x.duration_minutes, feedbackSent=x.feedback_sent or False, isFinalDefense=x.is_final_defense or False, tutorAttending=x.tutor_attending or False, notify15Min=x.notify_15min or False, attempt=x.attempt or 1) for x in s.sessions],
         availabilityNote=s.availability_note or "", briefNote=s.brief_note or "",
         latestScheduleEntry=(s.schedule_entries or [None])[0],
         lastSessionDate=last.date if last else None,
@@ -291,7 +295,7 @@ def _upsert_student(
     s.contact = data.contact
     s.supervisor_id = _checked_supervisor_id(db, tutor, data.supervisorId)
     s.topic = data.topic; s.topic_zh = data.topicZh; s.overview = data.overview
-    s.sa_hours_total = data.saHoursTotal; s.sa_hours_used = data.saHoursUsed
+    s.sa_hours_total = data.saHoursTotal
     s.next_sa_session = data.nextSaSession; s.next_ta_session = data.nextTaSession
     s.next_theory_session = data.nextTheorySession
     s.availability_note = data.availabilityNote; s.brief_note = data.briefNote
@@ -313,8 +317,10 @@ def _upsert_student(
         log_action(db, tutor, "delete", "session", removed, {"studentId": s.id})
 
     db.query(models.Session).filter(models.Session.student_id == s.id).delete()
+    attempt_now = resit.current_attempt(s)
+    new_sessions = []
     for sd in (data.sessions or []):
-        db.add(models.Session(
+        new_sessions.append(models.Session(
             id=sd.id, student_id=s.id, type=sd.type, date=sd.date,
             time=sd.time, duration_minutes=sd.durationMinutes, title=sd.title,
             summary=sd.summary, homework=sd.homework, transcript=sd.transcript,
@@ -325,9 +331,15 @@ def _upsert_student(
             is_final_defense=sd.isFinalDefense or False,
             tutor_attending=sd.tutorAttending or False,
             notify_15min=sd.notify15Min or False,
+            # 没带 attempt 的是新建的课 → 归到当前这次提交；越界的值收回到合法范围
+            attempt=min(max(sd.attempt or attempt_now, 1), attempt_now),
             zoom_meeting_id=sd.zoomMeetingId, zoom_join_url=sd.zoomJoinUrl, zoom_password=sd.zoomPassword,
             created_at=datetime.fromisoformat(sd.createdAt) if sd.createdAt else datetime.now(timezone.utc),
         ))
+    db.add_all(new_sessions)
+    # 服务端按当前这次提交重算，不信前端传来的值 —— 前端各个建课入口
+    # 都是数全部 SA 课，resit 之后会把第一次的课也算进来
+    s.sa_hours_used = resit.sa_hours_used(s, new_sessions)
 
     # milestones — log status transitions
     for mid, new_status in (data.milestones or {}).items():
@@ -572,3 +584,50 @@ def patch_defense_confirmed(
     student.defense_confirmed = bool(body.get("confirmed"))
     db.commit()
     return {"ok": True, "defenseConfirmed": student.defense_confirmed}
+
+
+# ── Resit（二次提交）—— 见 app/resit.py / ADR 0007 ───────────────────────────────
+
+@router.post("/{student_id}/resit", response_model=StudentSchema)
+def start_resit(
+    student_id: str,
+    body: dict,
+    db: Session = Depends(get_db),
+    tutor: models.Tutor = Depends(get_current_tutor),
+):
+    """{round, saHoursTotal}。当前这次提交存成快照，学生进入 resit 轮次从头开始。"""
+    student = _load_student(db, student_id, tutor.id)
+    new_round = rounds.normalize_round(str(body.get("round") or "").strip())
+    if not new_round:
+        raise HTTPException(status_code=422, detail="请选择 resit 轮次")
+    if new_round == student.submission_round:
+        raise HTTPException(status_code=422, detail="resit 轮次不能和当前提交轮次相同")
+    try:
+        sa_total = int(body.get("saHoursTotal", 0))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=422, detail="课时额度必须是整数")
+    if sa_total < 0:
+        raise HTTPException(status_code=422, detail="课时额度不能为负")
+
+    from_round = student.submission_round
+    resit.start(db, student, new_round, sa_total)
+    log_action(db, tutor, "update", "student", student.id,
+               {"resit": "start", "from": from_round, "to": new_round})
+    db.commit()
+    return _to_full_schema(_load_student(db, student.id, tutor.id), submission.round_deadlines(db))
+
+
+@router.delete("/{student_id}/resit", response_model=StudentSchema)
+def undo_resit(
+    student_id: str,
+    db: Session = Depends(get_db),
+    tutor: models.Tutor = Depends(get_current_tutor),
+):
+    """撤销最近一次 resit：快照恢复，resit 期间的课并回上一次提交。"""
+    student = _load_student(db, student_id, tutor.id)
+    if not student.previous_attempts:
+        raise HTTPException(status_code=409, detail="该学生没有进行中的 resit")
+    resit.undo(db, student)
+    log_action(db, tutor, "update", "student", student.id, {"resit": "undo"})
+    db.commit()
+    return _to_full_schema(_load_student(db, student.id, tutor.id), submission.round_deadlines(db))

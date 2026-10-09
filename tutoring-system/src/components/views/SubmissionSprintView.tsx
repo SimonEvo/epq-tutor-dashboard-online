@@ -6,10 +6,14 @@ import {
   TII_LIMIT, activeTemplateItems, compareForSprint, finalDefenseLabel, formatCountdown,
   formatDeadline, getWrappedOpen, isOverdue, isTicked, pendingCount, setWrappedOpen,
 } from '@/lib/submission'
+import { isResit, submittedInRound } from '@/lib/formatters'
+import ResitBadge from '@/components/ResitBadge'
 import type { ChecklistCustomItem, ChecklistTemplateItem, Student, TiiCheck } from '@/types'
 
 interface Props {
   students: Student[]
+  /** Dashboard 当前选中的轮次；空 = 全部。用来认出「在这一轮已经交过、转去 resit」的学生 */
+  round?: string
 }
 
 // 列宽——表头与行共用，避免两边对不齐
@@ -40,7 +44,7 @@ function shortDate(d?: string): string {
  * 「提交」视图 —— 学期末逐个学生核对交付动作。
  * 列 = 答辩确认 + 当前模板项（活定义）+ 表13证据 + Tii + 结项。都在本视图里直接改，走窄端点。
  */
-export default function SubmissionSprintView({ students }: Props) {
+export default function SubmissionSprintView({ students, round = '' }: Props) {
   const navigate = useNavigate()
   const {
     toggleChecklistItem, setWrappedUp, saveTiiChecks, saveChecklistCustomItems, setDefenseConfirmed,
@@ -70,8 +74,12 @@ export default function SubmissionSprintView({ students }: Props) {
 
   const items = activeTemplateItems(template)
   const sorted = [...students].sort(compareForSprint)
-  const active = sorted.filter(s => !s.wrappedUpAt)
-  const wrapped = sorted.filter(s => !!s.wrappedUpAt)
+  // 本轮已交、转去 resit 的学生：这一轮对他们来说已经结束，跟结项的人放一起
+  const resitAway = round ? sorted.filter(s => submittedInRound(s, round)) : []
+  const current = sorted.filter(s => !resitAway.includes(s))
+  const active = current.filter(s => !s.wrappedUpAt)
+  const wrapped = current.filter(s => !!s.wrappedUpAt)
+  const wrappedCount = wrapped.length + resitAway.length
 
   // 弹窗 / 下拉里始终读最新的学生对象
   const tiiStudent = students.find(s => s.id === tiiPanel?.id) ?? null
@@ -79,7 +87,7 @@ export default function SubmissionSprintView({ students }: Props) {
 
   // ddl 待定的学期 → 顶部提示条
   const pendingRounds = Array.from(new Set(
-    students.filter(s => !s.effectiveDeadline).map(s => s.submissionRound).filter(Boolean),
+    current.filter(s => !s.effectiveDeadline).map(s => s.submissionRound).filter(Boolean),
   )) as string[]
 
   const handleTick = async (student: Student, itemId: string) => {
@@ -164,6 +172,7 @@ export default function SubmissionSprintView({ students }: Props) {
         >
           <div className="text-sm font-medium text-gray-800 truncate group-hover:text-[var(--primary)]">
             {s.name}
+            {isResit(s) && <ResitBadge className="ml-1" />}
             {s.deadlineNeedsConfirm && <span className="ml-1 text-amber-500" title="运营组未确认">⚠</span>}
           </div>
           {s.overview && <div className="text-xs text-gray-400 truncate">{s.overview}</div>}
@@ -251,6 +260,19 @@ export default function SubmissionSprintView({ students }: Props) {
     )
   }
 
+  // 这一行只是告诉你「人去哪了」—— 这里的格子都属于他新一轮的提交，不在这儿改
+  const renderResitAwayRow = (s: Student) => (
+    <div key={s.id} className="flex items-center gap-3 px-3 py-2 border-b border-gray-100 hover:bg-gray-50 opacity-60">
+      <button
+        onClick={() => navigate(`/students/${s.id}`)}
+        className={`${COL.name} shrink-0 text-left text-sm font-medium text-gray-800 truncate hover:text-[var(--primary)]`}
+      >
+        {s.name}
+      </button>
+      <span className="text-xs text-gray-500">已提交 · Resit 至 {s.submissionRound}</span>
+    </div>
+  )
+
   return (
     <>
       <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
@@ -281,11 +303,11 @@ export default function SubmissionSprintView({ students }: Props) {
 
           {active.map(renderRow)}
 
-          {active.length === 0 && wrapped.length === 0 && (
+          {active.length === 0 && wrappedCount === 0 && (
             <div className="py-12 text-center text-gray-400 text-sm">没有学生</div>
           )}
 
-          {wrapped.length > 0 && (
+          {wrappedCount > 0 && (
             <>
               <div
                 className="flex bg-gray-50 border-t border-gray-200 cursor-pointer select-none"
@@ -293,10 +315,11 @@ export default function SubmissionSprintView({ students }: Props) {
               >
                 <div className="sticky left-0 flex items-center gap-2 px-3 py-2 bg-gray-50">
                   <span className="text-xs text-gray-500">{showWrapped ? '▾' : '▸'}</span>
-                  <span className="text-xs text-gray-500">已结项 ({wrapped.length})</span>
+                  <span className="text-xs text-gray-500">已结项 ({wrappedCount})</span>
                 </div>
               </div>
               {showWrapped && wrapped.map(renderRow)}
+              {showWrapped && resitAway.map(renderResitAwayRow)}
             </>
           )}
         </div>

@@ -1,4 +1,5 @@
 import type { Student, ChecklistTemplateItem } from '@/types'
+import { inCurrentAttempt } from './formatters'
 
 /** 第 3 次起标红警示（不阻断） */
 export const TII_LIMIT = 3
@@ -72,8 +73,9 @@ export function compareForSprint(a: Student, b: Student): number {
 
 /** 最终答辩 session —— 取 isFinalDefense 的（多条取最晚一条）；没有 → undefined */
 export function finalDefenseSession(student: Student) {
+  // resit 之后，第一次提交的答辩已经过去了，只看当前这一次
   return (student.sessions ?? [])
-    .filter(x => x.isFinalDefense)
+    .filter(x => x.isFinalDefense && inCurrentAttempt(x, student))
     .sort((a, b) => `${a.date} ${a.time ?? ''}`.localeCompare(`${b.date} ${b.time ?? ''}`))
     .pop()
 }

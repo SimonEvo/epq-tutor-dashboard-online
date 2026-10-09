@@ -79,10 +79,11 @@ cd /opt/epq-tutor-backend && .venv/bin/python migrate_from_local.py --data-dir /
 - **P1 租户隔离** — 九张全局表加 `tutor_id`，`app/scoping.py` 收口，13 个 router 改造，越权回归测试自动枚举端点。过程中修掉 7 个既有漏洞（含 `save_student` 跨租户覆写、`/api/calendar.ics` 公开无鉴权、nag/notify 全局扫表、备份互覆盖）。
 - **学期拆分 + Excel 导入** — `registration_round` / `is_one_year`，一年期自动推导；Excel 表头自动识别 + diff 确认导入。
 - **P2 角色与管理员后台** — `token_version` 让停用/改密当场作废旧令牌；`/api/admin/tutors` 只给元数据、无代登录；前端 `/admin` 页面 + 按角色隐藏轮次控件。
+- **Resit（二次提交）** — 当前这次提交存成只读快照（`students.previous_attempts`），学生在新轮次从头来；`sessions.attempt` 让 SA 额度按次分开算，`sa_hours_used` 改由服务端保存时重算。学生在两个轮次都显示。迁移 `0006_resit`，见 ADR 0007。
 - **P3 内测运营配套** — AI 凭据收到服务端（机构共享一份，明文不下发），全部 AI 流量改经后端，按人记用量；新账号首屏引导 + 隐私说明。
 
 任务书：`docs/projects/multi-tenant-internal-beta.md`、`docs/projects/term-split-and-student-import.md`
-决策：`docs/adr/0004-multi-tenant-internal-beta.md`、`0005-registration-vs-submission-round.md`、`0006-org-shared-ai-credentials.md`
+决策：`docs/adr/0004-multi-tenant-internal-beta.md`、`0005-registration-vs-submission-round.md`、`0006-org-shared-ai-credentials.md`、`0007-resit-as-new-attempt.md`
 
 ### Next Up
 - **上线** — 四个阶段全部完成，仍在分支上未部署。首次部署前建议先给服务器 DB 做文件级快照；**上线后 admin 必须去设置页填一次 AI key**，否则所有人的 AI 功能报 503。

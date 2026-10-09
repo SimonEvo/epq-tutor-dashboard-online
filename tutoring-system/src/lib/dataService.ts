@@ -234,6 +234,19 @@ export async function patchStudentWrapUp(studentId: string, wrappedUp: boolean):
   return data.wrappedUpAt
 }
 
+/** 开始 resit：当前这次提交存成快照，学生进入 resit 轮次从头开始 */
+export async function startResit(studentId: string, round: string, saHoursTotal: number): Promise<Student> {
+  return api<Student>(`/students/${studentId}/resit`, {
+    method: 'POST',
+    body: JSON.stringify({ round, saHoursTotal }),
+  })
+}
+
+/** 撤销最近一次 resit：快照恢复，resit 期间的课并回上一次提交 */
+export async function undoResit(studentId: string): Promise<Student> {
+  return api<Student>(`/students/${studentId}/resit`, { method: 'DELETE' })
+}
+
 export async function patchTiiChecks(studentId: string, tiiChecks: TiiCheck[]): Promise<TiiCheck[]> {
   const data = await api<{ tiiChecks: TiiCheck[] }>(`/students/${studentId}/tii-checks`, {
     method: 'PATCH',

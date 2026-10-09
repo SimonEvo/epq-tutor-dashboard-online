@@ -93,7 +93,7 @@ export default function MonthlyMeetingPage() {
   }, [round, year, month])
 
   const activeStudents = round
-    ? students.filter(s => s.submissionRound === round)
+    ? students.filter(s => s.submissionRound === round)   // resit 学生只在当前轮次开会，原轮次已交
     : students
 
   const prevMonth = () => {

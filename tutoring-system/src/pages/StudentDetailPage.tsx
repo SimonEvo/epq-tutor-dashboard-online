@@ -11,7 +11,9 @@ import ZoomImportDialog from '@/components/ZoomImportDialog'
 import ZoomScheduleDialog from '@/components/ZoomScheduleDialog'
 import KnowledgeBaseTab from '@/components/KnowledgeBase/KnowledgeBaseTab'
 import SubmissionCard from '@/components/SubmissionCard'
-import { isSessionStarted, formatHours, countsAsSaHour } from '@/lib/formatters'
+import ResitSection from '@/components/ResitSection'
+import ResitBadge from '@/components/ResitBadge'
+import { isSessionStarted, formatHours, countsAsSaHour, inCurrentAttempt, currentSaSessions, isResit } from '@/lib/formatters'
 import * as dataService from '@/lib/dataService'
 
 const SESSION_LABEL: Record<SessionType, string> = {
@@ -316,7 +318,7 @@ export default function StudentDetailPage() {
     const updated: Student = {
       ...student,
       sessions: updatedSessions,
-      saHoursUsed: updatedSessions.filter(countsAsSaHour).length,
+      saHoursUsed: currentSaSessions({ ...student, sessions: updatedSessions }).length,
     }
     setStudent(updated)
     setConfirmDelete(null)
@@ -505,9 +507,9 @@ export default function StudentDetailPage() {
     : sortedSessions.filter(s => s.type === sessionFilter)
 
   // SA hours remaining: count only past sessions, no intermediate rounding (let formatHours handle precision)
-  const saUsed = student.sessions.filter(s => countsAsSaHour(s) && isSessionStarted(s)).length
+  const saUsed = student.sessions.filter(s => countsAsSaHour(s) && inCurrentAttempt(s, student) && isSessionStarted(s)).length
   const saRemaining = student.saHoursTotal - saUsed
-  const saTotalMins = student.sessions.filter(s => countsAsSaHour(s) && isSessionStarted(s)).reduce((s, x) => s + x.durationMinutes, 0)
+  const saTotalMins = student.sessions.filter(s => countsAsSaHour(s) && inCurrentAttempt(s, student) && isSessionStarted(s)).reduce((s, x) => s + x.durationMinutes, 0)
   const saRemainingMins = student.saHoursTotal * 60 - saTotalMins
   const supervisor = supervisors.find(s => s.id === student.supervisorId)
 
@@ -589,6 +591,7 @@ export default function StudentDetailPage() {
           <h1 className="text-2xl font-semibold text-gray-900">
             {student.name}
             {student.nameEn && <span className="text-gray-400 font-normal text-lg ml-2">{student.nameEn}</span>}
+            {isResit(student) && <ResitBadge className="ml-2" />}
             {student.overview && <span className="ml-3 text-sm font-semibold text-[var(--primary)]">{student.overview}</span>}
           </h1>
           <p className="text-gray-500 text-sm mt-0.5 max-w-xl italic">{student.topic}</p>
@@ -842,6 +845,14 @@ export default function StudentDetailPage() {
                     {!isSessionStarted(session) && (
                       <span className="text-xs font-medium px-2 py-0.5 rounded-full shrink-0 bg-sky-50 text-sky-500 border border-sky-200">
                         未开始
+                      </span>
+                    )}
+                    {!inCurrentAttempt(session, student) && (
+                      <span
+                        title="属于之前那次提交，不计入当前 SA 额度"
+                        className="text-xs px-2 py-0.5 rounded-full shrink-0 bg-gray-50 text-gray-400 border border-gray-200"
+                      >
+                        第 {session.attempt} 次提交
                       </span>
                     )}
                     <span className="text-sm font-medium text-gray-800 truncate">
@@ -1133,6 +1144,7 @@ export default function StudentDetailPage() {
         student={student}
         onChange={patch => setStudent(prev => (prev ? { ...prev, ...patch } : prev))}
       />
+      <ResitSection student={student} onReplace={setStudent} />
 
       {/* Student info table */}
       <div className="bg-white rounded-xl border border-gray-200 mb-5 overflow-hidden">
@@ -1167,7 +1179,11 @@ export default function StudentDetailPage() {
             <InfoRow label="School" value={student.school} />
             <InfoRow label="Current Grade" value={student.currentGrade} hint="Year 12 = final highschool year" />
             <InfoRow label="University Enrollment" value={student.universityEnrollment} />
-            <InfoRow label="Submission Round" value={student.submissionRound} />
+            <InfoRow
+              label="Submission Round"
+              value={student.submissionRound}
+              hint={student.previousRounds?.length ? `Resit，之前提交于 ${student.previousRounds.join(' / ')}` : undefined}
+            />
             <InfoRow label="理论课班期" value={student.taughtElementType} />
             <InfoRow label="University Aspiration" value={student.universityAspiration} />
             <InfoRow label="Contact" value={student.contact} />

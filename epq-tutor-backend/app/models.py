@@ -88,6 +88,8 @@ class Student(Base):
     deadline_change_confirmed = Column(Boolean, default=False, nullable=False)
     wrapped_up_at = Column(DateTime, nullable=True)
     defense_confirmed = Column(Boolean, default=False, nullable=False)  # 最终答辩时间已跟学生确认
+    # resit：之前各次提交的只读快照（app/resit.py）。只由 resit 端点写，save_student 不碰
+    previous_attempts = Column(JSON, nullable=True)
     generated_progress_report = Column(Text)
     progress_report_generated_at = Column(String(32))
     created_at = Column(DateTime, default=now_utc)
@@ -123,6 +125,7 @@ class Session(Base):
     is_final_defense = Column(Boolean, nullable=False, default=False)  # 标记为最终答辩的特殊 SA 会议（不计 SA 课时）
     tutor_attending = Column(Boolean, nullable=False, default=False)  # 英方SA会议导师是否出席
     notify_15min = Column(Boolean, nullable=False, default=False)     # 课前 15 分钟 webhook 提醒
+    attempt = Column(Integer, nullable=False, default=1)  # 第几次提交（resit = 2），SA 额度按次分开算
     zoom_meeting_id = Column(String(64))
     zoom_join_url = Column(Text)
     zoom_password = Column(String(64))

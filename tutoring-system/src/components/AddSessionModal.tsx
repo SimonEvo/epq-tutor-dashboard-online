@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useStudentStore } from '@/stores/studentStore'
 import { getStudent } from '@/lib/dataService'
-import { countsAsSaHour } from '@/lib/formatters'
+import { currentSaSessions } from '@/lib/formatters'
 import type { SessionRecord, SessionType, Student } from '@/types'
 
 function generateId() {
@@ -72,7 +72,7 @@ export default function AddSessionModal({ student, onClose, onSaved }: Props) {
       // (dashboard only loads summary which has empty arrays)
       const full = await getStudent(student.id)
       const allSessions = [...full.sessions, session]
-      const saCount = allSessions.filter(countsAsSaHour).length
+      const saCount = currentSaSessions({ ...full, sessions: allSessions }).length
       await saveStudent({ ...full, sessions: allSessions, saHoursUsed: saCount })
       onSaved()
       onClose()

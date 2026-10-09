@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import type { Student, Supervisor, GanttProject, GanttTask, SessionRecord } from '@/types'
 import { getGanttProject, peekGanttProject } from '@/lib/dataService'
 import { getWrappedOpen, setWrappedOpen } from '@/lib/submission'
+import { isResit, submittedInRound } from '@/lib/formatters'
+import ResitBadge from '@/components/ResitBadge'
 import AddSessionModal from '@/components/AddSessionModal'
 import QuickSessionEditPopover from '@/components/QuickSessionEditPopover'
 import { printGantt } from '@/lib/ganttPrint'
@@ -31,6 +33,7 @@ interface Props {
   allStudents: Student[]   // 全部学生，仅用于计算稳定的时间轴范围（切 round 时轴不变）
   supervisors: Supervisor[]
   roundLabel: string       // 当前届过滤，导出 PDF 的标题里要写
+  round?: string           // 当前选中的轮次（空 = 全部）；用来认出本轮已交、转去 resit 的学生
 }
 
 function pad(n: number) { return String(n).padStart(2, '0') }
@@ -54,7 +57,7 @@ interface TooltipState { text: string; x: number; y: number }
 
 const MONTHS = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月']
 
-export default function GanttView({ students, allStudents, supervisors, roundLabel }: Props) {
+export default function GanttView({ students, allStudents, supervisors, roundLabel, round = '' }: Props) {
   const supervisorById = useMemo(
     () => new Map(supervisors.map(sv => [sv.id, sv])),
     [supervisors]
@@ -185,8 +188,10 @@ export default function GanttView({ students, allStudents, supervisors, roundLab
   }, [])
 
   // ── Section name → task lookup ───────────────────────────────────────────
-  const activeStudents = students.filter(s => !s.wrappedUpAt)
-  const wrappedStudents = students.filter(s => !!s.wrappedUpAt)
+  // 本轮已交、转去 resit 的学生在这一轮里算结束了，跟结项的人一起收起来
+  const doneHere = (s: Student) => !!s.wrappedUpAt || (!!round && submittedInRound(s, round))
+  const activeStudents = students.filter(s => !doneHere(s))
+  const wrappedStudents = students.filter(doneHere)
 
   const sectionIdByName = useMemo(
     () => new Map((project?.data?.sections ?? []).map(s => [s.name, s.id])),
@@ -236,8 +241,13 @@ export default function GanttView({ students, allStudents, supervisors, roundLab
                   className="sticky left-0 w-40 shrink-0 px-3 py-2 flex flex-col justify-center bg-white group-hover:bg-gray-50 border-r border-gray-100 z-30"
                   style={{ minHeight: rowH }}
                 >
-                  <span className="text-sm font-medium text-gray-800 truncate">{s.name}</span>
-                  {s.overview && <span className="text-xs text-gray-400 truncate">{s.overview}</span>}
+                  <span className="text-sm font-medium text-gray-800 truncate">
+                    {s.name}
+                    {isResit(s) && !(round && submittedInRound(s, round)) && <ResitBadge className="ml-1" />}
+                  </span>
+                  {round && submittedInRound(s, round)
+                    ? <span className="text-xs text-gray-400 truncate">已提交 · Resit 至 {s.submissionRound}</span>
+                    : s.overview && <span className="text-xs text-gray-400 truncate">{s.overview}</span>}
 
                   {/* Hover: + Session */}
                   <div
