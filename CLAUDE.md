@@ -72,7 +72,9 @@ cd /opt/epq-tutor-backend && .venv/bin/python migrate_from_local.py --data-dir /
 
 ## 当前状态
 
-> 以下工作都在分支 `feat/alembic-baseline` 上，**尚未提交、未部署**。
+> 以下工作都在分支 `feat/alembic-baseline` 上，已提交，**未部署、未推远端**。
+> 该分支已合入 main 的 Resit（2026-10-10），可直接合回 main。
+> 生产目前跑的是 main：Resit 的 ALTER 版已上线（`previous_attempts` / `attempt` 列已在库里），迁移 `0006_resit` 写成幂等，就是为这种「main 先上」的顺序准备的——已用真实生产库副本验证过。
 
 ### 已完成（本分支）
 - **P0 迁移框架** — Alembic + SQLite WAL。删掉 `main.py` 里 35 条吞异常的裸 ALTER，改为启动时跑迁移；前-Alembic 的旧库自动 stamp。**不迁 MySQL**（生产 ECS 882 MB 内存，MySQL 当初就是被这个逼退的）。
