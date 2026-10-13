@@ -97,6 +97,10 @@ interface Props {
 // deploy.py 在 build 前注入；本地 dev 没有，显示「本地开发」
 const BUILD_TIME = import.meta.env.VITE_BUILD_TIME || '本地开发'
 const BUILD_SIG = import.meta.env.VITE_BUILD_SIG || 'dev build'
+// 本地 dev 没注入就不显示这一行
+const BUILD_BRANCH = import.meta.env.VITE_BUILD_BRANCH || ''
+// 线上跑的不是 main 时标黄——把功能分支部署上去通常是该察觉的事
+const BRANCH_IS_MAIN = BUILD_BRANCH === 'main'
 
 export default function AppSidebar({ onAiClick, onQuickCaptureClick }: Props) {
   const isAdmin = useAuthStore(s => s.role) === 'admin'
@@ -241,6 +245,14 @@ export default function AppSidebar({ onAiClick, onQuickCaptureClick }: Props) {
               <div className="px-2 mt-2 leading-tight">
                 <p className="text-[10px] text-gray-400">部署 {BUILD_TIME}</p>
                 <p className="text-[10px] text-gray-300 truncate" title={BUILD_SIG}>{BUILD_SIG}</p>
+                {BUILD_BRANCH && (
+                  <p
+                    className={`text-[10px] truncate ${BRANCH_IS_MAIN ? 'text-gray-300' : 'text-amber-600'}`}
+                    title={`部署自分支 ${BUILD_BRANCH}`}
+                  >
+                    分支 {BUILD_BRANCH}
+                  </p>
+                )}
               </div>
             )}
           </div>

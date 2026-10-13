@@ -38,14 +38,19 @@ def git(*args) -> str:
 
 
 def build_env() -> dict:
-    """给 vite build 注入部署时间 + 签名（部署人 · git 短 hash），侧边栏「系统」下显示。"""
+    """给 vite build 注入部署时间 + 签名（部署人 · git 短 hash）+ 分支名，侧边栏「系统」下显示。"""
     who = git("config", "user.name") or os.environ.get("USERNAME") or "unknown"
     commit = git("rev-parse", "--short", "HEAD")
     dirty = " *" if git("status", "--porcelain") else ""
+    # detached HEAD 时 --abbrev-ref 返回字面量 "HEAD"，那不是分支名
+    branch = git("rev-parse", "--abbrev-ref", "HEAD")
+    if branch == "HEAD":
+        branch = f"(detached {commit})" if commit else ""
     env = os.environ.copy()
     env["VITE_BUILD_TIME"] = datetime.now().strftime("%Y-%m-%d %H:%M")
     env["VITE_BUILD_SIG"] = f"{who} · {commit or 'no-git'}{dirty}"
-    print(f"  build sig: {env['VITE_BUILD_SIG']}  @ {env['VITE_BUILD_TIME']}")
+    env["VITE_BUILD_BRANCH"] = branch
+    print(f"  build sig: {env['VITE_BUILD_SIG']}  @ {env['VITE_BUILD_TIME']}  branch: {branch or '(unknown)'}")
     return env
 
 
