@@ -64,18 +64,24 @@ def ai_proxy(
     return {"content": _extract_content(resp.json())}
 
 
+def _is_hybrid_deepseek(model: str) -> bool:
+    m = model.lower()
+    return m.startswith("deepseek") and m != "deepseek-reasoner"
+
+
 def _request_body(messages: list[dict], model: str, max_tokens: int) -> dict:
     """Build the chat-completions payload.
 
-    DeepSeek V4 models (flash and pro alike) are hybrid: thinking mode may be on
-    by default, and the chain of thought counts against max_tokens — which is how
-    deepseek-v4-flash still came back empty. Turn it off explicitly. Only for V4:
-    other OpenAI-compatible providers (qwen etc.) may reject the unknown field,
-    and deepseek-reasoner has no non-thinking mode to switch to.
+    DeepSeek models (deepseek-flash, deepseek-v4-pro, legacy deepseek-v4-flash …)
+    are hybrid and default to thinking mode; the chain of thought counts against
+    max_tokens, which is how even flash came back empty. Turn it off explicitly
+    for any deepseek-* model — matching only "deepseek-v4" missed the current
+    official name deepseek-flash. Not for other providers (qwen etc.), which may
+    reject the unknown field, nor deepseek-reasoner, which is thinking-only.
     Mirrored on the frontend in tutoring-system/src/lib/aiResponse.ts.
     """
     body = {"model": model, "messages": messages, "max_tokens": max_tokens}
-    if model.startswith("deepseek-v4"):
+    if _is_hybrid_deepseek(model):
         body["thinking"] = {"type": "disabled"}
     return body
 
@@ -105,7 +111,7 @@ def _extract_content(result: dict) -> str:
         raise HTTPException(
             status_code=502,
             detail="AI 返回内容为空：max_tokens 被思维链占满，模型还没开始写正文就被截断。"
-                   "请在设置页把模型改为 deepseek-v4-flash（推理模型不适合本场景）。",
+                   "请在设置页把模型改为 deepseek-flash（deepseek-reasoner 只有思考模式，不适合本场景）。",
         )
 
     # Finished normally but wrote everything into reasoning_content — that is the answer.

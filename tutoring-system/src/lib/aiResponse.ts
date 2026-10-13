@@ -9,18 +9,22 @@ interface ChatCompletion {
 /**
  * Build a single-turn chat-completions request body.
  *
- * DeepSeek V4 models (flash and pro alike) are hybrid: thinking mode may be on
- * by default, and the chain of thought counts against max_tokens — which is how
- * deepseek-v4-flash still came back empty. Turn it off explicitly. Only for V4:
- * other OpenAI-compatible providers (qwen etc.) may reject the unknown field.
+ * DeepSeek models (deepseek-flash, deepseek-v4-pro, legacy deepseek-v4-flash …)
+ * are hybrid and default to thinking mode; the chain of thought counts against
+ * max_tokens, which is how even flash came back empty. Turn it off explicitly
+ * for any deepseek-* model — matching only "deepseek-v4" missed the current
+ * official name deepseek-flash. Not for other providers (qwen etc.), which may
+ * reject the unknown field, nor deepseek-reasoner, which is thinking-only.
  * Mirrors `_request_body` in epq-tutor-backend/app/routers/ai.py.
  */
 export function buildChatBody(model: string, prompt: string, maxTokens: number) {
+  const m = model.toLowerCase()
+  const hybridDeepSeek = m.startsWith('deepseek') && m !== 'deepseek-reasoner'
   return {
     model,
     messages: [{ role: 'user', content: prompt }],
     max_tokens: maxTokens,
-    ...(model.startsWith('deepseek-v4') ? { thinking: { type: 'disabled' } } : {}),
+    ...(hybridDeepSeek ? { thinking: { type: 'disabled' } } : {}),
   }
 }
 
@@ -48,7 +52,7 @@ export function extractContent(data: unknown): string {
   if (choice.finish_reason === 'length') {
     throw new Error(
       'AI 返回内容为空：max_tokens 被思维链占满，模型还没开始写正文就被截断。' +
-      '推理模型（deepseek-v4-pro / deepseek-reasoner）不适合本场景，请在设置页把模型改为 deepseek-v4-flash。',
+      'deepseek-reasoner 只有思考模式，不适合本场景，请在设置页把模型改为 deepseek-flash。',
     )
   }
 
