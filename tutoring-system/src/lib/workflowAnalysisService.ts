@@ -1,5 +1,5 @@
 import { getSettings } from './settings'
-import { extractContent } from './aiResponse'
+import { buildChatBody, extractContent } from './aiResponse'
 import type { ActionLog, ManualLog } from '@/types'
 
 // ── AI call ───────────────────────────────────────────────────────────────────
@@ -12,11 +12,7 @@ async function callAI(prompt: string): Promise<string> {
   const res = await fetch(`${base}/chat/completions`, {
     method: 'POST',
     headers: { authorization: `Bearer ${aiApiKey}`, 'content-type': 'application/json' },
-    body: JSON.stringify({
-      model: aiModel || 'qwen-plus',
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: 2048,
-    }),
+    body: JSON.stringify(buildChatBody(aiModel || 'qwen-plus', prompt, 2048)),
   })
 
   if (!res.ok) {

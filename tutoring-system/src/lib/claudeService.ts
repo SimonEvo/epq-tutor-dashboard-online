@@ -1,5 +1,5 @@
 import { getSettings } from './settings'
-import { extractContent } from './aiResponse'
+import { buildChatBody, extractContent } from './aiResponse'
 import { EPQ_MILESTONES } from '@/config'
 import type { Student, SessionRecord, NagScan } from '@/types'
 import { isSessionStarted, countsAsSaHour, inCurrentAttempt } from './formatters'
@@ -15,11 +15,7 @@ async function callAI(prompt: string, options?: { maxTokens?: number }): Promise
       'authorization': `Bearer ${aiApiKey}`,
       'content-type': 'application/json',
     },
-    body: JSON.stringify({
-      model: aiModel || 'qwen-plus',
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: options?.maxTokens ?? 2048,
-    }),
+    body: JSON.stringify(buildChatBody(aiModel || 'qwen-plus', prompt, options?.maxTokens ?? 2048)),
   })
 
   if (!res.ok) {

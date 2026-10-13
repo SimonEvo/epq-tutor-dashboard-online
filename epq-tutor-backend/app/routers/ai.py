@@ -52,11 +52,9 @@ def ai_proxy(
                 "Authorization": f"Bearer {data.apiKey}",
                 "Content-Type": "application/json",
             },
-            json={
-                "model": data.model,
-                "messages": [{"role": "user", "content": data.prompt}],
-                "max_tokens": data.maxTokens,
-            },
+            json=_request_body(
+                [{"role": "user", "content": data.prompt}], data.model, data.maxTokens,
+            ),
             timeout=60,
         )
         resp.raise_for_status()
@@ -64,6 +62,22 @@ def ai_proxy(
         raise HTTPException(status_code=502, detail=f"AI provider error: {e}")
 
     return {"content": _extract_content(resp.json())}
+
+
+def _request_body(messages: list[dict], model: str, max_tokens: int) -> dict:
+    """Build the chat-completions payload.
+
+    DeepSeek V4 models (flash and pro alike) are hybrid: thinking mode may be on
+    by default, and the chain of thought counts against max_tokens — which is how
+    deepseek-v4-flash still came back empty. Turn it off explicitly. Only for V4:
+    other OpenAI-compatible providers (qwen etc.) may reject the unknown field,
+    and deepseek-reasoner has no non-thinking mode to switch to.
+    Mirrored on the frontend in tutoring-system/src/lib/aiResponse.ts.
+    """
+    body = {"model": model, "messages": messages, "max_tokens": max_tokens}
+    if model.startswith("deepseek-v4"):
+        body["thinking"] = {"type": "disabled"}
+    return body
 
 
 def _extract_content(result: dict) -> str:
@@ -112,7 +126,7 @@ def _call_provider(messages: list[dict], api_key: str, model: str, base_url: str
         resp = http.post(
             f"{base}/chat/completions",
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={"model": model, "messages": messages, "max_tokens": max_tokens},
+            json=_request_body(messages, model, max_tokens),
             timeout=120,  # long context can be slow
         )
         resp.raise_for_status()

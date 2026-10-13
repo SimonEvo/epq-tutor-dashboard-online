@@ -7,6 +7,24 @@ interface ChatCompletion {
 }
 
 /**
+ * Build a single-turn chat-completions request body.
+ *
+ * DeepSeek V4 models (flash and pro alike) are hybrid: thinking mode may be on
+ * by default, and the chain of thought counts against max_tokens — which is how
+ * deepseek-v4-flash still came back empty. Turn it off explicitly. Only for V4:
+ * other OpenAI-compatible providers (qwen etc.) may reject the unknown field.
+ * Mirrors `_request_body` in epq-tutor-backend/app/routers/ai.py.
+ */
+export function buildChatBody(model: string, prompt: string, maxTokens: number) {
+  return {
+    model,
+    messages: [{ role: 'user', content: prompt }],
+    max_tokens: maxTokens,
+    ...(model.startsWith('deepseek-v4') ? { thinking: { type: 'disabled' } } : {}),
+  }
+}
+
+/**
  * Pull the assistant text out of a chat-completions response.
  *
  * Reasoning models (deepseek-v4-pro, deepseek-reasoner) stream their chain of
