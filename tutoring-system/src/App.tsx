@@ -5,6 +5,7 @@ import LoginPage from '@/pages/LoginPage'
 import DashboardPage from '@/pages/DashboardPage'
 import NewStudentPage from '@/pages/NewStudentPage'
 import ImportStudentsPage from '@/pages/ImportStudentsPage'
+import HrSyncPage from '@/pages/HrSyncPage'
 import AdminPage from '@/pages/AdminPage'
 import StudentDetailPage from '@/pages/StudentDetailPage'
 import EditStudentPage from '@/pages/EditStudentPage'
@@ -56,6 +57,7 @@ export default function App() {
           <Route index element={<DashboardPage />} />
           <Route path="/students/new" element={<NewStudentPage />} />
           <Route path="/students/import" element={<ImportStudentsPage />} />
+          <Route path="/students/hr-sync" element={<HrSyncPage />} />
           <Route path="/students/:id" element={<StudentDetailPage />} />
           <Route path="/students/:id/edit" element={<EditStudentPage />} />
           <Route path="/students/:id/session/new" element={<NewSessionPage />} />

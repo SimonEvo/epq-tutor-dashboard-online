@@ -240,7 +240,11 @@ students 等已有 tutor_id 的表  不变
 - 方案 B：**（倾向）** 后端存一个机构共享 key，admin 在管理面配置，前端不再传 key；靠 `action_logs` 记录每人调用次数，只观测不硬限。改动集中在 `ai.py` 和前端设置页。
 - 方案 C：admin 给每人单独下发 key。管理成本高，没必要。
 
-## 8. 教务对接（存档，本期不实施）
+## 8. 教务对接
+
+> **本系统侧已实现（2026-10-10）**，见 `docs/projects/hr-sync.md` 与 ADR 0008。下面是当初的存档构想，实际实现有几处因教务接口的现实而改变（见 ADR 0008 Context）。
+
+### 当初的构想（存档）
 
 `../hr-management` 已有成熟的对外集成范式：`backend/app/api/routes/online_form_integration.py` —— `X-Service-Token` 头鉴权 + `project-changes` 变更序列 feed（`source_version` 单调递增）+ `online_form_sync_acknowledgements` 记录消费位点。
 

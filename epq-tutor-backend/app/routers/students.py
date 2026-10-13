@@ -279,14 +279,8 @@ def _upsert_student(
     s.name = data.name; s.name_en = data.nameEn; s.gender = data.gender
     s.school = data.school
     # 换届 = 上一届的 ddl 安排作废（任务书 D11 / §5）
-    # 轮次标签归一为短格式（`25秋`）——从教务表导入的可能是 `25秋季（26年3月提交）`
-    new_submission = rounds.normalize_round(data.submissionRound)
-    if s.submission_round != new_submission:
-        # 换轮次 = 上一轮的截止安排不再适用（ADR 0003）
-        s.deadline_tier = "normal"
-        s.deadline_override = None
-        s.deadline_change_confirmed = False
-    s.submission_round = new_submission
+    # 归一轮次标签 + 换轮次时清掉旧截止安排（ADR 0003）
+    submission.set_submission_round(s, data.submissionRound)
     s.registration_round = rounds.normalize_round(data.registrationRound)
     s.is_one_year = bool(data.isOneYear)
     s.taught_element_type = data.taughtElementType

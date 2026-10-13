@@ -4,7 +4,7 @@
 """
 from sqlalchemy.orm import Session
 
-from app import models
+from app import models, rounds
 
 # 首次读取模板为空时落库的种子（任务书 §4）
 SEED_TEMPLATE: list[dict] = [
@@ -14,6 +14,24 @@ SEED_TEMPLATE: list[dict] = [
 ]
 
 TII_LIMIT = 3  # 第 3 次起标红警示（不阻断）
+
+
+def set_submission_round(student: models.Student, new_round: str | None) -> bool:
+    """改提交轮次的唯一入口。返回是否真的变了。
+
+    换轮次 = 上一轮的截止安排不再适用（ADR 0003），三个截止字段必须一起清掉。
+    这条规则曾经内联在 save_student 里，而 Excel 导入、教务同步两条写入路径
+    都直接 setattr 绕了过去——旧轮次的「已延期一周」会被带进新轮次。
+    所有改 submission_round 的地方都该走这里（resit 有更多要清的，单独处理）。
+    """
+    normalized = rounds.normalize_round(new_round)
+    if student.submission_round == normalized:
+        return False
+    student.submission_round = normalized
+    student.deadline_tier = "normal"
+    student.deadline_override = None
+    student.deadline_change_confirmed = False
+    return True
 
 
 def get_template(db: Session, tutor: models.Tutor) -> list[dict]:

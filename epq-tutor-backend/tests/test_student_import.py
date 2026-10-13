@@ -164,3 +164,26 @@ def test_apply_refuses_other_tenants_student(client, ctx, db):
     assert r.status_code == 404
     db.expire_all()
     assert db.get(models.Student, victim.id).name == "别人的学生"
+
+
+def test_import_round_change_clears_old_deadline_arrangement(client, ctx, db):
+    """导入把学生挪到别的轮次时，旧轮次的截止安排必须一起清掉（ADR 0003）。
+
+    这条规则曾只写在 save_student 里，导入直接 setattr 绕了过去——
+    「已延期一周」会被带进新轮次。
+    """
+    s = models.Student(id=str(uuid.uuid4()), tutor_id=ctx["tutor"].id, name="延期测试生",
+                       submission_round="26春", deadline_tier="extended",
+                       deadline_override="2026-08-14T17:00", deadline_change_confirmed=True)
+    db.add(s)
+    db.commit()
+
+    r = client.post("/api/students/import/apply", headers=_hdr(ctx), json={"rows": [
+        {"action": "update", "studentId": s.id,
+         "data": {"name": "延期测试生", "submissionRound": "26秋"}},
+    ]})
+    assert r.status_code == 200, r.text
+    db.expire_all()
+    s = db.get(models.Student, s.id)
+    assert s.submission_round == "26秋"
+    assert (s.deadline_tier, s.deadline_override, s.deadline_change_confirmed) == ("normal", None, False)

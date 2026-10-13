@@ -1,4 +1,5 @@
 from sqlalchemy import (
+    BigInteger,
     Column, String, Integer, Float, Text, DateTime, Enum, JSON, Boolean,
     ForeignKey, PrimaryKeyConstraint, UniqueConstraint
 )
@@ -21,6 +22,8 @@ class Tutor(Base):
     display_name = Column(String(128), nullable=True)               # 管理面显示用；空则回落 username
     token_version = Column(Integer, nullable=False, default=1)      # 自增即让该账号已签发的 JWT 全部失效
     last_login_at = Column(DateTime, nullable=True)
+    # 教务系统里对应的真实账号 id（< 1_000_000）。管理员手工关联，不按姓名猜（ADR 0008 决策 3）
+    hr_user_id = Column(Integer, nullable=True, unique=True)
     default_round = Column(String(64), nullable=True)
     nag_webhook_url = Column(String(512), nullable=True)            # 群催促；原先是全局 env
     ics_token = Column(String(64), nullable=True, index=True, unique=True)  # 日历订阅地址里的不可猜测串
@@ -52,6 +55,9 @@ class Supervisor(Base):
 
 class Student(Base):
     __tablename__ = "students"
+    __table_args__ = (
+        UniqueConstraint("tutor_id", "hr_student_code", name="uq_student_tutor_hr_code"),
+    )
     id = Column(String(64), primary_key=True)
     tutor_id = Column(String(64), ForeignKey("tutors.id"), nullable=False)
     name = Column(String(128), nullable=False)
@@ -59,6 +65,9 @@ class Student(Base):
     gender = Column(String(16))
     school = Column(String(256))
     registration_round = Column(String(64))   # 签约批次，不随延期变动
+    # 教务 projects.student_code。同一名学生可能在两位导师名下各有一份（ADR 0008 决策 5），
+    # 所以唯一约束是 (tutor_id, hr_student_code) 而不是它自己
+    hr_student_code = Column(String(20), nullable=True, index=True)
     submission_round = Column(String(64))     # 提交批次，一年期顺延、延期可改
     is_one_year = Column(Boolean, nullable=False, default=False)  # 一年期学制
     taught_element_type = Column(String(128))
@@ -366,3 +375,20 @@ class SystemConfig(Base):
     key = Column(String(64), primary_key=True)
     value = Column(Text, nullable=False, default="")
     updated_at = Column(DateTime, default=now_utc, onupdate=now_utc)
+
+
+class HrProject(Base):
+    """教务项目的本地镜像（ADR 0008 决策 2）。
+
+    教务集成接口没有"按老师查"的端点，只有全局变更序列 + 单项目详情，
+    所以先全局增量拉进这里，再按导师派生。payload 原样存教务的响应，
+    字段解释集中在 app/hr_sync.py，不在这里摊开。
+
+    不属于任何租户：它是教务数据的缓存，导师只能经由 hr_sync 看到分配给自己的那部分。
+    """
+    __tablename__ = "hr_projects"
+    student_code = Column(String(20), primary_key=True)
+    hr_project_id = Column(Integer, nullable=True)
+    data_version = Column(BigInteger, nullable=False, default=0)
+    payload = Column(JSON, nullable=False, default=dict)
+    fetched_at = Column(DateTime, default=now_utc, onupdate=now_utc)

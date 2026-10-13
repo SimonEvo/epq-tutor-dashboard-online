@@ -83,14 +83,15 @@ cd /opt/epq-tutor-backend && .venv/bin/python migrate_from_local.py --data-dir /
 - **P2 角色与管理员后台** — `token_version` 让停用/改密当场作废旧令牌；`/api/admin/tutors` 只给元数据、无代登录；前端 `/admin` 页面 + 按角色隐藏轮次控件。
 - **Resit（二次提交）** — 当前这次提交存成只读快照（`students.previous_attempts`），学生在新轮次从头来；`sessions.attempt` 让 SA 额度按次分开算，`sa_hours_used` 改由服务端保存时重算。学生在两个轮次都显示。迁移 `0006_resit`，见 ADR 0007。
 - **P3 内测运营配套** — AI 凭据收到服务端（机构共享一份，明文不下发），全部 AI 流量改经后端，按人记用量；新账号首屏引导 + 隐私说明。
+- **教务同步（本系统侧）** — 只读消费教务现有集成接口，教务一行不改。本地镜像 + 管理员手工关联老师账号 + 导师预览确认落库。永不调教务的 ack 端点（它写死了在线表单系统的 consumer）。对着 `tests/hr_mock.py` 开发测试。ADR 0008，任务书 `docs/projects/hr-sync.md`。**接通真实教务只差教务侧认一个本系统专用 token。**
 
-任务书：`docs/projects/multi-tenant-internal-beta.md`、`docs/projects/term-split-and-student-import.md`
-决策：`docs/adr/0004-multi-tenant-internal-beta.md`、`0005-registration-vs-submission-round.md`、`0006-org-shared-ai-credentials.md`、`0007-resit-as-new-attempt.md`
+任务书：`docs/projects/multi-tenant-internal-beta.md`、`docs/projects/term-split-and-student-import.md`、`docs/projects/hr-sync.md`
+决策：`docs/adr/0004-multi-tenant-internal-beta.md`、`0005-registration-vs-submission-round.md`、`0006-org-shared-ai-credentials.md`、`0007-resit-as-new-attempt.md`、`0008-hr-sync-consumer.md`
 
 ### Next Up
 - **上线** — 四个阶段全部完成，仍在分支上未部署。首次部署前建议先给服务器 DB 做文件级快照；**上线后 admin 必须去设置页填一次 AI key**，否则所有人的 AI 功能报 503。
 - **可选清理** — 生产 `trials` 表有一列废弃的 `duration_category`（8 行里 1 行有值），删与不删见 `docs/projects/multi-tenant-internal-beta.md` P0 章节。
-- **教务系统对接** — 存档未实施，方案见 `docs/projects/multi-tenant-internal-beta.md` §8。
+- **接通真实教务** — 需要教务侧（Hu 维护）认一个本系统专用 service token，见 `docs/projects/hr-sync.md` §6。
 - Dashboard 多视图（看板 / 时间线 / 统计等）
 
 ## Agent skills

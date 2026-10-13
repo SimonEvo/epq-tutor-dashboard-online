@@ -45,6 +45,79 @@ export async function aiProxy(prompt: string, maxTokens?: number): Promise<strin
   return res.content
 }
 
+// ─── 教务同步（ADR 0008） ─────────────────────────────────────────────────────
+
+export interface HrConfigView {
+  configured: boolean
+  baseUrl: string
+  tokenHint: string       // 只有末四位
+  cursor: number
+  lastRefreshAt: string
+  mirrorCount: number
+}
+
+export interface HrPerson {
+  hrUserId: number
+  name: string
+  email: string
+  projectCount: number
+  linkedTutorId: string | null
+  linkedTutorName: string | null
+}
+
+export interface HrSyncDiff { field: string; label: string; before: string; after: string }
+
+export interface HrSyncRow {
+  code: string
+  name: string
+  role: 'SA' | 'TA'
+  category: 'new' | 'update' | 'link' | 'conflict'
+  exited: boolean
+  reason: string
+  matchedStudentId: string | null
+  matchedStudentName: string | null
+  diffs: HrSyncDiff[]
+}
+
+export interface HrSyncPreview {
+  linked: boolean
+  rows: HrSyncRow[]
+  orphans: { studentId: string; name: string; code: string }[]
+  summary: { new: number; update: number; link: number; conflict: number }
+  warning: string
+  lastRefreshAt: string
+}
+
+export async function getHrSyncStatus(): Promise<{ configured: boolean; linked: boolean; lastRefreshAt: string }> {
+  return api('/hr-sync/status')
+}
+
+export async function previewHrSync(): Promise<HrSyncPreview> {
+  return api<HrSyncPreview>('/hr-sync/preview', { method: 'POST' })
+}
+
+export async function applyHrSync(
+  decisions: { code: string; action: 'create' | 'update' | 'link' | 'skip'; studentId?: string | null }[],
+): Promise<{ created: number; updated: number; linked: number; skipped: number }> {
+  return api('/hr-sync/apply', { method: 'POST', body: JSON.stringify({ decisions }) })
+}
+
+export async function getHrConfig(): Promise<HrConfigView> {
+  return api<HrConfigView>('/admin/hr-config')
+}
+
+export async function saveHrConfig(body: { baseUrl?: string; token?: string }): Promise<HrConfigView> {
+  return api<HrConfigView>('/admin/hr-config', { method: 'PUT', body: JSON.stringify(body) })
+}
+
+export async function refreshHrMirror(): Promise<{ fetched: number; removed: number; mirrorCount: number }> {
+  return api('/admin/hr-sync/refresh', { method: 'POST' })
+}
+
+export async function listHrPeople(): Promise<HrPerson[]> {
+  return api<HrPerson[]>('/admin/hr-people')
+}
+
 // ─── 身份与账号管理 ───────────────────────────────────────────────────────────
 
 export interface Me { id: string; username: string; displayName: string; role: 'tutor' | 'admin' }
@@ -66,6 +139,8 @@ export interface TutorAccount {
   lastLoginAt: string
   studentCount: number
   aiCallCount: number
+  /** 关联的教务账号 id；null = 未关联 */
+  hrUserId: number | null
 }
 
 export async function listTutorAccounts(): Promise<TutorAccount[]> {
@@ -80,7 +155,11 @@ export async function createTutorAccount(body: {
 
 export async function updateTutorAccount(
   id: string,
-  body: { displayName?: string; role?: 'tutor' | 'admin'; status?: 'active' | 'disabled' },
+  body: {
+    displayName?: string; role?: 'tutor' | 'admin'; status?: 'active' | 'disabled'
+    /** 0 = 取消关联 */
+    hrUserId?: number
+  },
 ): Promise<TutorAccount> {
   return api<TutorAccount>(`/admin/tutors/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
 }

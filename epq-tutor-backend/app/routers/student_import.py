@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app import models, rounds
+from app import models, rounds, submission
 from app.action_logger import log_action
 from app.auth import get_current_tutor
 from app.database import get_db
@@ -322,7 +322,11 @@ def apply_import(
             value = _incoming_value(row, attr)
             if value is None:
                 continue
-            if attr in ("registrationRound", "submissionRound"):
+            if attr == "submissionRound":
+                # 走统一入口：换轮次要清旧截止安排（ADR 0003），不能直接 setattr
+                submission.set_submission_round(student, value)
+                continue
+            if attr == "registrationRound":
                 value = rounds.normalize_round(value)
             setattr(student, col, value)
 

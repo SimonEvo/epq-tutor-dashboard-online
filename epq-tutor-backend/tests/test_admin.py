@@ -172,9 +172,11 @@ def test_admin_surface_exposes_no_business_data(client, admin, plain, db):
     db.commit()
 
     for r in client.get("/api/admin/tutors", headers=h(admin)).json():
+        # 加字段要先想清楚它是不是学生业务数据。hrUserId（ADR 0008）是账号和教务账号的
+        # 关联，属于账号元数据，所以在列。
         assert set(r) == {
             "id", "username", "displayName", "role", "status",
-            "createdAt", "lastLoginAt", "studentCount", "aiCallCount",
+            "createdAt", "lastLoginAt", "studentCount", "aiCallCount", "hrUserId",
         }, f"管理面返回了计划外的字段：{sorted(r)}"
 
     # admin 自己的常规端点也不该看见别人的学生

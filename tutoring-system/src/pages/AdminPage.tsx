@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import {
-  createTutorAccount, listTutorAccounts, resetTutorPassword, updateTutorAccount,
-  type TutorAccount,
+  createTutorAccount, listHrPeople, listTutorAccounts, resetTutorPassword, updateTutorAccount,
+  type HrPerson, type TutorAccount,
 } from '@/lib/dataService'
+import HrConnectionSection from '@/components/admin/HrConnectionSection'
 import { useAuthStore } from '@/stores/authStore'
 
 const MIN_PASSWORD_LEN = 8
@@ -17,6 +18,7 @@ function fmt(iso: string): string {
 export default function AdminPage() {
   const myId = useAuthStore(s => s.username)
   const [accounts, setAccounts] = useState<TutorAccount[]>([])
+  const [hrPeople, setHrPeople] = useState<HrPerson[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -38,7 +40,10 @@ export default function AdminPage() {
     }
   }
 
-  useEffect(() => { void load() }, [])
+  // 教务老师名单来自本地镜像；教务没配好时就是空的，不算错误
+  const loadHrPeople = () => { listHrPeople().then(setHrPeople).catch(() => setHrPeople([])) }
+
+  useEffect(() => { void load(); loadHrPeople() }, [])
 
   const run = async (fn: () => Promise<unknown>, ok: string) => {
     setError(''); setNotice('')
@@ -84,6 +89,8 @@ export default function AdminPage() {
         这里只显示账号本身的信息。<span className="text-gray-700">管理员看不到其他老师的学生、纪要和笔记</span>，
         系统也不提供「以某人身份登录」。
       </p>
+
+      <HrConnectionSection onRefreshed={loadHrPeople} />
 
       {showNew && (
         <div className="bg-white rounded-2xl border border-[var(--border)] p-5 mb-5">
@@ -131,6 +138,7 @@ export default function AdminPage() {
                 <th className="text-left px-4 py-2 font-medium">角色</th>
                 <th className="text-right px-4 py-2 font-medium">学生</th>
                 <th className="text-right px-4 py-2 font-medium">AI 调用</th>
+                <th className="text-left px-4 py-2 font-medium">教务账号</th>
                 <th className="text-left px-4 py-2 font-medium">最后登录</th>
                 <th className="text-right px-4 py-2 font-medium">操作</th>
               </tr>
@@ -164,6 +172,31 @@ export default function AdminPage() {
                     </td>
                     <td className="px-4 py-3 text-right text-gray-700">{a.studentCount}</td>
                     <td className="px-4 py-3 text-right text-gray-700">{a.aiCallCount}</td>
+                    <td className="px-4 py-3">
+                      {/* 关联到教务里的真实账号（ADR 0008 决策 3）。已被别人占用的不可选。 */}
+                      <select
+                        value={a.hrUserId ?? 0}
+                        disabled={hrPeople.length === 0 && !a.hrUserId}
+                        onChange={e => void run(
+                          () => updateTutorAccount(a.id, { hrUserId: Number(e.target.value) }),
+                          Number(e.target.value) ? '已关联教务账号' : '已取消关联',
+                        ).then(loadHrPeople)   // 名单里的「已关联 X」也要跟着变
+                        }
+                        className="border border-gray-200 rounded px-2 py-1 text-xs max-w-[11rem]"
+                      >
+                        <option value={0}>{hrPeople.length ? '— 未关联 —' : '先拉取教务数据'}</option>
+                        {a.hrUserId && !hrPeople.some(p => p.hrUserId === a.hrUserId) && (
+                          <option value={a.hrUserId}>#{a.hrUserId}（镜像里没有）</option>
+                        )}
+                        {hrPeople.map(p => (
+                          <option key={p.hrUserId} value={p.hrUserId}
+                            disabled={!!p.linkedTutorId && p.linkedTutorId !== a.id}>
+                            {p.name}（{p.projectCount} 个项目）
+                            {p.linkedTutorId && p.linkedTutorId !== a.id ? ` · 已关联 ${p.linkedTutorName}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{fmt(a.lastLoginAt)}</td>
                     <td className="px-4 py-3 text-right whitespace-nowrap">
                       <button
@@ -191,7 +224,7 @@ export default function AdminPage() {
               })}
               {accounts.some(a => a.id === resetting) && (
                 <tr className="border-t border-gray-100 bg-gray-50">
-                  <td colSpan={6} className="px-4 py-3">
+                  <td colSpan={7} className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <input
                         type="text" value={newPassword} onChange={e => setNewPassword(e.target.value)}

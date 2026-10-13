@@ -7,7 +7,7 @@ from alembic.config import Config
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import inspect
-from app.routers import auth, students, supervisors, config, reports, calendar, backup as backup_router, zoom, trials, workflow, ai, gantt, knowledge, schedule_events, group_classes, student_import, nag as nag_router, admin as admin_router, notify as notify_router, checklist
+from app.routers import auth, students, supervisors, config, reports, calendar, backup as backup_router, zoom, trials, workflow, ai, gantt, knowledge, schedule_events, group_classes, student_import, nag as nag_router, admin as admin_router, hr_sync as hr_sync_router, notify as notify_router, checklist
 from app.database import engine, SessionLocal, DATABASE_URL
 from app import models, nag, notify
 
@@ -199,6 +199,7 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(admin_router.router)
+app.include_router(hr_sync_router.router)
 # 放在 students 之前：/api/students/import/* 比 /api/students/{student_id} 更具体
 app.include_router(student_import.router)
 app.include_router(students.router)

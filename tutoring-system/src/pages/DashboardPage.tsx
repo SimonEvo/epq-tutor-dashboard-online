@@ -13,7 +13,7 @@ import FirstRunGuide from '@/components/FirstRunGuide'
 import SubmissionSprintView from '@/components/views/SubmissionSprintView'
 import type { Student, Supervisor, Trial, ScheduleEvent, GroupClass } from '@/types'
 import { formatHours, copyToClipboard, countsAsSaHour, inRound, attemptForRound } from '@/lib/formatters'
-import { listTrials, listScheduleEvents, listGroupClasses, getDefaultRound } from '@/lib/dataService'
+import { listTrials, listScheduleEvents, listGroupClasses, getDefaultRound, getHrSyncStatus } from '@/lib/dataService'
 
 type ViewMode = 'schedule' | 'overview' | 'grid' | 'gantt' | 'kanban-progress' | 'milestone' | 'submission'
 
@@ -28,6 +28,14 @@ const VIEW_BUTTONS: { mode: ViewMode; label: string }[] = [
 ]
 
 export default function DashboardPage() {
+  // 教务已配置、且我的账号已关联教务账号时才给「从教务同步」入口（ADR 0008）。
+  // 否则点进去只会看到一个 409。查询失败就当不能同步，不打扰。
+  const [canHrSync, setCanHrSync] = useState(false)
+  useEffect(() => {
+    getHrSyncStatus()
+      .then(s => setCanHrSync(s.configured && s.linked))
+      .catch(() => setCanHrSync(false))
+  }, [])
   const { students, tags, rounds, supervisors, isLoading, error, fetchAll, fetchTags, fetchRounds, fetchSupervisors } = useStudentStore()
   const [selectedTag, setSelectedTag] = useState<string>(
     () => localStorage.getItem('dashboard-tag') ?? ''
@@ -393,6 +401,14 @@ export default function DashboardPage() {
           >
             统计课时
           </button>
+          {canHrSync && (
+            <Link
+              to="/students/hr-sync"
+              className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+            >
+              从教务同步
+            </Link>
+          )}
           <Link
             to="/students/import"
             className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"

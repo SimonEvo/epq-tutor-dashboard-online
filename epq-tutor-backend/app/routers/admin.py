@@ -23,9 +23,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app import ai_config, models
+from app import ai_config, hr_sync, models
 from app.auth import hash_password
 from app.database import get_db
+from app.hr_client import HrClientError
+from app.routers.hr_sync import get_hr_session
 from app.scoping import require_admin
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -45,6 +47,7 @@ class TutorSummary(BaseModel):
     lastLoginAt: str = ""
     studentCount: int = 0
     aiCallCount: int = 0
+    hrUserId: int | None = None
 
 
 class CreateTutorRequest(BaseModel):
@@ -58,6 +61,8 @@ class UpdateTutorRequest(BaseModel):
     displayName: str | None = None
     role: str | None = None
     status: str | None = None
+    # 关联教务账号。0 = 取消关联（None 已被用作「不改」）
+    hrUserId: int | None = None
 
 
 class ResetPasswordRequest(BaseModel):
@@ -99,6 +104,7 @@ def _summaries(db: Session) -> list[TutorSummary]:
             createdAt=_iso(t.created_at), lastLoginAt=_iso(t.last_login_at),
             studentCount=student_counts.get(t.id, 0),
             aiCallCount=ai_counts.get(t.id, 0),
+            hrUserId=t.hr_user_id,
         )
         for t in rows
     ]
@@ -170,6 +176,23 @@ def update_tutor(
                 # 停用必须让已签发的令牌当场失效，否则对方还能用旧 token 用满 7 天
                 target.token_version = (target.token_version or 1) + 1
 
+    if body.hrUserId is not None:
+        if body.hrUserId == 0:
+            target.hr_user_id = None
+        else:
+            if not 0 < body.hrUserId < hr_sync.REAL_USER_ID_LIMIT:
+                # 合成 id（英方 SA / 按名兜底）不是稳定身份（ADR 0008 决策 3）
+                raise HTTPException(status_code=422, detail="只能关联教务里的真实账号")
+            taken = db.query(models.Tutor).filter(
+                models.Tutor.hr_user_id == body.hrUserId, models.Tutor.id != target.id
+            ).first()
+            if taken:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"这个教务账号已关联到「{taken.display_name or taken.username}」",
+                )
+            target.hr_user_id = body.hrUserId
+
     db.commit()
     return next(s for s in _summaries(db) if s.id == target.id)
 
@@ -224,3 +247,45 @@ def set_ai_config(
         ai_config.put(db, ai_config.KEY_MODEL, body.model.strip())
     db.commit()
     return AiConfigView(**ai_config.public_view(db))
+
+
+# ── 教务连接（ADR 0008） ─────────────────────────────────────────────────────
+
+class HrConfigUpdate(BaseModel):
+    baseUrl: str | None = None
+    token: str | None = None     # 空串 = 清空；None = 不改
+
+
+@router.get("/hr-config")
+def get_hr_config(db: Session = Depends(get_db), _admin=Depends(require_admin)):
+    return hr_sync.config_view(db)
+
+
+@router.put("/hr-config")
+def set_hr_config(body: HrConfigUpdate, db: Session = Depends(get_db), _admin=Depends(require_admin)):
+    if body.baseUrl is not None:
+        ai_config.put(db, hr_sync.KEY_BASE_URL, body.baseUrl.strip())
+    if body.token is not None:
+        ai_config.put(db, hr_sync.KEY_TOKEN, body.token.strip())
+    db.commit()
+    return hr_sync.config_view(db)
+
+
+@router.post("/hr-sync/refresh")
+def force_refresh(
+    db: Session = Depends(get_db),
+    _admin=Depends(require_admin),
+    session=Depends(get_hr_session),
+):
+    """管理员强制刷新镜像，不受导师侧的冷却限制。"""
+    try:
+        return hr_sync.refresh_mirror(db, hr_sync.client_from_config(db, session=session), force=True)
+    except HrClientError as e:
+        db.rollback()
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@router.get("/hr-people")
+def hr_people(db: Session = Depends(get_db), _admin=Depends(require_admin)):
+    """镜像里出现过的教务老师，供关联用。只列真实账号。"""
+    return hr_sync.linkable_people(db)
