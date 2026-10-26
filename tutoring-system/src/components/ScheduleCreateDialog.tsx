@@ -4,6 +4,7 @@ import { getStudent, createScheduleEvent, createTrial, createGroupClass } from '
 import { currentSaSessions } from '@/lib/formatters'
 import StudentPicker from '@/components/StudentPicker'
 import type { GroupClass, ScheduleEvent, SessionRecord, SessionType, Student, Supervisor, Trial } from '@/types'
+import CompTimeOvertimeCheckbox from '@/components/CompTimeOvertimeCheckbox'
 
 /**
  * 日程视图的通用「新建」入口：先选类别（课程 / 试听 / 团课 / 个人事件 / 加个班儿），再填对应字段。
@@ -52,6 +53,8 @@ export default function ScheduleCreateDialog({ students, supervisors, prefill, o
   const [title, setTitle] = useState('')
   const [link, setLink] = useState('')
   const [note, setNote] = useState('')
+  // 调休加班：整场计加班。私事（个人事件）不算加班，所以不给勾
+  const [compTimeOvertime, setCompTimeOvertime] = useState(false)
 
   // 团课
   const [roster, setRoster] = useState('')
@@ -91,6 +94,7 @@ export default function ScheduleCreateDialog({ students, supervisors, prefill, o
           note: note.trim(),
           link: link.trim(),
           countsAsOvertime: kind === 'overtime',
+          compTimeOvertime: kind === 'overtime' && compTimeOvertime,
           notify15Min,
           createdAt: '',
           updatedAt: '',
@@ -117,6 +121,7 @@ export default function ScheduleCreateDialog({ students, supervisors, prefill, o
           durationMinutes: duration === '' ? 60 : duration,
           roster: roster.trim(),
           notify15Min,
+          compTimeOvertime,
           note: note.trim(),
           link: link.trim(),
           createdAt: '',
@@ -142,6 +147,7 @@ export default function ScheduleCreateDialog({ students, supervisors, prefill, o
           date, time,
           durationMinutes: duration === '' ? null : duration,
           notify15Min,
+          compTimeOvertime,
           studentName: trialName.trim(),
           grade: '', intendedMajor: '', targetUniversity: '', areasOfInterest: '',
           englishLevel: '', trialTopic: '',
@@ -179,6 +185,7 @@ export default function ScheduleCreateDialog({ students, supervisors, prefill, o
         isFinalDefense: sessionType === 'SA_MEETING' ? isFinalDefense : false,
         tutorAttending: sessionType === 'SA_MEETING' ? tutorAttending : false,
         notify15Min,
+        compTimeOvertime,
         createdAt: new Date().toISOString(),
       }
       const allSessions = [...full.sessions, session]
@@ -330,6 +337,10 @@ export default function ScheduleCreateDialog({ students, supervisors, prefill, o
                   placeholder="可选" className={inputCls} />
               </div>
             </>
+          )}
+
+          {kind !== 'event' && (
+            <CompTimeOvertimeCheckbox checked={compTimeOvertime} onChange={setCompTimeOvertime} className="text-xs -mt-1" />
           )}
 
           <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer select-none -mt-1">

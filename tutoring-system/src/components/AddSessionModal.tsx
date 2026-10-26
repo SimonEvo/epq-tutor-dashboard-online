@@ -3,6 +3,7 @@ import { useStudentStore } from '@/stores/studentStore'
 import { getStudent } from '@/lib/dataService'
 import { currentSaSessions } from '@/lib/formatters'
 import type { SessionRecord, SessionType, Student } from '@/types'
+import CompTimeOvertimeCheckbox from '@/components/CompTimeOvertimeCheckbox'
 
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
@@ -33,6 +34,7 @@ export default function AddSessionModal({ student, onClose, onSaved }: Props) {
 
   const [type, setType] = useState<SessionType>('SA_MEETING')
   const [isFinalDefense, setIsFinalDefense] = useState(false)
+  const [compTimeOvertime, setCompTimeOvertime] = useState(false)
   const [date, setDate] = useState(todayStr)
   const [time, setTime] = useState('')
   const [duration, setDuration] = useState<number | ''>(0)
@@ -66,6 +68,7 @@ export default function AddSessionModal({ student, onClose, onSaved }: Props) {
         transcript: '',
         privateNotes: '',
         isFinalDefense: type === 'SA_MEETING' ? isFinalDefense : false,
+        compTimeOvertime,
         createdAt: new Date().toISOString(),
       }
       // Fetch full student to preserve homeworkEntries, personalEntries etc.
@@ -120,6 +123,8 @@ export default function AddSessionModal({ student, onClose, onSaved }: Props) {
               标记为最终答辩（不计 SA 课时）
             </label>
           )}
+
+          <CompTimeOvertimeCheckbox checked={compTimeOvertime} onChange={setCompTimeOvertime} className="text-xs -mt-1" />
 
           {/* Date / Time / Duration */}
           <div className="grid grid-cols-3 gap-3">

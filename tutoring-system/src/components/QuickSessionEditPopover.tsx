@@ -5,6 +5,7 @@ import { getStudent, listSupervisors } from '@/lib/dataService'
 import { currentSaSessions } from '@/lib/formatters'
 import { parseZoomRecap, type ParsedFields } from '@/components/ZoomImportDialog'
 import type { SessionRecord, Student } from '@/types'
+import CompTimeOvertimeCheckbox from '@/components/CompTimeOvertimeCheckbox'
 
 /**
  * Simplified session editor shown from the Gantt view when a session marker is
@@ -42,6 +43,7 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
   const [isFinalDefense, setIsFinalDefense] = useState(false)
   const [tutorAttending, setTutorAttending] = useState(false)
   const [notify15Min, setNotify15Min] = useState(false)
+  const [compTimeOvertime, setCompTimeOvertime] = useState(false)
   const [isZhongFang, setIsZhongFang] = useState(false)
 
   // Paste-and-parse flow
@@ -69,6 +71,7 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
           setIsFinalDefense(sess.isFinalDefense ?? false)
           setTutorAttending(sess.tutorAttending ?? false)
           setNotify15Min(sess.notify15Min ?? false)
+          setCompTimeOvertime(sess.compTimeOvertime ?? false)
         } else {
           setNotFound(true)
         }
@@ -96,6 +99,7 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
         durationMinutes: duration === '' ? 0 : duration,
         feedbackSent,
         notify15Min,
+        compTimeOvertime,
         isFinalDefense: session.type === 'SA_MEETING' ? isFinalDefense : false,
         tutorAttending: session.type === 'SA_MEETING' ? tutorAttending : false,
       }
@@ -138,6 +142,7 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
         homework: parsed.homework || session.homework,
         transcript: parsed.transcript || session.transcript,
         notify15Min,
+        compTimeOvertime,
         isFinalDefense: session.type === 'SA_MEETING' ? isFinalDefense : false,
         tutorAttending: session.type === 'SA_MEETING' ? tutorAttending : false,
         generatedReport: undefined,   // force a fresh report from the new content
@@ -245,6 +250,8 @@ export default function QuickSessionEditPopover({ studentId, studentName, sessio
               className="w-4 h-4 accent-[var(--primary)]" />
             开始前 15 分钟推送 webhook 提醒
           </label>
+
+          <CompTimeOvertimeCheckbox checked={compTimeOvertime} onChange={setCompTimeOvertime} />
 
               {/* 粘贴 Zoom/腾讯纪要 → 解析 → 确认生成报告 */}
               <div>

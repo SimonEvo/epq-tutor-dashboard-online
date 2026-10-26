@@ -4,6 +4,7 @@ import { useStudentStore } from '@/stores/studentStore'
 import type { SessionRecord, SessionType, Student } from '@/types'
 import * as dataService from '@/lib/dataService'
 import { currentSaSessions } from '@/lib/formatters'
+import CompTimeOvertimeCheckbox from '@/components/CompTimeOvertimeCheckbox'
 
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
@@ -37,6 +38,7 @@ export default function NewSessionPage() {
 
   const [type, setType] = useState<SessionType>('SA_MEETING')
   const [isFinalDefense, setIsFinalDefense] = useState(false)
+  const [compTimeOvertime, setCompTimeOvertime] = useState(false)
   const [date, setDate] = useState(todayStr)
   const [time, setTime] = useState('')
   const [duration, setDuration] = useState<number | ''>(0)
@@ -85,6 +87,7 @@ export default function NewSessionPage() {
         transcript: transcript.trim(),
         privateNotes: privateNotes.trim(),
         isFinalDefense: type === 'SA_MEETING' ? isFinalDefense : false,
+        compTimeOvertime,
         createdAt: new Date().toISOString(),
       }
 
@@ -150,6 +153,7 @@ export default function NewSessionPage() {
               标记为最终答辩（不计 SA 课时）
             </label>
           )}
+          <CompTimeOvertimeCheckbox checked={compTimeOvertime} onChange={setCompTimeOvertime} className="text-sm mt-2" />
           {type === 'SA_MEETING' && (
             <p className={`text-xs mt-2 ${saRemaining <= 2 ? 'text-amber-600' : 'text-gray-400'}`}>
               SA 剩余课次: <strong>{saRemaining}</strong> / {student.saHoursTotal}

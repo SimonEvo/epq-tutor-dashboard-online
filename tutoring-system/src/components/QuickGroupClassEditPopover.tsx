@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { updateGroupClass, deleteGroupClass } from '@/lib/dataService'
 import type { GroupClass } from '@/types'
+import CompTimeOvertimeCheckbox from '@/components/CompTimeOvertimeCheckbox'
 
 /**
  * 团课的快速编辑，从周日程点块打开。团课不绑学生，所以这里没有学生选择器——
@@ -22,6 +23,7 @@ export default function QuickGroupClassEditPopover({ groupClass, onClose, onSave
   const [duration, setDuration] = useState<number | ''>(groupClass.durationMinutes)
   const [roster, setRoster] = useState(groupClass.roster)
   const [notify15Min, setNotify15Min] = useState(groupClass.notify15Min)
+  const [compTimeOvertime, setCompTimeOvertime] = useState(groupClass.compTimeOvertime ?? false)
   const [note, setNote] = useState(groupClass.note)
   const [link, setLink] = useState(groupClass.link)
   const [saving, setSaving] = useState(false)
@@ -42,6 +44,7 @@ export default function QuickGroupClassEditPopover({ groupClass, onClose, onSave
         durationMinutes: duration === '' ? 0 : duration,
         roster: roster.trim(),
         notify15Min,
+        compTimeOvertime,
         note: note.trim(),
         link: link.trim(),
       })
@@ -117,6 +120,8 @@ export default function QuickGroupClassEditPopover({ groupClass, onClose, onSave
               className="w-4 h-4 accent-[var(--primary)]" />
             开始前 15 分钟推送 webhook 提醒
           </label>
+
+          <CompTimeOvertimeCheckbox checked={compTimeOvertime} onChange={setCompTimeOvertime} />
 
           <div>
             <label className="block text-xs text-gray-500 mb-1">链接</label>

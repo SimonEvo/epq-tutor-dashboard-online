@@ -76,6 +76,8 @@ export interface SessionRecord {
   tutorAttending?: boolean
   /** 课前 15 分钟 webhook 提醒 */
   notify15Min?: boolean     // 英方SA会议：导师是否出席（决定日程视图颜色是否恢复正常）
+  /** 调休加班：整场计入加班申请，不扣工作时间窗内的部分 */
+  compTimeOvertime?: boolean
   /** 第几次提交（resit = 2）。新建的课不用填，服务端归到学生当前这一次 */
   attempt?: number
   zoomMeetingId?: string
@@ -273,6 +275,8 @@ export interface Trial {
   durationMinutes: number | null
   /** 课前 15 分钟 webhook 提醒 */
   notify15Min?: boolean
+  /** 调休加班：整场计入加班申请，不扣工作时间窗内的部分 */
+  compTimeOvertime?: boolean
   studentName: string
   grade: TrialGrade
   intendedMajor: string
@@ -304,6 +308,8 @@ export interface ScheduleEvent {
   link: string
   /** 「加个班儿」——非学生会议的加班项目，true 才进加班申请统计 */
   countsAsOvertime: boolean
+  /** 「调休加班」——countsAsOvertime 的子选项：true 则整场计加班，工作时间内的部分也算 */
+  compTimeOvertime: boolean
   /** 课前 15 分钟 webhook 提醒 */
   notify15Min: boolean
   createdAt: string
@@ -323,6 +329,8 @@ export interface GroupClass {
   durationMinutes: number
   roster: string        // 参与名单，自由文本
   notify15Min: boolean  // 课前 15 分钟 webhook 提醒
+  /** 调休加班：整场计入加班申请，不扣工作时间窗内的部分 */
+  compTimeOvertime: boolean
   note: string
   link: string
   createdAt: string

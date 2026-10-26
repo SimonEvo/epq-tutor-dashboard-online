@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { createScheduleEvent, updateScheduleEvent, deleteScheduleEvent } from '@/lib/dataService'
 import type { ScheduleEvent } from '@/types'
+import CompTimeOvertimeCheckbox from '@/components/CompTimeOvertimeCheckbox'
 
 /**
  * Lightweight editor for a 日程事件 (non-teaching meeting) shown from the week
@@ -30,6 +31,7 @@ export default function QuickEventEditPopover({ event, prefill, onClose, onSaved
   const [note, setNote] = useState(event?.note ?? '')
   const [link, setLink] = useState(event?.link ?? '')
   const [countsAsOvertime, setCountsAsOvertime] = useState(event?.countsAsOvertime ?? false)
+  const [compTimeOvertime, setCompTimeOvertime] = useState(event?.compTimeOvertime ?? false)
   const [notify15Min, setNotify15Min] = useState(event?.notify15Min ?? false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -55,6 +57,7 @@ export default function QuickEventEditPopover({ event, prefill, onClose, onSaved
         note: note.trim(),
         link: link.trim(),
         countsAsOvertime,
+        compTimeOvertime: countsAsOvertime && compTimeOvertime,
         notify15Min,
         createdAt: event?.createdAt ?? '',
         updatedAt: event?.updatedAt ?? '',
@@ -138,6 +141,10 @@ export default function QuickEventEditPopover({ event, prefill, onClose, onSaved
               className="w-4 h-4 accent-[var(--primary)]" />
             算加班（非学生会议的加班项目，进「加班申请」统计）
           </label>
+
+          {countsAsOvertime && (
+            <CompTimeOvertimeCheckbox checked={compTimeOvertime} onChange={setCompTimeOvertime} className="text-xs -mt-2 pl-6" />
+          )}
 
           <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer select-none">
             <input type="checkbox" checked={notify15Min}
