@@ -12,3 +12,9 @@ tutoring-system/dist/
 # Misc
 .DS_Store
 *.db
+
+# demo（独立演示项目，只提交源码）
+demo/node_modules/
+demo/dist/
+demo/.vite/
+demo/*.tsbuildinfo

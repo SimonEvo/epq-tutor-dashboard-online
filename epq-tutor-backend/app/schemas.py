@@ -60,6 +60,7 @@ class SessionSchema(BaseModel):
     isFinalDefense: bool = False
     tutorAttending: bool = False
     notify15Min: bool = False
+    compTimeOvertime: bool = False
     attempt: Optional[int] = None   # 第几次提交；不带 = 归到学生当前这一次（新建课不用管它）
     zoomMeetingId: Optional[str] = None
     zoomJoinUrl: Optional[str] = None
@@ -143,6 +144,7 @@ class SessionSummarySchema(BaseModel):
     isFinalDefense: bool = False
     tutorAttending: bool = False
     notify15Min: bool = False
+    compTimeOvertime: bool = False
     attempt: int = 1
 
 
@@ -235,6 +237,7 @@ class TrialSchema(BaseModel):
     time: str = ""
     durationMinutes: Optional[int] = None
     notify15Min: bool = False
+    compTimeOvertime: bool = False
     studentName: str = ""
     grade: str = ""
     intendedMajor: str = ""
@@ -267,6 +270,7 @@ class GroupClassSchema(BaseModel):
     durationMinutes: int = 60
     roster: str = ""
     notify15Min: bool = False
+    compTimeOvertime: bool = False
     note: str = ""
     link: str = ""
     createdAt: str = ""
@@ -285,6 +289,7 @@ class ScheduleEventSchema(BaseModel):
     note: str = ""
     link: str = ""
     countsAsOvertime: bool = False
+    compTimeOvertime: bool = False
     notify15Min: bool = False
     createdAt: str = ""
     updatedAt: str = ""

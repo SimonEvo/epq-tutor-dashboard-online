@@ -70,6 +70,27 @@ def ai_proxy(
     return {"content": content}
 
 
+def _is_hybrid_deepseek(model: str) -> bool:
+    m = model.lower()
+    return m.startswith("deepseek") and m != "deepseek-reasoner"
+
+
+def _request_body(messages: list[dict], model: str, max_tokens: int) -> dict:
+    """Build the chat-completions payload.
+
+    DeepSeek models (deepseek-flash, deepseek-v4-pro, legacy deepseek-v4-flash …)
+    are hybrid and default to thinking mode; the chain of thought counts against
+    max_tokens, which is how even flash came back empty. Turn it off explicitly
+    for any deepseek-* model — matching only "deepseek-v4" missed the current
+    official name deepseek-flash. Not for other providers (qwen etc.), which may
+    reject the unknown field, nor deepseek-reasoner, which is thinking-only.
+    """
+    body = {"model": model, "messages": messages, "max_tokens": max_tokens}
+    if _is_hybrid_deepseek(model):
+        body["thinking"] = {"type": "disabled"}
+    return body
+
+
 def _extract_content(result: dict) -> str:
     """Pull the assistant text out of a chat-completions payload.
 
@@ -95,7 +116,7 @@ def _extract_content(result: dict) -> str:
         raise HTTPException(
             status_code=502,
             detail="AI 返回内容为空：max_tokens 被思维链占满，模型还没开始写正文就被截断。"
-                   "请在设置页把模型改为 deepseek-v4-flash（推理模型不适合本场景）。",
+                   "请在设置页把模型改为 deepseek-flash（deepseek-reasoner 只有思考模式，不适合本场景）。",
         )
 
     # Finished normally but wrote everything into reasoning_content — that is the answer.
@@ -116,7 +137,7 @@ def _call_provider(messages: list[dict], api_key: str, model: str, base_url: str
         resp = http.post(
             f"{base}/chat/completions",
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={"model": model, "messages": messages, "max_tokens": max_tokens},
+            json=_request_body(messages, model, max_tokens),
             timeout=120,  # long context can be slow
         )
         resp.raise_for_status()

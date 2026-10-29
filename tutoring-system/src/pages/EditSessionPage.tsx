@@ -4,6 +4,7 @@ import { useStudentStore } from '@/stores/studentStore'
 import type { SessionRecord, SessionType, Student, Supervisor } from '@/types'
 import * as dataService from '@/lib/dataService'
 import { currentSaSessions } from '@/lib/formatters'
+import CompTimeOvertimeCheckbox from '@/components/CompTimeOvertimeCheckbox'
 
 export default function EditSessionPage() {
   const { id, sessionId } = useParams<{ id: string; sessionId: string }>()
@@ -24,6 +25,7 @@ export default function EditSessionPage() {
   const [isFinalDefense, setIsFinalDefense] = useState(false)
   const [tutorAttending, setTutorAttending] = useState(false)
   const [notify15Min, setNotify15Min] = useState(false)
+  const [compTimeOvertime, setCompTimeOvertime] = useState(false)
   const [date, setDate] = useState('')
   const [time, setTime] = useState('')
   const [duration, setDuration] = useState(0)
@@ -41,6 +43,7 @@ export default function EditSessionPage() {
     setIsFinalDefense(session.isFinalDefense ?? false)
     setTutorAttending(session.tutorAttending ?? false)
     setNotify15Min(session.notify15Min ?? false)
+    setCompTimeOvertime(session.compTimeOvertime ?? false)
     setDate(session.date)
     setTime(session.time ?? '')
     setDuration(session.durationMinutes)
@@ -82,6 +85,7 @@ export default function EditSessionPage() {
         isFinalDefense: type === 'SA_MEETING' ? isFinalDefense : false,
         tutorAttending: type === 'SA_MEETING' ? tutorAttending : false,
         notify15Min,
+        compTimeOvertime,
         generatedReport: undefined,    // invalidate cached report on edit
         reportGeneratedAt: undefined,
       }
@@ -160,6 +164,7 @@ export default function EditSessionPage() {
             />
             开始前 15 分钟推送 webhook 提醒
           </label>
+          <CompTimeOvertimeCheckbox checked={compTimeOvertime} onChange={setCompTimeOvertime} className="text-sm mt-2" />
           {type === 'SA_MEETING' && (
             <p className={`text-xs mt-2 ${saRemaining <= 2 ? 'text-amber-600' : 'text-gray-400'}`}>
               SA 剩余课次: <strong>{saRemaining}</strong> / {student.saHoursTotal}

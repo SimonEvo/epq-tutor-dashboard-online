@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import { listTrials, createTrial, saveTrial } from '@/lib/dataService'
 import type { Trial, TrialOutcome, TrialGrade, TrialEnrollmentIntention } from '@/types'
+import CompTimeOvertimeCheckbox from '@/components/CompTimeOvertimeCheckbox'
 
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
@@ -54,6 +55,7 @@ export default function TrialDetailPage() {
   const [time, setTime] = useState('')
   const [durationMinutes, setDurationMinutes] = useState<number | ''>('')
   const [notify15Min, setNotify15Min] = useState(false)
+  const [compTimeOvertime, setCompTimeOvertime] = useState(false)
   const [studentName, setStudentName] = useState('')
   const [grade, setGrade] = useState<TrialGrade>('')
   const [intendedMajor, setIntendedMajor] = useState('')
@@ -82,6 +84,7 @@ export default function TrialDetailPage() {
       setTime(t.time || '')
       setDurationMinutes(t.durationMinutes ?? '')
       setNotify15Min(t.notify15Min ?? false)
+      setCompTimeOvertime(t.compTimeOvertime ?? false)
       setStudentName(t.studentName)
       setGrade(t.grade)
       setIntendedMajor(t.intendedMajor)
@@ -107,7 +110,7 @@ export default function TrialDetailPage() {
     const now = new Date().toISOString()
     return {
       id: id!,
-      date, time, durationMinutes: durationMinutes === '' ? null : durationMinutes, notify15Min,
+      date, time, durationMinutes: durationMinutes === '' ? null : durationMinutes, notify15Min, compTimeOvertime,
       studentName, grade, intendedMajor,
       targetUniversity, areasOfInterest, englishLevel, trialTopic,
       topicFeasibility, studentMotivation, epqInterest, epqSuitability,
@@ -215,6 +218,8 @@ export default function TrialDetailPage() {
             />
             开始前 15 分钟推送 webhook 提醒
           </label>
+
+          <CompTimeOvertimeCheckbox checked={compTimeOvertime} onChange={setCompTimeOvertime} className="text-sm" />
 
           <div className="grid grid-cols-2 gap-4">
             <div>

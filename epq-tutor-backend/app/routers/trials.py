@@ -18,6 +18,7 @@ def _to_schema(t: models.Trial) -> TrialSchema:
         time=t.time or "",
         durationMinutes=t.duration_minutes,
         notify15Min=bool(t.notify_15min),
+        compTimeOvertime=bool(t.comp_time_overtime),
         studentName=t.student_name or "",
         grade=t.grade or "",
         intendedMajor=t.intended_major or "",
@@ -69,6 +70,7 @@ def create_trial(
         time=data.time or None,
         duration_minutes=data.durationMinutes,
         notify_15min=bool(data.notify15Min),
+        comp_time_overtime=bool(data.compTimeOvertime),
         student_name=data.studentName,
         grade=data.grade,
         intended_major=data.intendedMajor,
@@ -108,6 +110,7 @@ def update_trial(
     trial.time = data.time or None
     trial.duration_minutes = data.durationMinutes
     trial.notify_15min = bool(data.notify15Min)
+    trial.comp_time_overtime = bool(data.compTimeOvertime)
     trial.student_name = data.studentName
     trial.grade = data.grade
     trial.intended_major = data.intendedMajor

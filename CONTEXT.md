@@ -237,6 +237,8 @@ Teaching time outside normal work hours. Used for weekly overtime applications s
 
 Overtime duration for a session = exact overlap between the session's time range and the overtime windows. A session crossing a boundary (e.g. 12:00–13:00) contributes only the overlapping portion (30 min). Sessions without `durationMinutes` are excluded.
 
+**调休加班 (comp-time overtime):** a per-item flag (`compTimeOvertime`) on sessions, trials, group classes and overtime schedule events, for work done on a 调休 workday. When ticked, the item's **whole duration** counts as overtime, even the part inside normal work hours. It only changes *which minutes* count, never *whether the tutor is occupied*: a 英方SA meeting the tutor doesn't attend still contributes nothing. On schedule events it is a sub-option of `countsAsOvertime` (backend forces it to false otherwise) — private events never count.
+
 **Application format** (weekly, copied as text):
 ```
 05.28 12:30-13:00 SA -- 高同学 30min

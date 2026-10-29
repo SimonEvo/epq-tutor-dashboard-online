@@ -592,12 +592,12 @@ function addMins(hhmm: string, mins: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
-/** 落在工作时间窗之外的那些时段（分钟数，[起, 止]）。周末整场都算。 */
-function computeOvertimeSegments(date: string, time: string, durationMins: number): [number, number][] {
+/** 落在工作时间窗之外的那些时段（分钟数，[起, 止]）。周末整场都算；wholeSpan（勾了「调休加班」）也整场都算。 */
+function computeOvertimeSegments(date: string, time: string, durationMins: number, wholeSpan = false): [number, number][] {
   const start = parseTimeMins(time)
   const end = start + durationMins
   const dow = new Date(date + 'T12:00:00').getDay()
-  if (dow === 0 || dow === 6) return durationMins > 0 ? [[start, end]] : []
+  if (wholeSpan || dow === 0 || dow === 6) return durationMins > 0 ? [[start, end]] : []
   const segs: [number, number][] = []
   for (const [ws, we] of WEEKDAY_OT_WINDOWS) {
     const s = Math.max(start, ws)
@@ -691,7 +691,8 @@ function buildOvertimeEntries(
       // 英方SA 平时会议默认不占用导师，但最终答辩（isFinalDefense）双方都要到场，
       // 或勾了「导师出席」，同样要占用时间 —— 与 WeekScheduleView 的 occupies 判定保持一致
       if (s.type === 'SA_MEETING' && !isZhongFangSA && !s.isFinalDefense && !s.tutorAttending) continue
-      const segments = computeOvertimeSegments(s.date, s.time, s.durationMinutes)
+      // 调休加班只改「哪段算加班」，不改「导师是否被占用」——没出席的英方SA 上面已经跳过了
+      const segments = computeOvertimeSegments(s.date, s.time, s.durationMinutes, !!s.compTimeOvertime)
       const ot = segments.reduce((sum, [a, b]) => sum + (b - a), 0)
       if (ot === 0) continue
       const label = s.isFinalDefense ? '答辩' : (SESSION_LABEL[s.type] ?? s.type)
@@ -718,7 +719,7 @@ function buildOvertimeEntries(
   for (const t of trials) {
     if (!t.time || !t.durationMinutes) continue
     if (t.date < from || t.date > to) continue
-    const segments = computeOvertimeSegments(t.date, t.time, t.durationMinutes)
+    const segments = computeOvertimeSegments(t.date, t.time, t.durationMinutes, !!t.compTimeOvertime)
     const ot = segments.reduce((sum, [a, b]) => sum + (b - a), 0)
     if (ot === 0) continue
     entries.push({
@@ -739,7 +740,7 @@ function buildOvertimeEntries(
     if (!ev.countsAsOvertime) continue
     if (!ev.time || !ev.durationMinutes) continue
     if (ev.date < from || ev.date > to) continue
-    const segments = computeOvertimeSegments(ev.date, ev.time, ev.durationMinutes)
+    const segments = computeOvertimeSegments(ev.date, ev.time, ev.durationMinutes, ev.compTimeOvertime)
     const ot = segments.reduce((sum, [a, b]) => sum + (b - a), 0)
     if (ot === 0) continue
     entries.push({
@@ -759,7 +760,7 @@ function buildOvertimeEntries(
   for (const g of groupClasses) {
     if (!g.time || !g.durationMinutes) continue
     if (g.date < from || g.date > to) continue
-    const segments = computeOvertimeSegments(g.date, g.time, g.durationMinutes)
+    const segments = computeOvertimeSegments(g.date, g.time, g.durationMinutes, !!g.compTimeOvertime)
     const ot = segments.reduce((sum, [a, b]) => sum + (b - a), 0)
     if (ot === 0) continue
     entries.push({
